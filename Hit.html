@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#071b16">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>HIT! - Card Game</title>
+    <style>
+        :root {
+            --ink: #f8f1df; --muted: #b9c9c0; --gold: #f5c451; --felt-dark: #071f1a;
+            --line: rgba(255, 239, 196, .18); --danger: #e85c4a; --shadow: 0 14px 34px rgba(0, 0, 0, .38);
+            --c1: #7c3fb2; --c2: #df941b; --c3: #bc3e42; --c4: #d65d2b; --c5: #2877b8;
+            --c6: #db7e23; --c7: #52636c; --c8: #d74b87; --c9: #24985c; --c10: #1f344a;
+        }
+        * { box-sizing: border-box; }
+        html { height: 100%; background: var(--felt-dark); }
+        body {
+            min-height: 100%; height: 100dvh; margin: 0; overflow: hidden; color: var(--ink);
+            font-family: Georgia, "Times New Roman", serif;
+            background: radial-gradient(circle at 50% 42%, rgba(34,143,102,.38), transparent 46%),
+                repeating-linear-gradient(35deg, rgba(255,255,255,.012) 0 1px, transparent 1px 5px),
+                linear-gradient(145deg, #0e4f3c, #082b24 64%, #061b17);
+            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+        }
+        button { font: inherit; }
+        button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        .app-shell { height: 100dvh; display: grid; grid-template-rows: auto minmax(0,1fr) auto; padding-top: env(safe-area-inset-top); }
+        .topbar {
+            min-height: 58px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 12px;
+            background: linear-gradient(180deg, rgba(4,15,13,.96), rgba(4,15,13,.76)); border-bottom: 1px solid var(--line);
+            box-shadow: 0 5px 18px rgba(0,0,0,.22); z-index: 20;
+        }
+        .brand { text-align: center; line-height: .8; }
+        .brand strong { display: block; font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; font-size: 1.65rem; letter-spacing: .12em; color: var(--gold); text-shadow: 0 2px 0 #6e3f0e, 0 4px 10px #000; }
+        .brand span { display: block; margin-top: 7px; color: var(--muted); font-family: "Segoe UI", sans-serif; font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+        .icon-button { width: 40px; height: 40px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: rgba(255,255,255,.07); box-shadow: inset 0 1px rgba(255,255,255,.08); cursor: pointer; }
+        .icon-button:last-child { justify-self: end; }
+        .icon-button svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 2; }
+        .game-board { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; display: grid; align-content: start; gap: 9px; padding: 10px 10px 12px; }
+        .opponents { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+        .player-area { position: relative; min-width: 0; padding: 7px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: linear-gradient(145deg, rgba(3,14,12,.74), rgba(5,25,20,.58)); box-shadow: inset 0 1px rgba(255,255,255,.04), 0 6px 14px rgba(0,0,0,.18); opacity: .74; transition: .2s; }
+        .player-area.active { opacity: 1; border-color: rgba(245,196,81,.82); box-shadow: inset 0 0 20px rgba(245,196,81,.06), 0 0 0 1px rgba(245,196,81,.2), 0 8px 22px rgba(0,0,0,.28); transform: translateY(-1px); }
+        .player-area.active::after { content: "TURN"; position: absolute; top: -6px; right: 8px; padding: 2px 6px; border-radius: 99px; background: var(--gold); color: #241605; font: 800 .56rem/1 "Segoe UI", sans-serif; letter-spacing: .1em; box-shadow: 0 2px 7px #0008; }
+        .player-header { min-height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,.08); color: #d8e2dc; font-family: "Segoe UI", sans-serif; font-size: .77rem; font-weight: 800; }
+        .player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .score-wrap { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: .65rem; }
+        .score-pill { min-width: 29px; padding: 3px 7px; text-align: center; border: 1px solid rgba(245,196,81,.28); border-radius: 99px; color: var(--gold); background: rgba(0,0,0,.52); font: 900 .83rem/1 "Segoe UI", sans-serif; }
+        .cards-container { min-height: 49px; display: flex; align-items: flex-start; gap: 3px; padding-top: 6px; overflow: hidden; }
+        .empty-hand { align-self: center; color: rgba(233,241,236,.35); font: 700 .62rem/1 "Segoe UI", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
+        .card-stack { display: flex; min-width: 0; flex-direction: column; }
+        .card { position: relative; width: 34px; height: 47px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border: 1px solid #c8bca3; border-radius: 5px; color: #1f1a14; background: linear-gradient(135deg, rgba(255,255,255,.85), transparent 28%), repeating-linear-gradient(45deg, rgba(117,91,55,.025) 0 1px, transparent 1px 4px), #f3ead7; box-shadow: 0 3px 7px rgba(0,0,0,.38), inset 0 0 0 2px rgba(255,255,255,.4); }
+        .card-stack .card:not(:first-child) { margin-top: -31px; box-shadow: 0 -2px 4px rgba(0,0,0,.2), 0 3px 7px rgba(0,0,0,.36); }
+        .card::before, .card::after { content: attr(data-val); position: absolute; z-index: 2; font: 900 .57rem/1 Georgia, serif; }
+        .card::before { top: 3px; left: 4px; } .card::after { right: 4px; bottom: 3px; transform: rotate(180deg); }
+        .chip { position: relative; width: 24px; height: 24px; display: grid; place-items: center; border: 3px dashed currentColor; border-radius: 50%; background: #fffdf8; box-shadow: inset 0 0 0 2px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.35); font: 950 .85rem/1 "Arial Black", sans-serif; }
+        .chip::before { content: ""; position: absolute; width: 12px; height: 12px; border: 1px solid currentColor; border-radius: 50%; opacity: .3; }
+        .c1 .chip{color:var(--c1)}.c2 .chip{color:var(--c2)}.c3 .chip{color:var(--c3)}.c4 .chip{color:var(--c4)}.c5 .chip{color:var(--c5)}.c6 .chip{color:var(--c6)}.c7 .chip{color:var(--c7)}.c8 .chip{color:var(--c8)}.c9 .chip{color:var(--c9)}.c10 .chip{color:var(--c10)}
+        .center-stage { position: relative; min-height: 146px; display: grid; grid-template-columns: 70px minmax(0,1fr) 70px; align-items: center; gap: 8px; padding: 10px; border: 1px solid rgba(245,196,81,.22); border-radius: 70px; background: radial-gradient(circle, rgba(16,97,72,.74), rgba(4,31,25,.52) 70%); box-shadow: inset 0 0 40px rgba(0,0,0,.24), 0 8px 24px rgba(0,0,0,.18); }
+        .deck-zone,.discard-zone { display: grid; justify-items: center; gap: 5px; }
+        .deck-stack { position: relative; width: 48px; height: 66px; display: grid; place-items: center; border: 2px solid #d6b460; border-radius: 6px; background: repeating-linear-gradient(45deg, transparent 0 5px, rgba(245,196,81,.13) 5px 7px), #171410; box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), inset 0 0 0 3px #2d261b; color: var(--gold); font: 950 1.12rem/1 "Segoe UI", sans-serif; }
+        .deck-stack::after { content: "HIT!"; position: absolute; bottom: 8px; font: 900 .48rem/1 "Segoe UI", sans-serif; letter-spacing: .12em; }
+        .pile-label { color: var(--muted); font: 700 .6rem/1 "Segoe UI", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
+        .discard-pile { width: 44px; height: 61px; display: grid; place-items: center; border: 1px dashed rgba(255,255,255,.23); border-radius: 6px; color: rgba(255,255,255,.5); background: rgba(0,0,0,.16); font: 900 .92rem/1 "Segoe UI", sans-serif; }
+        .dealer { min-width: 0; display: grid; justify-items: center; align-content: center; gap: 7px; text-align: center; }
+        .turn-owner { min-height: 13px; color: rgba(245,196,81,.78); font: 800 .58rem/1 "Segoe UI",sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+        .drawn-card-area { width: 100%; min-height: 64px; display: flex; align-items: flex-start; justify-content: center; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 3px; }
+        .drawn-card-area .card { width: 42px; height: 58px; animation: deal .18s ease-out; }
+        .drawn-card-area .chip { width: 30px; height: 30px; font-size: 1rem; }
+        .drawn-card-area .card-stack .card:not(:first-child) { margin-top: -38px; }
+        .drawn-card-area .empty-hand { align-self: center; }
+        .message-banner { min-height: 34px; display: grid; place-items: center; color: var(--gold); font-size: .98rem; font-weight: 800; line-height: 1.05; text-shadow: 0 2px 4px #000; }
+        .turn-note { color: var(--muted); font: 600 .66rem/1.2 "Segoe UI", sans-serif; }
+        @keyframes deal { from { opacity: 0; transform: translateY(-12px) rotate(-4deg); } to { opacity: 1; transform: none; } }
+        .human-area .player-area { padding: 9px; opacity: 1; border-color: rgba(255,255,255,.16); }
+        .human-area .player-header { min-height: 28px; font-size: .9rem; }
+        .human-area .cards-container { min-height: 70px; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 7px 2px 2px; }
+        .human-area .card { width: 43px; height: 60px; border-radius: 6px; }
+        .human-area .chip { width: 31px; height: 31px; font-size: 1rem; }
+        .human-area .card-stack .card:not(:first-child) { margin-top: -38px; }
+        .action-dock { position: relative; z-index: 30; padding: 9px 10px calc(9px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: linear-gradient(180deg, rgba(3,16,13,.88), rgba(2,12,10,.98)); box-shadow: 0 -7px 24px rgba(0,0,0,.26); }
+        .controls { width: min(100%,470px); min-height: 48px; margin: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+        .action-button { min-height: 48px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; color: #fff; box-shadow: inset 0 1px rgba(255,255,255,.2), 0 4px 0 rgba(0,0,0,.38); font-family: "Segoe UI", sans-serif; font-size: .92rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+        .action-button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.4)}.action-button:disabled{cursor:default;opacity:.35;filter:grayscale(.6);box-shadow:none}
+        .btn-draw{background:linear-gradient(#4b9be2,#246eb2)}.btn-stop{background:linear-gradient(#3ac486,#218c5b)}.btn-steal{background:linear-gradient(#ef705e,#b83d31)}.btn-nosteal{background:linear-gradient(#6c7d82,#44545a)}
+        .waiting-state { grid-column: 1/-1; align-self: center; text-align: center; color: var(--muted); font: 700 .73rem/1 "Segoe UI", sans-serif; letter-spacing: .11em; text-transform: uppercase; }
+        .overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom)); overflow-y: auto; background: radial-gradient(circle at 50% 36%, rgba(32,135,96,.42), transparent 36%), repeating-linear-gradient(35deg, rgba(255,255,255,.012) 0 1px, transparent 1px 5px), rgba(3,15,12,.97); }
+        .overlay[hidden] { display: none; }.overlay-card{width:min(100%,430px);text-align:center}
+        .title-mark { margin: 0; font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; font-size: clamp(4.2rem,22vw,7.4rem); line-height: .78; letter-spacing: .05em; color: var(--gold); text-shadow: 0 4px 0 #8a5215, 0 8px 24px #000; transform: rotate(-2deg); }
+        .title-chip { width: 90px; height: 90px; margin: 22px auto 15px; display: grid; place-items: center; border: 8px dashed var(--danger); border-radius: 50%; color: #1c160e; background: #fff7df; box-shadow: 0 0 0 5px #fff7df, 0 0 0 7px var(--danger), var(--shadow); font: 950 1.65rem/1 "Arial Black", sans-serif; }
+        .overlay-kicker { margin: 0 0 8px; color: var(--gold); font: 800 .72rem/1 "Segoe UI", sans-serif; letter-spacing: .2em; text-transform: uppercase; }
+        .overlay-copy { max-width: 330px; margin: 0 auto 23px; color: #d3dfd8; font-size: 1rem; line-height: 1.45; }
+        .primary-cta { width: min(100%,310px); min-height: 56px; border: 1px solid #ffdd7b; border-radius: 15px; color: #241704; background: linear-gradient(#ffd974,#e8a933); box-shadow: inset 0 1px #fff7ca, 0 5px 0 #8b5514, 0 12px 25px #0008; font-family: "Segoe UI",sans-serif; font-size: 1.05rem; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+        .overlay-actions { display:grid;gap:13px;justify-items:center }.text-button{border:0;color:#d5e1da;background:transparent;font-family:"Segoe UI",sans-serif;font-size:.82rem;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+        .modal { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: 18px; background: rgba(1,9,7,.78); backdrop-filter: blur(5px); }.modal[hidden]{display:none}
+        .modal-card { width: min(100%,470px); max-height: min(82dvh,650px); overflow-y: auto; padding: 20px; border: 1px solid rgba(245,196,81,.32); border-radius: 18px; background: linear-gradient(145deg,#102b24,#071813); box-shadow: var(--shadow); }
+        .modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}.modal h2{margin:0;color:var(--gold);font-size:1.45rem}
+        .rules-list{margin:0;padding-left:1.25rem;color:#d7e0db;font-family:"Segoe UI",sans-serif;font-size:.9rem;line-height:1.45}.rules-list li+li{margin-top:10px}.rule-callout{margin-top:15px;padding:12px;border-left:3px solid var(--danger);border-radius:5px;color:#f4e9dc;background:rgba(232,92,74,.1);font:700 .86rem/1.4 "Segoe UI",sans-serif}
+        .toast { position:fixed;left:50%;bottom:calc(82px + env(safe-area-inset-bottom));z-index:140;width:max-content;max-width:calc(100% - 28px);padding:10px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);background:#091c17;box-shadow:var(--shadow);font:700 .78rem/1.2 "Segoe UI",sans-serif;opacity:0;pointer-events:none;transform:translate(-50%,10px);transition:.22s ease}.toast.show{opacity:1;transform:translate(-50%,0)}
+        @media (min-width:700px) and (orientation:landscape){.game-board{width:min(100%,980px);margin:auto;grid-template-columns:minmax(350px,1fr) minmax(300px,.9fr);align-content:center;padding:16px}.opponents{grid-column:1}.center-stage{grid-column:2;grid-row:1/span 2;min-height:250px}.human-area{grid-column:1}}
+        @media (max-height:690px) and (orientation:portrait){.topbar{min-height:50px;padding-top:5px;padding-bottom:5px}.brand span{display:none}.game-board{gap:7px;padding-top:7px}.player-area{padding:5px 6px}.cards-container{min-height:42px;padding-top:4px}.card{width:31px;height:42px}.chip{width:21px;height:21px;font-size:.74rem}.card-stack .card:not(:first-child){margin-top:-28px}.center-stage{min-height:124px;padding:7px}.human-area .cards-container{min-height:61px}}
+        @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;transition-duration:.001ms!important}}
+    </style>
+</head>
+<body>
+    <main class="app-shell" aria-live="polite">
+        <header class="topbar">
+            <button class="icon-button" type="button" aria-label="Open rules" onclick="openRules()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.8 9a2.35 2.35 0 1 1 3.7 1.92c-.94.66-1.5 1.08-1.5 2.08"></path><path d="M12 17h.01"></path></svg></button>
+            <div class="brand"><strong>HIT!</strong><span>High-stakes card game</span></div>
+            <button class="icon-button" id="fullscreen-button" type="button" aria-label="Enter fullscreen" onclick="toggleFullscreen()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg></button>
+        </header>
+        <section class="game-board" aria-label="Card table">
+            <div class="opponents" id="opponents-container"></div>
+            <section class="center-stage" aria-label="Draw pile and current play">
+                <div class="deck-zone"><div class="deck-stack" id="deck-count" aria-label="Cards remaining">90</div><div class="pile-label">Deck</div></div>
+                <div class="dealer"><div class="turn-owner" id="turn-owner"></div><div class="drawn-card-area" id="drawn-card-area" aria-label="Active turn cards"></div><div class="message-banner" id="message-banner">Ready to play</div><div class="turn-note" id="turn-note">Draw at least one card on your turn.</div></div>
+                <div class="discard-zone"><div class="discard-pile" id="discard-count" aria-label="Discarded cards">0</div><div class="pile-label">Lost</div></div>
+            </section>
+            <section class="human-area" aria-label="Your cards"><div class="player-area" id="human-panel"><div class="player-header"><span class="player-name">You</span><span class="score-wrap">Loot <span class="score-pill" id="human-score">0</span></span></div><div class="cards-container" id="human-cards"></div></div></section>
+        </section>
+        <footer class="action-dock"><div class="controls" id="controls"><div class="waiting-state">Deal the cards to begin</div></div></footer>
+    </main>
+    <section class="overlay" id="start-overlay" aria-label="Start game"><div class="overlay-card"><div class="title-chip" aria-hidden="true">10</div><h1 class="title-mark">HIT!</h1><p class="overlay-kicker">Push your luck · steal the table</p><p class="overlay-copy">Build the richest loot pile without drawing a duplicate once three cards are in front of you.</p><div class="overlay-actions"><button class="primary-cta" type="button" onclick="startGame()">Deal the cards</button><button class="text-button" type="button" onclick="startFullscreenGame()">Play in fullscreen</button></div></div></section>
+    <section class="overlay" id="result-overlay" aria-label="Game result" hidden><div class="overlay-card"><p class="overlay-kicker">Final count</p><h2 class="title-mark" id="result-title">Winner!</h2><div class="title-chip" id="result-score" aria-label="Winning score">0</div><p class="overlay-copy" id="result-copy"></p><div class="overlay-actions"><button class="primary-cta" type="button" onclick="startGame()">Play again</button><button class="text-button" type="button" onclick="closeResult()">View final table</button></div></div></section>
+    <div class="modal" id="rules-modal" role="dialog" aria-modal="true" aria-labelledby="rules-title" hidden><div class="modal-card"><div class="modal-head"><h2 id="rules-title">How to play</h2><button class="icon-button" type="button" aria-label="Close rules" onclick="closeRules()">×</button></div><ol class="rules-list"><li>At the start of your turn, every face-up card still in front of you is banked into your loot.</li><li>Draw at least one card. After each safe draw, choose to draw again or keep your cards exposed.</li><li>Whenever you draw, you may steal every face-up card of that value from every opponent.</li><li>If you already have three or more face-up cards and draw a value you already have, you bust. Every face-up card in front of you, including the new card, is lost.</li><li>The final card ends the game immediately. Everyone banks their remaining face-up cards; the highest loot total wins.</li></ol><div class="rule-callout">Important: matching cards are safe while you have only one or two face-up cards. The duplicate rule begins when three cards are already in front of you.</div></div></div>
+    <div class="toast" id="toast" role="status"></div>
+    <script>
+        const CARD_COUNTS=Object.freeze({1:11,2:11,3:11,4:11,5:11,6:7,7:7,8:7,9:7,10:7});
+        const TOTAL_CARDS=90;
+        const BOT_PROFILES=[
+            {name:'Doc',persona:'The Shark',style:'shark'},
+            {name:'Wyatt',persona:'The Maverick',style:'maverick'},
+            {name:'Jesse',persona:'The Bandit',style:'bandit'},
+            {name:'Billy',persona:'The Rock',style:'rock'}
+        ];
+        const state={deck:[],discard:[],players:[],currentPlayerIndex:0,phase:'ready',drawnCard:null,inputResolver:null,turnToken:0,gameActive:false};
+        const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)), sum=cards=>cards.reduce((total,card)=>total+card,0);
+        function createDeck(){const cards=[];Object.entries(CARD_COUNTS).forEach(([value,count])=>{for(let i=0;i<count;i++)cards.push(Number(value))});for(let i=cards.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]]}return cards}
+        function createPlayers(){return [{id:0,name:'You',persona:'',style:'human',isHuman:true,score:0,bankedCount:0,faceUp:[]},...BOT_PROFILES.map((profile,index)=>({id:index+1,...profile,isHuman:false,score:0,bankedCount:0,faceUp:[]}))]}
+        function generateCardHTML(value){return `<div class="card c${value}" data-val="${value}" aria-label="Card ${value}"><div class="chip">${value}</div></div>`}
+        function getStackedCardsHTML(cards){if(!cards.length)return '<span class="empty-hand">No cards exposed</span>';return[...new Set(cards)].sort((a,b)=>a-b).map(value=>{const count=cards.filter(card=>card===value).length;return `<div class="card-stack" aria-label="${count} card${count===1?'':'s'} worth ${value} each">${Array.from({length:count},()=>generateCardHTML(value)).join('')}</div>`}).join('')}
+        function cardsAtSeat(player){return state.gameActive&&state.currentPlayerIndex===player.id&&player.faceUp.length?'<span class="empty-hand">Playing in center</span>':getStackedCardsHTML(player.faceUp)}
+        function renderBoard(){document.getElementById('deck-count').textContent=state.deck.length;document.getElementById('discard-count').textContent=state.discard.length;const active=state.players[state.currentPlayerIndex],centerCards=state.gameActive&&active?[...active.faceUp,...(state.drawnCard===null?[]:[state.drawnCard])]:[];document.getElementById('drawn-card-area').innerHTML=centerCards.length?getStackedCardsHTML(centerCards):'<span class="empty-hand">Turn pile</span>';document.getElementById('turn-owner').textContent=state.gameActive&&active?`${active.name}'s turn pile`:'';const opponents=document.getElementById('opponents-container');opponents.innerHTML=state.players.slice(1).map(player=>`<article class="player-area${state.gameActive&&state.currentPlayerIndex===player.id?' active':''}"><div class="player-header"><span class="player-name">${player.name}</span><span class="score-wrap">Loot <span class="score-pill">${player.score}</span></span></div><div class="cards-container">${cardsAtSeat(player)}</div></article>`).join('');const human=state.players[0]||{score:0,faceUp:[]};document.getElementById('human-panel').className=`player-area${state.gameActive&&state.currentPlayerIndex===0?' active':''}`;document.getElementById('human-score').textContent=human.score;document.getElementById('human-cards').innerHTML=cardsAtSeat(human)}
+        function setMessage(message,note=''){document.getElementById('message-banner').textContent=message;document.getElementById('turn-note').textContent=note}
+        function renderActions(actions=[]){const controls=document.getElementById('controls');if(!actions.length){controls.innerHTML='<div class="waiting-state">The table is playing…</div>';return}controls.innerHTML=actions.map(action=>`<button type="button" class="action-button ${action.className}" ${action.disabled?'disabled':''} onclick="handleAction('${action.value}')">${action.label}</button>`).join('')}
+        function askHuman(actions){renderActions(actions);return new Promise(resolve=>{state.inputResolver=resolve})}
+        function handleAction(action){if(action==='RESTART'){startGame();return}if(!state.inputResolver)return;const resolve=state.inputResolver;state.inputResolver=null;renderActions();resolve(action)}
+        function cancelPendingInput(){if(state.inputResolver){const resolve=state.inputResolver;state.inputResolver=null;resolve('CANCELLED')}}
+        function bankExposedCards(player){if(!player.faceUp.length)return 0;const amount=sum(player.faceUp);player.score+=amount;player.bankedCount+=player.faceUp.length;player.faceUp=[];return amount}
+        function opponentsWith(value,activeIndex){return state.players.filter((player,index)=>index!==activeIndex&&player.faceUp.includes(value))}
+        function stealMatchingCards(player,victims,value){let stolen=0;victims.forEach(victim=>{const matching=victim.faceUp.filter(card=>card===value);stolen+=matching.length;player.faceUp.push(...matching);victim.faceUp=victim.faceUp.filter(card=>card!==value)});return stolen}
+        function botRead(player){const held=new Set(player.faceUp),bustCards=state.deck.filter(card=>held.has(card)).length,risk=state.deck.length?bustCards/state.deck.length:1,exposedValue=sum(player.faceUp),opponentValues=new Set(state.players.filter(other=>other.id!==player.id).flatMap(other=>other.faceUp)),stealChance=state.deck.length?state.deck.filter(card=>opponentValues.has(card)).length/state.deck.length:0;return{risk,exposedValue,stealChance,count:player.faceUp.length}}
+        function botWantsToDraw(player){if(player.faceUp.length<3)return true;const read=botRead(player);switch(player.style){case'maverick':return read.exposedValue<31&&read.risk<.35;case'bandit':return read.exposedValue<23&&(read.risk<.24||read.stealChance>.24);case'rock':return read.exposedValue<13&&read.risk<.11;default:return read.exposedValue<21&&read.risk<.17}}
+        function botWantsToSteal(player,value,count){const gain=value*count,crossesLine=player.faceUp.length<3&&player.faceUp.length+count+1>=3;switch(player.style){case'maverick':case'bandit':return true;case'rock':return gain>=7&&!crossesLine;default:return gain>=5||(!crossesLine&&value>=3)}}
+        function assertGameState(){const inPlay=state.players.reduce((count,player)=>count+player.faceUp.length,0),banked=state.players.reduce((count,player)=>count+player.bankedCount,0),drawn=state.drawnCard===null?0:1,accounted=state.deck.length+state.discard.length+inPlay+banked+drawn;if(accounted!==TOTAL_CARDS){console.error(`Card-state error: ${accounted} of ${TOTAL_CARDS} cards accounted for.`);setMessage('Table error','A card-state check failed. Start a new game.');state.gameActive=false;renderActions([{label:'New game',value:'RESTART',className:'btn-draw'}]);return false}return true}
+        async function playTurn(token){if(!state.gameActive||token!==state.turnToken)return;const player=state.players[state.currentPlayerIndex];state.phase='banking';renderActions();const banked=bankExposedCards(player);if(banked){setMessage(`${player.name} banks ${banked}`,'Banked cards are safe and cannot be stolen.');renderBoard();assertGameState();await sleep(520)}let first=true;while(state.gameActive&&token===state.turnToken){state.phase='choosing-draw';let wants;if(player.isHuman){setMessage(first?'Your turn':'Press your luck?',first?'You must draw at least one card.':`${player.faceUp.length} card${player.faceUp.length===1?'':'s'} exposed · ${sum(player.faceUp)} points at risk`);const action=await askHuman([{label:'Draw',value:'DRAW',className:'btn-draw'},{label:'Keep',value:'STOP',className:'btn-stop',disabled:first}]);if(action==='CANCELLED')return;wants=action==='DRAW'}else{wants=first||botWantsToDraw(player);setMessage(wants?`${player.name} draws…`:`${player.name} keeps`,wants?'Watching the draw pile…':'Cards stay exposed until their next turn.');await sleep(430)}if(!wants)break;if(!state.deck.length){await finishGame(token);return}first=false;state.phase='drawing';const card=state.deck.pop();state.drawnCard=card;renderBoard();setMessage(`${player.name} draws ${card}`,'Checking for a duplicate…');await sleep(380);const bust=player.faceUp.length>=3&&player.faceUp.includes(card);if(bust){state.phase='bust';const lost=[...player.faceUp,card];state.discard.push(...lost);player.faceUp=[];state.drawnCard=null;setMessage(`${player.name} busts!`,`${lost.length} exposed cards are lost.`);renderBoard();assertGameState();await sleep(900);break}const victims=opponentsWith(card,state.currentPlayerIndex);if(victims.length){const available=victims.reduce((total,victim)=>total+victim.faceUp.filter(value=>value===card).length,0);let steal;state.phase='choosing-steal';if(player.isHuman){setMessage(`${available} matching card${available===1?'':'s'} exposed`,`Take every exposed ${card} from ${victims.map(v=>v.name).join(', ')}?`);const action=await askHuman([{label:`Steal ${available}`,value:'STEAL',className:'btn-steal'},{label:'Pass',value:'PASS',className:'btn-nosteal'}]);if(action==='CANCELLED')return;steal=action==='STEAL'}else{steal=botWantsToSteal(player,card,available);setMessage(steal?`${player.name} steals ${available}!`:`${player.name} passes`,steal?`All exposed ${card}s change hands.`:'The matching cards stay put.');await sleep(480)}if(steal)stealMatchingCards(player,victims,card)}player.faceUp.push(card);state.drawnCard=null;renderBoard();assertGameState();await sleep(230);if(!state.deck.length){await finishGame(token);return}}if(!state.gameActive||token!==state.turnToken)return;state.currentPlayerIndex=(state.currentPlayerIndex+1)%state.players.length;renderBoard();await sleep(180);void playTurn(token)}
+        async function finishGame(token){if(!state.gameActive||token!==state.turnToken)return;state.gameActive=false;state.phase='finished';cancelPendingInput();renderActions();setMessage('Final card!','Everyone banks the cards still in front of them.');await sleep(650);state.players.forEach(bankExposedCards);state.drawnCard=null;renderBoard();assertGameState();const high=Math.max(...state.players.map(player=>player.score)),winners=state.players.filter(player=>player.score===high),title=winners.length===1?`${winners[0].name} wins!`:'It’s a tie!',names=winners.map(player=>player.name).join(' & ');setMessage(title,`${names} · ${high} points`);document.getElementById('result-title').textContent=title;document.getElementById('result-score').textContent=high;document.getElementById('result-copy').textContent=winners.length===1?`${names} leaves the table with the richest loot.`:`${names} share the top score.`;await sleep(500);document.getElementById('result-overlay').hidden=false}
+        function startGame(){cancelPendingInput();state.turnToken++;state.deck=createDeck();state.discard=[];state.players=createPlayers();state.currentPlayerIndex=0;state.phase='starting';state.drawnCard=null;state.gameActive=true;document.getElementById('start-overlay').hidden=true;document.getElementById('result-overlay').hidden=true;renderBoard();assertGameState();setMessage('Cards are shuffled','You have the first turn.');renderActions();const token=state.turnToken;setTimeout(()=>void playTurn(token),260)}
+        function closeResult(){document.getElementById('result-overlay').hidden=true}function openRules(){document.getElementById('rules-modal').hidden=false}function closeRules(){document.getElementById('rules-modal').hidden=true}
+        function showToast(message){const toast=document.getElementById('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove('show'),2600)}
+        async function toggleFullscreen(){try{if(document.fullscreenElement||document.webkitFullscreenElement){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit)await exit.call(document)}else{const root=document.documentElement,enter=root.requestFullscreen||root.webkitRequestFullscreen;if(!enter){showToast('For true fullscreen on iPhone, add this game to your Home Screen.');return false}await enter.call(root)}return true}catch(error){showToast('Fullscreen was blocked by this browser.');return false}}
+        async function startFullscreenGame(){await toggleFullscreen();startGame()}function updateFullscreenLabel(){const active=Boolean(document.fullscreenElement||document.webkitFullscreenElement);document.getElementById('fullscreen-button').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen')}
+        document.addEventListener('fullscreenchange',updateFullscreenLabel);document.addEventListener('webkitfullscreenchange',updateFullscreenLabel);document.getElementById('rules-modal').addEventListener('click',event=>{if(event.target.id==='rules-modal')closeRules()});document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.getElementById('rules-modal').hidden)closeRules()});
+        state.players=createPlayers();state.deck=Array(TOTAL_CARDS).fill(0);renderBoard();
+    </script>
+</body>
+</html>
