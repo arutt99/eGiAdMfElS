@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#142522" />
+    <meta name="description" content="A portrait-friendly bluffing card game for two." />
+    <title>Spies</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="masthead">
+        <a class="home-button" href="../../" aria-label="Back to Pocket Table" title="Pocket Table home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"></path><path d="M6.5 10v9h11v-9M10 19v-5h4v5"></path></svg>
+        </a>
+        <div class="title-lockup">
+          <p class="eyebrow">A neighborhood of secrets</p>
+          <h1>Spies</h1>
+        </div>
+        <div class="mode-pill">2 players <span>·</span> simple mode</div>
+        <button id="new-game" class="button secondary" type="button">New game</button>
+      </header>
+
+      <section id="setup" class="setup panel">
+        <div class="setup-copy">
+          <p class="eyebrow">Read the room</p>
+          <h2>Recruit cleverly.<br />Hide your best move.</h2>
+          <p>Offer one agent in plain sight and one behind a card back. Your rival chooses one. Then both meeples move - and every recruit changes what the neighborhood knows about you.</p>
+        </div>
+        <div class="setup-aside">
+          <div class="setup-stats"><span><strong>38</strong> agents</span><span><strong>8</strong> agent types</span><span><strong>1</strong> rival</span></div>
+          <div class="setup-rule"><span class="rule-mark">◆</span><span>Catch the rival or assemble three Codebreakers. Three Daredevils ends your operation.</span></div>
+          <button id="start-game" class="button primary" type="button">Enter the neighborhood <span>↗</span></button>
+        </div>
+      </section>
+
+      <section id="game" hidden>
+        <div class="status-row">
+          <div id="turn-label" class="turn-label"></div>
+          <div id="message" class="message" aria-live="polite"></div>
+          <div class="game-menu">
+            <button id="menu-button" class="menu-button" type="button" aria-expanded="false" aria-controls="game-menu-popover">Menu</button>
+            <div id="game-menu-popover" class="menu-popover" hidden>
+              <button id="log-button" type="button">Game log</button>
+              <button id="rules-button" type="button">How to play</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="dashboard" aria-label="Game status">
+          <div id="score-you" class="score-card"></div>
+          <div class="deck-card">
+            <span class="deck-label">AGENT DECK</span>
+            <strong id="deck-count">30</strong>
+            <span id="discard-count" class="deck-detail">0 discarded</span>
+          </div>
+          <div id="score-bot" class="score-card"></div>
+        </section>
+
+        <section class="board-panel panel" aria-label="Neighborhood board">
+          <div class="panel-heading">
+            <div><p class="eyebrow">The neighborhood</p><h2>Keep your cover.</h2></div>
+            <div class="catch-note"><span>◆</span> <strong id="catch-gap">8</strong> spaces to catch</div>
+          </div>
+          <div id="board" class="board">
+            <div class="board-glow"></div>
+            <div id="track" class="track" aria-label="Movement track"></div>
+            <div class="board-center"><span class="center-mark">◈</span><strong>Oakfield</strong><small>move clockwise</small></div>
+          </div>
+          <div class="board-legend"><span><i class="token-you">Y</i> You</span><span><i class="token-bot">K</i> Kestrel</span><span class="legend-hint">Your progress is relative. Positive moves pull you closer.</span></div>
+        </section>
+
+        <section class="offer-panel panel" aria-label="Current offer">
+          <div class="panel-heading compact">
+            <div><p class="eyebrow">Recruit step</p><h2 id="offer-title">The offer</h2></div>
+            <span id="offer-hint" class="offer-hint"></span>
+          </div>
+          <div id="offer" class="offer"></div>
+        </section>
+
+        <section class="tableau-grid" aria-label="Agents in play">
+          <div class="collection panel"><div class="collection-heading"><div><p class="eyebrow">Your cover</p><h2>You</h2></div><span id="you-count" class="collection-count">0 agents</span></div><div id="you-tableau" class="tableau"></div></div>
+          <div class="collection panel"><div class="collection-heading"><div><p class="eyebrow">Across the street</p><h2>Kestrel</h2></div><span id="bot-count" class="collection-count">0 agents</span></div><div id="bot-tableau" class="tableau"></div></div>
+        </section>
+
+        <section class="play-panel panel" aria-label="Your hand">
+          <div class="hand-heading"><div><p class="eyebrow">Play step</p><h2 id="hand-title">Your hand</h2></div><div class="hand-actions"><button id="reset-selection" class="text-button" type="button" hidden>Clear offer</button><button id="discard-button" class="text-button" type="button">Discard a card <span id="discard-uses">4 left</span></button></div></div>
+          <p id="legal-hint" class="legal-hint"></p>
+          <div id="hand" class="hand"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="log-dialog" class="dialog log-dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">Paper trail</p><h2>Game log</h2></div><button class="close" data-close="log-dialog" aria-label="Close" type="button">×</button></div>
+      <ol id="game-log" class="game-log" aria-live="polite"></ol>
+      <button id="clear-log" class="button secondary wide" type="button">Clear log</button>
+    </dialog>
+
+    <dialog id="rules-dialog" class="dialog rules">
+      <button class="close" data-close="rules-dialog" aria-label="Close" type="button">×</button>
+      <p class="eyebrow">Field notes</p>
+      <h2>How to play</h2>
+      <p>On your turn, play two different agents: one face-up and one face-down. After that, draw back up to four cards. Your rival chooses one of the two agents; you recruit the other.</p>
+      <p>When you recruit an agent, count how many of that type you have in play. Use the first, second, or third icon on its card to move your meeple clockwise. A negative number moves backward.</p>
+      <p>At the end of each turn, you win by catching Kestrel or by having three Codebreakers. You lose with three Daredevils. If both sides qualify at once, the active player wins.</p>
+      <p class="rules-note">Optional discards are available up to four times per game, before you play your two agents.</p>
+    </dialog>
+
+    <dialog id="game-over-dialog" class="dialog game-over-dialog">
+      <div class="result-stamp"><span>◈</span></div>
+      <p class="eyebrow">Operation closed</p>
+      <h2 id="game-over-title">You win.</h2>
+      <p id="game-over-copy"></p>
+      <div class="result-actions"><button id="play-again" class="button primary" type="button">Play again</button><button class="button secondary" data-close="game-over-dialog" type="button">Review the table</button></div>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
