@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#142522" />
+    <meta name="theme-color" content="#0d2725" />
     <meta name="description" content="A portrait-friendly bluffing card game for two." />
     <title>Spies</title>
     <link rel="stylesheet" href="style.css" />
@@ -18,76 +18,100 @@
           <p class="eyebrow">A neighborhood of secrets</p>
           <h1>Spies</h1>
         </div>
-        <div class="mode-pill">2 players <span>·</span> simple mode</div>
         <button id="new-game" class="button secondary" type="button">New game</button>
       </header>
 
       <section id="setup" class="setup panel">
+        <div class="setup-illustration" aria-hidden="true">
+          <span class="setup-moon">◐</span>
+          <span class="setup-house house-one"></span>
+          <span class="setup-house house-two"></span>
+          <span class="setup-operative operative-one">Y</span>
+          <span class="setup-operative operative-two">K</span>
+        </div>
         <div class="setup-copy">
           <p class="eyebrow">Read the room</p>
-          <h2>Recruit cleverly.<br />Hide your best move.</h2>
-          <p>Offer one agent in plain sight and one behind a card back. Your rival chooses one. Then both meeples move - and every recruit changes what the neighborhood knows about you.</p>
-        </div>
-        <div class="setup-aside">
-          <div class="setup-stats"><span><strong>38</strong> agents</span><span><strong>8</strong> agent types</span><span><strong>1</strong> rival</span></div>
-          <div class="setup-rule"><span class="rule-mark">◆</span><span>Catch the rival or assemble three Codebreakers. Three Daredevils ends your operation.</span></div>
+          <h2>One card tells the truth.<br />One keeps your cover.</h2>
+          <p>Offer an agent in plain sight, hide another, and make your rival choose. Recruit the card they leave behind and close the distance before your own cover breaks.</p>
+          <div class="setup-rule"><span>◆</span><p>Catch Kestrel or recruit three Codebreakers. A third Daredevil ends your operation.</p></div>
+          <fieldset class="starter-choice">
+            <legend>Who watched a spy movie most recently?</legend>
+            <label><input type="radio" name="starting-player" value="0" checked /><span>You</span></label>
+            <label><input type="radio" name="starting-player" value="1" /><span>Kestrel</span></label>
+          </fieldset>
           <button id="start-game" class="button primary" type="button">Enter the neighborhood <span>↗</span></button>
         </div>
       </section>
 
       <section id="game" hidden>
-        <div class="status-row">
-          <div id="turn-label" class="turn-label"></div>
-          <div id="message" class="message" aria-live="polite"></div>
-          <div class="game-menu">
-            <button id="menu-button" class="menu-button" type="button" aria-expanded="false" aria-controls="game-menu-popover">Menu</button>
-            <div id="game-menu-popover" class="menu-popover" hidden>
-              <button id="log-button" type="button">Game log</button>
-              <button id="rules-button" type="button">How to play</button>
+        <section class="game-stage" aria-label="Game table">
+          <div class="table-toolbar">
+            <div class="turn-copy">
+              <span id="turn-label" class="turn-label"></span>
+              <strong id="message" class="message" aria-live="polite"></strong>
+            </div>
+            <div class="table-actions">
+              <span class="deck-readout" title="Cards left in the draw pile"><b id="deck-count">30</b><small>deck</small></span>
+              <div class="game-menu">
+                <button id="menu-button" class="menu-button" type="button" aria-expanded="false" aria-controls="game-menu-popover" aria-label="Open game menu">•••</button>
+                <div id="game-menu-popover" class="menu-popover" hidden>
+                  <button id="log-button" type="button">Game log</button>
+                  <button id="rules-button" type="button">How to play</button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <section class="dashboard" aria-label="Game status">
-          <div id="score-you" class="score-card"></div>
-          <div class="deck-card">
-            <span class="deck-label">AGENT DECK</span>
-            <strong id="deck-count">30</strong>
-            <span id="discard-count" class="deck-detail">0 discarded</span>
+          <section class="board-wrap" aria-label="Neighborhood board">
+            <div id="board" class="board">
+              <div class="board-scene" aria-hidden="true">
+                <span class="sun"></span>
+                <span class="tree tree-one"></span>
+                <span class="tree tree-two"></span>
+                <span class="house house-left"></span>
+                <span class="house house-right"></span>
+                <span class="street"></span>
+                <span class="street-line line-one"></span>
+                <span class="street-line line-two"></span>
+              </div>
+              <div id="track" class="track" aria-label="Fourteen-space movement track"></div>
+              <div class="board-seal" aria-hidden="true"><span>◈</span><strong>Oakfield</strong><small>clockwise</small></div>
+            </div>
+          </section>
+
+          <section class="play-panel" aria-label="Your hand">
+            <div class="hand-heading">
+              <div><p class="eyebrow">Your hand</p><p id="legal-hint" class="legal-hint"></p></div>
+              <div class="hand-actions">
+                <button id="reset-selection" class="text-button" type="button" hidden>Clear</button>
+                <button id="discard-button" class="text-button" type="button">Discard <span id="discard-uses">4</span></button>
+              </div>
+            </div>
+            <div id="hand" class="hand"></div>
+          </section>
+
+          <div id="offer-layer" class="offer-layer" hidden>
+            <div class="offer-focus" role="region" aria-label="Current two-card offer">
+              <p id="offer-kicker" class="offer-kicker">The offer</p>
+              <h2 id="offer-title">Kestrel is deciding</h2>
+              <p id="offer-hint" class="offer-hint"></p>
+              <div id="offer" class="offer"></div>
+            </div>
           </div>
-          <div id="score-bot" class="score-card"></div>
         </section>
 
-        <section class="board-panel panel" aria-label="Neighborhood board">
-          <div class="panel-heading">
-            <div><p class="eyebrow">The neighborhood</p><h2>Keep your cover.</h2></div>
-            <div class="catch-note"><span>◆</span> <strong id="catch-gap">8</strong> spaces to catch</div>
+        <section id="tableaus" class="tableau-section" aria-label="Agents in play">
+          <div class="section-heading"><p class="eyebrow">Recruited agents</p><h2>What the neighborhood knows</h2></div>
+          <div class="tableau-grid">
+            <div class="collection panel">
+              <div class="collection-heading"><div><span class="player-dot you-dot">Y</span><strong>You</strong></div><span id="you-count" class="collection-count">0 agents</span></div>
+              <div id="you-tableau" class="tableau"></div>
+            </div>
+            <div class="collection panel">
+              <div class="collection-heading"><div><span class="player-dot bot-dot">K</span><strong>Kestrel</strong></div><span id="bot-count" class="collection-count">0 agents</span></div>
+              <div id="bot-tableau" class="tableau"></div>
+            </div>
           </div>
-          <div id="board" class="board">
-            <div class="board-glow"></div>
-            <div id="track" class="track" aria-label="Movement track"></div>
-            <div class="board-center"><span class="center-mark">◈</span><strong>Oakfield</strong><small>move clockwise</small></div>
-          </div>
-          <div class="board-legend"><span><i class="token-you">Y</i> You</span><span><i class="token-bot">K</i> Kestrel</span><span class="legend-hint">Your progress is relative. Positive moves pull you closer.</span></div>
-        </section>
-
-        <section class="offer-panel panel" aria-label="Current offer">
-          <div class="panel-heading compact">
-            <div><p class="eyebrow">Recruit step</p><h2 id="offer-title">The offer</h2></div>
-            <span id="offer-hint" class="offer-hint"></span>
-          </div>
-          <div id="offer" class="offer"></div>
-        </section>
-
-        <section class="tableau-grid" aria-label="Agents in play">
-          <div class="collection panel"><div class="collection-heading"><div><p class="eyebrow">Your cover</p><h2>You</h2></div><span id="you-count" class="collection-count">0 agents</span></div><div id="you-tableau" class="tableau"></div></div>
-          <div class="collection panel"><div class="collection-heading"><div><p class="eyebrow">Across the street</p><h2>Kestrel</h2></div><span id="bot-count" class="collection-count">0 agents</span></div><div id="bot-tableau" class="tableau"></div></div>
-        </section>
-
-        <section class="play-panel panel" aria-label="Your hand">
-          <div class="hand-heading"><div><p class="eyebrow">Play step</p><h2 id="hand-title">Your hand</h2></div><div class="hand-actions"><button id="reset-selection" class="text-button" type="button" hidden>Clear offer</button><button id="discard-button" class="text-button" type="button">Discard a card <span id="discard-uses">4 left</span></button></div></div>
-          <p id="legal-hint" class="legal-hint"></p>
-          <div id="hand" class="hand"></div>
         </section>
       </section>
     </main>
@@ -102,10 +126,17 @@
       <button class="close" data-close="rules-dialog" aria-label="Close" type="button">×</button>
       <p class="eyebrow">Field notes</p>
       <h2>How to play</h2>
-      <p>On your turn, play two different agents: one face-up and one face-down. After that, draw back up to four cards. Your rival chooses one of the two agents; you recruit the other.</p>
-      <p>When you recruit an agent, count how many of that type you have in play. Use the first, second, or third icon on its card to move your meeple clockwise. A negative number moves backward.</p>
-      <p>At the end of each turn, you win by catching Kestrel or by having three Codebreakers. You lose with three Daredevils. If both sides qualify at once, the active player wins.</p>
-      <p class="rules-note">Optional discards are available up to four times per game, before you play your two agents.</p>
+      <p>The player who watched a spy movie most recently starts.</p>
+      <ol class="rule-steps">
+        <li><strong>Play.</strong> Offer two different agent names: one face-up, one face-down. If your entire hand has one name, a matching pair is allowed. Then draw back up to four cards.</li>
+        <li><strong>Recruit.</strong> Your rival takes one offered card; you take the other. Reveal the hidden card and add both to the appropriate tableau.</li>
+        <li><strong>Move.</strong> Count that agent type in your tableau and resolve its first, second, or third icon. Fourth and later copies still use the third icon. Negative values move counterclockwise.</li>
+        <li><strong>End.</strong> After both meeples finish moving, check every win and loss condition.</li>
+      </ol>
+      <div class="rule-callout"><strong>Win</strong><span>Catch the rival by reaching or passing them, or recruit three Codebreakers.</span></div>
+      <div class="rule-callout danger"><strong>Lose</strong><span>Recruit three Daredevils.</span></div>
+      <p>You may discard and replace cards before playing, up to four times per game. You may do this repeatedly in one turn while the deck has cards.</p>
+      <p>If the deck is empty, continue without drawing. When the next player has fewer than two cards, the closer player wins. Any tied end condition goes to the active player.</p>
     </dialog>
 
     <dialog id="game-over-dialog" class="dialog game-over-dialog">

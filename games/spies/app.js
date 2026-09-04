@@ -1,27 +1,28 @@
 const AGENTS = [
-  { id: 'double-agent', name: 'Double Agent', short: 'Double', copies: 6, icon: '◒', color: '#df765e', dark: '#742f30', moves: [-1, 6, -1], flavor: 'A switchback in plain clothes.' },
-  { id: 'saboteur', name: 'Saboteur', short: 'Saboteur', copies: 6, icon: '⌁', color: '#5f88bd', dark: '#243e72', moves: [-1, -1, -2], flavor: 'Quiet work. Bad timing.' },
-  { id: 'enforcer', name: 'Enforcer', short: 'Enforcer', copies: 6, icon: '✦', color: '#cf9346', dark: '#69421c', moves: [1, 2, 3], flavor: 'The reliable push.' },
-  { id: 'daredevil', name: 'Daredevil', short: 'Daredevil', copies: 6, icon: '×', color: '#e26d72', dark: '#762934', moves: [2, 3, null], flavor: 'Fast, loud, and dangerous.' },
-  { id: 'codebreaker', name: 'Codebreaker', short: 'Codebreaker', copies: 6, icon: '⌘', color: '#4fa9a1', dark: '#1e5a5b', moves: [0, 0, 0], flavor: 'Three clues crack the case.' },
-  { id: 'sentinel', name: 'Sentinel', short: 'Sentinel', copies: 6, icon: '◉', color: '#9984c7', dark: '#49316e', moves: [0, 2, 6], flavor: 'Stillness with a long view.' },
-  { id: 'sidekick', name: 'Sidekick', short: 'Sidekick', copies: 1, icon: '➜', color: '#75ae7e', dark: '#285e46', moves: [4, 4, 4], flavor: 'One good turn.' },
-  { id: 'mole', name: 'Mole', short: 'Mole', copies: 1, icon: '↓', color: '#9a8e75', dark: '#51442f', moves: [-3, -3, -3], flavor: 'Go underground.' },
+  { id: 'double-agent', name: 'Double Agent', short: 'Double', copies: 6, icon: '◒', color: '#db755f', dark: '#632d32', moves: [-1, 6, -1], flavor: 'Always working both sides.' },
+  { id: 'saboteur', name: 'Saboteur', short: 'Saboteur', copies: 6, icon: '⌁', color: '#507aa5', dark: '#243751', moves: [-1, -1, -2], flavor: 'A quiet wrench in the plan.' },
+  { id: 'enforcer', name: 'Enforcer', short: 'Enforcer', copies: 6, icon: '✦', color: '#bd8139', dark: '#5b391d', moves: [1, 2, 3], flavor: 'Pressure opens every door.' },
+  { id: 'daredevil', name: 'Daredevil', short: 'Daredevil', copies: 6, icon: '×', color: '#d45d67', dark: '#642531', moves: [2, 3, null], flavor: 'Quick enough to blow a cover.' },
+  { id: 'codebreaker', name: 'Codebreaker', short: 'Codebreaker', copies: 6, icon: '⌘', color: '#3f9993', dark: '#174a4b', moves: [0, 0, 0], flavor: 'Three clues crack the case.' },
+  { id: 'sentinel', name: 'Sentinel', short: 'Sentinel', copies: 6, icon: '◉', color: '#8171ad', dark: '#3c2c5e', moves: [0, 2, 6], flavor: 'Patience, then one clean move.' },
+  { id: 'sidekick', name: 'Sidekick', short: 'Sidekick', copies: 1, icon: '➜', color: '#6ba879', dark: '#24523e', moves: [4, 4, 4], flavor: 'The right help at the right time.' },
+  { id: 'mole', name: 'Mole', short: 'Mole', copies: 1, icon: '↓', color: '#8a806e', dark: '#463d31', moves: [-3, -3, -3], flavor: 'Sometimes down is the way out.' },
 ];
 
+// Clockwise from the upper-left corner: 4 top, 3 right, 4 bottom, 3 left.
 const TRACK_LAYOUT = [
-  [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 1],
-  [6, 2], [6, 3], [6, 4], [5, 4], [4, 4], [3, 4],
-  [2, 4], [1, 4], [1, 3], [1, 2],
+  [1, 1], [2, 1], [3, 1], [4, 1],
+  [4, 2], [4, 3], [4, 4],
+  [4, 5], [3, 5], [2, 5], [1, 5],
+  [1, 4], [1, 3], [1, 2],
 ];
-const TRACK_SIZE = TRACK_LAYOUT.length;
-const START_POSITIONS = [2, 10];
-const CATCH_DISTANCE = 8;
+const TRACK_SIZE = 14;
+const START_POSITIONS = [12, 5];
+const CATCH_DISTANCE = 7;
 const BOT_NAME = 'Kestrel';
 let game;
 
-const $ = (selector) => document.querySelector(selector);
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const $ = selector => document.querySelector(selector);
 const uid = (() => { let value = 0; return () => `card-${++value}`; })();
 
 function agentOf(card) { return AGENTS.find(agent => agent.id === card.agentId); }
@@ -29,24 +30,39 @@ function makeDeck() { return AGENTS.flatMap(agent => Array.from({ length: agent.
 function shuffle(cards) { for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; } return cards; }
 function mod(value, size) { return ((value % size) + size) % size; }
 function formatMove(value) { return value === null ? '×' : value > 0 ? `+${value}` : String(value); }
-function movementLabel(agent) {
-  if (agent.copies === 1) return formatMove(agent.moves[0]);
-  if (agent.id === 'codebreaker') return '0  0  ✓';
-  return agent.moves.map(formatMove).join('  ');
-}
 function escapeHTML(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
-function currentPlayer() { return game.players[game.turn]; }
 function opponentOf(index) { return game.players[1 - index]; }
+function countOf(player, agentId) { return player.counts[agentId] || 0; }
+function totalAgents(player) { return player.tableau.length; }
+
 function schedule(callback, delay = 500) {
   const runId = game?.runId;
   setTimeout(() => { if (game && game.runId === runId) callback(); }, delay);
 }
 
+function wait(delay, runId) {
+  return new Promise(resolve => setTimeout(() => resolve(Boolean(game && game.runId === runId)), delay));
+}
+
+function abilityValues(agent) {
+  if (agent.copies === 1) return [{ value: formatMove(agent.moves[0]), kind: agent.moves[0] < 0 ? 'back' : 'forward' }];
+  if (agent.id === 'codebreaker') return [{ value: '0' }, { value: '0' }, { value: '✓', kind: 'win' }];
+  return agent.moves.map(value => ({ value: formatMove(value), kind: value === null ? 'danger' : value < 0 ? 'back' : value > 0 ? 'forward' : '' }));
+}
+
 function cardMarkup(card, options = {}) {
-  const { hidden = false, mini = false, selected = false, tone = '' } = options;
-  if (hidden) return `<div class="agent-card card-back ${mini ? 'mini' : ''} ${selected ? 'selected' : ''}"><span class="back-sigil">◈</span><strong>?</strong><small>CLASSIFIED</small></div>`;
+  const { hidden = false, mini = false, selected = false } = options;
+  if (hidden) {
+    return `<div class="agent-card card-back ${mini ? 'mini' : ''} ${selected ? 'selected' : ''}"><span class="back-lines"></span><span class="back-eye">◈</span><strong>CLASSIFIED</strong><small>NEIGHBORHOOD FILE</small></div>`;
+  }
   const agent = agentOf(card);
-  return `<div class="agent-card ${mini ? 'mini' : ''} ${selected ? 'selected' : ''} ${tone}" style="--accent:${agent.color};--deep:${agent.dark}" title="${escapeHTML(agent.name)}"><span class="card-kicker">FIELD AGENT <b>${agent.icon}</b></span><span class="card-icon">${agent.icon}</span><strong>${escapeHTML(agent.name)}</strong><span class="card-moves">${movementLabel(agent)}</span><small>${escapeHTML(agent.flavor)}</small></div>`;
+  const abilities = abilityValues(agent).map(item => `<span class="ability ${item.kind || ''}">${item.value}</span>`).join('');
+  return `<div class="agent-card ${mini ? 'mini' : ''} ${selected ? 'selected' : ''}" style="--accent:${agent.color};--deep:${agent.dark}" title="${escapeHTML(agent.name)}">
+    <span class="card-index">FIELD FILE <b>${agent.icon}</b></span>
+    <span class="portrait"><i></i><b>${agent.icon}</b></span>
+    <span class="nameplate"><strong>${escapeHTML(agent.name)}</strong><small>${escapeHTML(agent.flavor)}</small></span>
+    <span class="abilities">${abilities}</span>
+  </div>`;
 }
 
 function startGame() {
@@ -59,36 +75,37 @@ function startGame() {
     players,
     deck: shuffle(makeDeck()),
     discarded: [],
-    turn: Math.random() < 0.5 ? 0 : 1,
+    turn: Number(document.querySelector('input[name="starting-player"]:checked').value),
     phase: 'play',
-    step: 1,
     table: [],
     offerRevealed: false,
+    offerDissolving: false,
+    recruitChoice: null,
     recruitChooser: null,
     playFaceUp: null,
     playFaceDown: null,
     discarding: false,
     discardsUsed: 0,
+    motionPlayers: [],
     locked: false,
     over: false,
     log: [],
   };
   for (let i = 0; i < 4; i++) { drawCard(players[0]); drawCard(players[1]); }
+  document.body.classList.add('game-active');
   $('#setup').hidden = true;
   $('#game').hidden = false;
   logEvent(`Operation opened. ${game.players[game.turn].name} has the first move.`);
-  setMessage(game.turn === 0 ? 'Your move. Choose a card to show.' : `${BOT_NAME} is making the first approach.`);
+  setMessage(game.turn === 0 ? 'Show one agent. Hide another.' : `${BOT_NAME} is preparing an offer.`);
   render();
-  if (game.turn === 1) schedule(botPlayTurn, 850);
+  if (game.turn === 1) schedule(botPlayTurn, 650);
 }
 
 function drawCard(player) { if (game.deck.length) player.hand.push(game.deck.pop()); }
 function drawToFour(player) { while (player.hand.length < 4 && game.deck.length) drawCard(player); }
 function removeCard(player, card) { const index = player.hand.findIndex(candidate => candidate.id === card.id); if (index >= 0) player.hand.splice(index, 1); }
-function countOf(player, agentId) { return player.counts[agentId] || 0; }
-function totalAgents(player) { return player.tableau.length; }
-
 function setMessage(message) { if ($('#message')) $('#message').textContent = message; }
+
 function logEvent(message) {
   if (!game) return;
   game.log.unshift(message);
@@ -131,7 +148,7 @@ function expectedHiddenScore(playerIndex, excludeCard) {
   return pool.reduce((total, card) => total + cardScore(playerIndex, card), 0) / pool.length;
 }
 
-function predictHumanChoice(faceUp, hidden) {
+function predictHumanChoice(faceUp) {
   const visibleValue = cardScore(0, faceUp);
   const hiddenValue = expectedHiddenScore(0, faceUp);
   if (visibleValue > hiddenValue + 4) return 'faceup';
@@ -149,18 +166,18 @@ function botPlan() {
       const hidden = hand[j];
       const allSame = hand.every(card => card.agentId === faceUp.agentId);
       if (!allSame && faceUp.agentId === hidden.agentId) continue;
-      const predicted = predictHumanChoice(faceUp, hidden);
+      const predicted = predictHumanChoice(faceUp);
       const botGets = predicted === 'faceup' ? hidden : faceUp;
       const humanGets = predicted === 'faceup' ? faceUp : hidden;
       let score = cardScore(1, botGets) - cardScore(0, humanGets) * 0.28;
-      if (agentOf(hidden).id === 'codebreaker' && countOf(game.players[1], 'codebreaker') === 2) score += 42;
-      if (agentOf(faceUp).id === 'daredevil' && countOf(game.players[1], 'daredevil') === 2) score += 28;
+      if (hidden.agentId === 'codebreaker' && countOf(game.players[1], 'codebreaker') === 2) score += 42;
+      if (faceUp.agentId === 'daredevil' && countOf(game.players[1], 'daredevil') === 2) score += 28;
       score += Math.random() * 9;
-      pairs.push({ faceUp, hidden, predicted, score });
+      pairs.push({ faceUp, hidden, score });
     }
   }
   pairs.sort((a, b) => b.score - a.score);
-  return pairs[0] || { faceUp: hand[0], hidden: hand[1], predicted: 'faceup' };
+  return pairs[0] || { faceUp: hand[0], hidden: hand[1] };
 }
 
 function botPlayTurn() {
@@ -173,12 +190,13 @@ function botPlayTurn() {
   drawToFour(game.players[1]);
   game.table = [{ card: plan.faceUp, hidden: false, label: 'face up' }, { card: plan.hidden, hidden: true, label: 'face down' }];
   game.offerRevealed = false;
+  game.offerDissolving = false;
+  game.recruitChoice = null;
   game.phase = 'recruit';
-  game.step = 2;
   game.recruitChooser = 0;
   game.locked = false;
-  logEvent(`${BOT_NAME} placed ${agentOf(plan.faceUp).name} face-up and held another card behind a cover.`);
-  setMessage(`Kestrel leaves one card in plain sight. Take one agent.`);
+  logEvent(`${BOT_NAME} placed ${agentOf(plan.faceUp).name} face-up and another agent face-down.`);
+  setMessage('Choose one of Kestrel’s agents.');
   render();
 }
 
@@ -190,23 +208,22 @@ function handCardClicked(cardId) {
   if (game.discarding) return discardCard(card);
   if (!game.playFaceUp) {
     game.playFaceUp = card;
-    game.playFaceDown = null;
-    setMessage('Now choose a different agent to keep hidden.');
+    setMessage('Now hide a different agent.');
     render();
     return;
   }
-  if (card.id === game.playFaceUp.id) { setMessage('Your two agents need different names.'); return; }
+  if (card.id === game.playFaceUp.id) { setMessage('Choose a second card.'); return; }
   const hasDifferent = player.hand.some(candidate => candidate.id !== game.playFaceUp.id && candidate.agentId !== game.playFaceUp.agentId);
-  if (hasDifferent && card.agentId === game.playFaceUp.agentId) { setMessage('Choose a different agent name for the hidden card.'); return; }
+  if (hasDifferent && card.agentId === game.playFaceUp.agentId) { setMessage('The hidden agent needs a different name.'); return; }
   game.playFaceDown = card;
   render();
-  schedule(commitHumanPlay, 260);
+  schedule(commitHumanPlay, 150);
 }
 
 function toggleDiscard() {
   if (!game || game.over || game.turn !== 0 || game.phase !== 'play' || game.locked || game.playFaceUp || game.discardsUsed >= 4 || !game.deck.length) return;
   game.discarding = !game.discarding;
-  setMessage(game.discarding ? 'Tap a card to discard and draw a replacement.' : 'Choose the card to show.');
+  setMessage(game.discarding ? 'Tap one card to discard it.' : 'Show one agent. Hide another.');
   render();
 }
 
@@ -219,7 +236,7 @@ function discardCard(card) {
   drawCard(player);
   game.discarding = false;
   logEvent(`You discarded ${agentOf(card).name} and drew a replacement.`);
-  setMessage(game.discardsUsed < 4 && game.deck.length ? 'Replacement drawn. Choose the card to show.' : 'Choose the card to show.');
+  setMessage('Replacement drawn. Make your offer.');
   render();
 }
 
@@ -228,7 +245,7 @@ function clearOffer() {
   game.playFaceUp = null;
   game.playFaceDown = null;
   game.discarding = false;
-  setMessage('Your move. Choose a card to show.');
+  setMessage('Show one agent. Hide another.');
   render();
 }
 
@@ -241,15 +258,18 @@ function commitHumanPlay() {
   removeCard(player, hidden);
   drawToFour(player);
   game.table = [{ card: faceUp, hidden: false, label: 'face up' }, { card: hidden, hidden: true, label: 'face down' }];
+  game.playFaceUp = null;
+  game.playFaceDown = null;
   game.offerRevealed = false;
+  game.offerDissolving = false;
+  game.recruitChoice = null;
   game.phase = 'recruit';
-  game.step = 2;
   game.recruitChooser = 1;
   game.locked = true;
   logEvent(`You offered ${agentOf(faceUp).name} face-up and another agent face-down.`);
-  setMessage(`${BOT_NAME} is studying your offer.`);
+  setMessage(`${BOT_NAME} is reading your offer.`);
   render();
-  schedule(botChooseRecruit, 850);
+  schedule(botChooseRecruit, 700);
 }
 
 function botChooseRecruit() {
@@ -262,58 +282,71 @@ function botChooseRecruit() {
   const chooseFaceUpScore = ownFace - humanHidden * 0.33;
   const chooseHiddenScore = hiddenValue - humanFace * 0.33;
   const choice = chooseFaceUpScore > chooseHiddenScore + 3 ? 'faceup' : chooseHiddenScore > chooseFaceUpScore + 3 ? 'facedown' : (Math.random() < 0.5 ? 'faceup' : 'facedown');
-  logEvent(`${BOT_NAME} recruited the ${choice === 'faceup' ? 'face-up' : 'face-down'} agent.`);
-  setMessage(`${BOT_NAME} chose the ${choice === 'faceup' ? 'visible' : 'hidden'} agent.`);
-  game.locked = true;
+  game.recruitChoice = choice;
   game.offerRevealed = true;
+  game.locked = true;
+  logEvent(`${BOT_NAME} recruited the ${choice === 'faceup' ? 'face-up' : 'face-down'} agent.`);
+  setMessage(`${BOT_NAME} made a choice.`);
   render();
-  schedule(() => resolveRecruit(choice), 720);
+  schedule(() => resolveRecruit(choice), 420);
 }
 
 function offerClicked(choice) {
   if (!game || game.over || game.phase !== 'recruit' || game.recruitChooser !== 0 || game.locked) return;
-  game.locked = true;
+  game.recruitChoice = choice;
   game.offerRevealed = true;
+  game.locked = true;
   logEvent(`You recruited the ${choice === 'faceup' ? 'face-up' : 'face-down'} agent.`);
-  setMessage(`You take the ${choice === 'faceup' ? 'visible' : 'hidden'} agent. The other goes to ${BOT_NAME}.`);
+  setMessage('Choice revealed. Both agents move.');
   render();
-  schedule(() => resolveRecruit(choice), 620);
+  schedule(() => resolveRecruit(choice), 380);
 }
 
-function recruit(playerIndex, card) {
+function prepareRecruit(playerIndex, card) {
   const player = game.players[playerIndex];
   const agent = agentOf(card);
   player.tableau.push(card);
   player.counts[agent.id] = countOf(player, agent.id) + 1;
   const count = player.counts[agent.id];
   const move = agent.moves[Math.min(count - 1, 2)];
-  if (move !== null && move !== 0) player.progress += move;
   return { playerIndex, card, agent, count, move };
 }
 
-function resolveRecruit(choice) {
+async function resolveRecruit(choice) {
   if (!game || game.over || game.phase !== 'recruit') return;
+  const runId = game.runId;
   const chosenIndex = choice === 'faceup' ? 0 : 1;
   const otherIndex = chosenIndex === 0 ? 1 : 0;
   const active = game.turn;
   const opponent = 1 - active;
-  const opponentCard = game.table[chosenIndex].card;
-  const activeCard = game.table[otherIndex].card;
-  game.offerRevealed = true;
+  const opponentEvent = prepareRecruit(opponent, game.table[chosenIndex].card);
+  const activeEvent = prepareRecruit(active, game.table[otherIndex].card);
+  const events = [opponentEvent, activeEvent];
   game.phase = 'resolve';
-  game.step = 2;
-  game.locked = true;
+  game.offerDissolving = true;
+  game.motionPlayers = events.filter(event => event.move).map(event => event.playerIndex);
+  logRecruit(opponentEvent);
+  logRecruit(activeEvent);
+  setMessage(`${game.players[opponent].name}: ${agentOf(opponentEvent.card).name}. ${game.players[active].name}: ${agentOf(activeEvent.card).name}.`);
   render();
-  schedule(() => {
-    const opponentEvent = recruit(opponent, opponentCard);
-    const activeEvent = recruit(active, activeCard);
-    game.lastRecruit = [opponentEvent, activeEvent];
-    logRecruit(opponentEvent);
-    logRecruit(activeEvent);
-    setMessage(`${game.players[opponent].name} recruits ${opponentEvent.agent.name}; ${game.players[active].name} gets ${activeEvent.agent.name}.`);
-    render();
-    schedule(() => finishTurn(), 850);
-  }, 480);
+
+  if (!await wait(70, runId)) return;
+  const maxSteps = Math.max(...events.map(event => Math.abs(event.move || 0)), 0);
+  for (let step = 1; step <= maxSteps; step++) {
+    events.forEach(event => {
+      if (event.move && step <= Math.abs(event.move)) game.players[event.playerIndex].progress += Math.sign(event.move);
+    });
+    game.motionPlayers = events.filter(event => event.move && step <= Math.abs(event.move)).map(event => event.playerIndex);
+    renderBoard();
+    if (!await wait(105, runId)) return;
+  }
+  game.motionPlayers = [];
+  renderBoard();
+  if (!await wait(maxSteps ? 170 : 430, runId)) return;
+  game.offerDissolving = false;
+  game.table = [];
+  game.recruitChoice = null;
+  finishTurn();
 }
 
 function logRecruit(event) {
@@ -335,97 +368,97 @@ function endFlags() {
 
 function finishTurn() {
   if (!game || game.over) return;
-  game.step = 3;
   const { catchFlags, winFlags, loseFlags } = endFlags();
   const active = game.turn;
   const anyWin = winFlags.some(Boolean);
   const anyLose = loseFlags.some(Boolean);
-  const ambiguous = (winFlags[0] && winFlags[1]) || (loseFlags[0] && loseFlags[1]) || (anyWin && anyLose);
+  const samePlayerWinsAndLoses = winFlags.some((wins, index) => wins && loseFlags[index]);
+  const tiedConditions = (winFlags[0] && winFlags[1]) || (loseFlags[0] && loseFlags[1]) || samePlayerWinsAndLoses;
   if (anyWin || anyLose) {
-    if (ambiguous) return endGame(active, 'Both sides hit a condition at once. The active player wins the tie.');
+    if (tiedConditions) return endGame(active, 'Both sides reached an end condition. The active player wins the tie.');
     const winner = winFlags.findIndex(Boolean) >= 0 ? winFlags.findIndex(Boolean) : 1 - loseFlags.findIndex(Boolean);
-    const reason = winFlags[winner] ? (catchFlags[winner] ? 'caught the rival' : 'assembled three Codebreakers') : 'survived the final Daredevil';
-    return endGame(winner, `${game.players[winner].name} ${reason}.`);
+    const reason = winFlags[winner] ? (catchFlags[winner] ? 'caught the rival.' : 'assembled three Codebreakers.') : 'survived the rival’s third Daredevil.';
+    return endGame(winner, `${game.players[winner].name} ${reason}`);
   }
+
   const next = 1 - active;
   if (!game.deck.length && game.players[next].hand.length < 2) {
     const relative = [game.players[0].progress - game.players[1].progress, game.players[1].progress - game.players[0].progress];
     const winner = relative[0] === relative[1] ? active : relative[0] > relative[1] ? 0 : 1;
-    return endGame(winner, 'The agent deck is empty. The closer operative wins the final count.');
+    return endGame(winner, 'The deck is empty. The closer operative wins the final count.');
   }
+
   game.turn = next;
   game.phase = 'play';
-  game.step = 1;
-  game.table = [];
   game.offerRevealed = false;
   game.recruitChooser = null;
   game.playFaceUp = null;
   game.playFaceDown = null;
   game.discarding = false;
   game.locked = false;
-  setMessage(game.turn === 0 ? 'Your move. Choose a card to show.' : `${BOT_NAME} is planning a new offer.`);
+  setMessage(game.turn === 0 ? 'Show one agent. Hide another.' : `${BOT_NAME} is preparing an offer.`);
   render();
-  if (game.turn === 1) schedule(botPlayTurn, 900);
+  if (game.turn === 1) schedule(botPlayTurn, 650);
 }
 
 function endGame(winner, reason) {
   game.over = true;
   game.locked = true;
-  game.step = 3;
   game.phase = 'over';
-  const won = winner === 0;
-  const title = won ? 'You unmasked Kestrel.' : `${BOT_NAME} kept the better cover.`;
+  const title = winner === 0 ? 'You unmasked Kestrel.' : `${BOT_NAME} kept the better cover.`;
   $('#game-over-title').textContent = title;
-  $('#game-over-copy').textContent = `${reason} Final progress: You ${game.players[0].progress}, ${BOT_NAME} ${game.players[1].progress}.`;
+  $('#game-over-copy').textContent = reason;
   logEvent(`${title} ${reason}`);
-  setMessage(won ? 'Operation complete. You win.' : 'Operation complete. Kestrel wins.');
+  setMessage(winner === 0 ? 'Operation complete. You win.' : `Operation complete. ${BOT_NAME} wins.`);
   render();
-  schedule(() => $('#game-over-dialog').showModal(), 350);
+  schedule(() => $('#game-over-dialog').showModal(), 300);
 }
 
-function renderScore(playerIndex, elementId) {
-  const player = game.players[playerIndex];
-  const rival = opponentOf(playerIndex);
-  const relative = player.progress - rival.progress;
-  const distance = Math.max(0, CATCH_DISTANCE - relative);
-  const counts = AGENTS.filter(agent => countOf(player, agent.id)).map(agent => `<span style="--accent:${agent.color}">${agent.short} <b>${countOf(player, agent.id)}</b></span>`).join('');
-  const choosing = game.phase === 'recruit' && game.recruitChooser === playerIndex && !game.locked;
-  const active = game.turn === playerIndex && !game.locked;
-  const state = choosing ? 'YOUR CHOICE' : active ? (playerIndex === 0 ? 'YOUR TURN' : 'PLANNING') : playerIndex === 1 ? 'RIVAL' : 'OPERATIVE';
-  $(elementId).innerHTML = `<div class="score-top"><span class="score-name">${player.name}</span><span class="score-state">${state}</span></div><strong class="score-progress">${player.progress > 0 ? '+' : ''}${player.progress}</strong><span class="score-distance">${distance} to catch</span><div class="score-agents">${counts || '<span class="empty-count">No agents in play</span>'}</div>`;
+function turnLabel() {
+  if (game.phase === 'over') return 'OPERATION CLOSED';
+  if (game.phase === 'resolve') return 'AGENTS IN MOTION';
+  if (game.phase === 'recruit') return game.recruitChooser === 0 ? 'YOUR CHOICE' : `${BOT_NAME.toUpperCase()} CHOOSES`;
+  return game.turn === 0 ? 'YOUR PLAY' : `${BOT_NAME.toUpperCase()} PLAYS`;
 }
 
 function renderBoard() {
   const positions = game.players.map((player, index) => mod(START_POSITIONS[index] + player.progress, TRACK_SIZE));
   $('#track').innerHTML = TRACK_LAYOUT.map(([col, row], index) => {
-    const tokens = game.players.map((player, playerIndex) => positions[playerIndex] === index ? `<span class="board-token ${playerIndex === 0 ? 'token-you' : 'token-bot'}" title="${player.name}">${playerIndex === 0 ? 'Y' : 'K'}</span>` : '').join('');
-    const home = START_POSITIONS.includes(index);
-    return `<div class="track-space ${home ? 'home-space' : ''} ${tokens ? 'occupied' : ''}" style="--col:${col};--row:${row}"><span class="space-number">${String(index + 1).padStart(2, '0')}</span><div class="board-tokens">${tokens}</div></div>`;
+    const homeIndex = START_POSITIONS.indexOf(index);
+    const homeClass = homeIndex === 0 ? 'home-you' : homeIndex === 1 ? 'home-bot' : '';
+    const homePin = homeIndex >= 0 ? `<span class="home-pin">${homeIndex === 0 ? 'Y' : 'K'}</span>` : '';
+    const tokens = game.players.map((player, playerIndex) => positions[playerIndex] === index ? `<span class="board-token ${playerIndex === 0 ? 'token-you' : 'token-bot'} ${game.motionPlayers.includes(playerIndex) ? 'moving' : ''}" title="${player.name}">${playerIndex === 0 ? 'Y' : 'K'}</span>` : '').join('');
+    return `<div class="track-space segment-${index} ${homeClass} ${tokens ? 'occupied' : ''}" style="--col:${col};--row:${row}" aria-label="Space ${index + 1}${homeIndex >= 0 ? `, ${game.players[homeIndex].name} home` : ''}">${homePin}<div class="board-tokens">${tokens}</div></div>`;
   }).join('');
 }
 
 function renderOffer() {
-  const selected = game.phase === 'play' ? [game.playFaceUp ? { card: game.playFaceUp, hidden: false, label: 'face up' } : null, game.playFaceDown ? { card: game.playFaceDown, hidden: true, label: 'face down' } : null] : game.table;
-  const activeOffer = selected.filter(Boolean);
-  if (!activeOffer.length) {
-    $('#offer').innerHTML = '<div class="offer-empty"><span>◈</span><p>Your two-card offer will appear here.</p></div>';
-  } else {
-    const canChoose = game.phase === 'recruit' && game.recruitChooser === 0 && !game.locked;
-    $('#offer').innerHTML = activeOffer.map((slot, index) => {
-      const isHidden = slot.hidden && !game.offerRevealed;
-      const label = slot.label === 'face down' ? 'face down' : 'face up';
-      const inner = cardMarkup(slot.card, { hidden: isHidden, selected: false });
-      return `<button class="offer-slot ${canChoose ? 'can-choose' : ''}" data-offer-choice="${label === 'face up' ? 'faceup' : 'facedown'}" type="button" aria-label="Recruit ${label} card" ${canChoose ? '' : 'tabindex="-1"'}>${inner}<span class="offer-label">${label}${canChoose ? ' · take this' : ''}</span></button>`;
-    }).join('');
-  }
-  $('#offer-title').textContent = game.phase === 'recruit' ? 'Choose one' : 'The offer';
-  $('#offer-hint').textContent = game.phase === 'recruit' && game.recruitChooser === 0 && !game.locked ? 'Kestrel will take the other' : game.phase === 'play' ? 'Two different names' : 'Revealing the choice';
+  const layer = $('#offer-layer');
+  const visible = game.table.length && (game.phase === 'recruit' || game.phase === 'resolve');
+  layer.hidden = !visible;
+  layer.classList.toggle('dissolving', game.offerDissolving);
+  if (!visible) { $('#offer').innerHTML = ''; return; }
+
+  const canChoose = game.phase === 'recruit' && game.recruitChooser === 0 && !game.locked;
+  $('#offer-kicker').textContent = `${game.players[game.turn].name} offered`;
+  $('#offer-title').textContent = game.phase === 'resolve' ? 'Agents in motion' : game.offerRevealed ? 'Choice revealed' : canChoose ? 'Choose your recruit' : `${BOT_NAME} is reading you`;
+  $('#offer-hint').textContent = game.phase === 'resolve' ? 'The cards enter the neighborhood as both meeples move.' : game.offerRevealed ? 'The chosen card is highlighted.' : canChoose ? 'Tap either card. Kestrel receives the other.' : 'One card is visible. One remains a bluff.';
+  $('#offer').innerHTML = game.table.map(slot => {
+    const choice = slot.label === 'face up' ? 'faceup' : 'facedown';
+    const hidden = slot.hidden && !game.offerRevealed;
+    const chosen = game.recruitChoice === choice;
+    const passed = game.recruitChoice && !chosen;
+    return `<button class="offer-slot ${canChoose ? 'can-choose' : ''} ${chosen ? 'chosen' : ''} ${passed ? 'passed' : ''}" data-offer-choice="${choice}" type="button" aria-label="Recruit ${slot.label} card" ${canChoose ? '' : 'disabled'}>
+      ${cardMarkup(slot.card, { hidden })}
+      <span class="offer-label">${slot.label}${chosen ? ' · chosen' : ''}</span>
+    </button>`;
+  }).join('');
 }
 
 function renderTableau(playerIndex, elementId, countId) {
   const player = game.players[playerIndex];
   $(countId).textContent = `${totalAgents(player)} agent${totalAgents(player) === 1 ? '' : 's'}`;
-  $(elementId).innerHTML = player.tableau.length ? player.tableau.map(card => cardMarkup(card, { mini: true })).join('') : '<div class="tableau-empty"><span>—</span><small>No agents recruited</small></div>';
+  $(elementId).innerHTML = player.tableau.length ? player.tableau.map(card => cardMarkup(card, { mini: true })).join('') : '<div class="tableau-empty"><span>◈</span><small>No agents yet</small></div>';
 }
 
 function renderHand() {
@@ -439,23 +472,18 @@ function renderHand() {
     const blocked = canPlay && !game.discarding && selectedUp && !game.playFaceDown && hasDifferent && sameAsUp;
     return `<button class="hand-card ${selected ? 'selected' : ''} ${blocked ? 'blocked' : ''} ${canPlay ? 'interactive' : ''}" data-hand-card="${card.id}" type="button" aria-label="${escapeHTML(agentOf(card).name)}${selected ? ', selected' : ''}">${cardMarkup(card, { selected })}</button>`;
   }).join('');
-  $('#hand-title').textContent = game.discarding ? 'Discard one' : game.phase === 'play' && game.turn === 0 ? 'Your hand' : 'Your hand · watch the table';
-  $('#legal-hint').textContent = game.discarding ? 'Tap a card to discard it and draw a replacement.' : selectedUp && !game.playFaceDown ? (hasDifferent ? 'Choose a different agent for the hidden card.' : 'All cards share a name - an identical card is allowed.') : canPlay ? 'Play one card face-up, then hide a different name.' : 'Your cards stay ready for the next turn.';
+  $('#legal-hint').textContent = game.discarding ? 'Tap one to replace it.' : selectedUp && !game.playFaceDown ? (hasDifferent ? 'Choose a different name to hide.' : 'A matching pair is allowed.') : canPlay ? 'Show one. Hide one.' : 'Waiting for the table.';
   $('#discard-button').hidden = !(game.phase === 'play' && game.turn === 0 && !game.playFaceUp);
-  $('#discard-button').disabled = !!(!canPlay || game.discardsUsed >= 4 || !game.deck.length);
+  $('#discard-button').disabled = Boolean(!canPlay || game.discardsUsed >= 4 || !game.deck.length);
   $('#discard-button').classList.toggle('active', game.discarding);
-  $('#discard-uses').textContent = `${Math.max(0, 4 - game.discardsUsed)} left`;
+  $('#discard-uses').textContent = Math.max(0, 4 - game.discardsUsed);
   $('#reset-selection').hidden = !(game.phase === 'play' && game.playFaceUp && !game.playFaceDown);
 }
 
 function render() {
   if (!game) return;
-  $('#turn-label').textContent = `TURN · ${game.turn === 0 ? 'YOU' : BOT_NAME.toUpperCase()} · STEP ${game.step} OF 3`;
+  $('#turn-label').textContent = turnLabel();
   $('#deck-count').textContent = game.deck.length;
-  $('#discard-count').textContent = `${game.discarded.length} discarded`;
-  $('#catch-gap').textContent = CATCH_DISTANCE;
-  renderScore(0, '#score-you');
-  renderScore(1, '#score-bot');
   renderBoard();
   renderOffer();
   renderTableau(0, '#you-tableau', '#you-count');
@@ -465,7 +493,8 @@ function render() {
 
 function resetToSetup() {
   if (game && !game.over && !confirm('Start a new game? Current progress will be lost.')) return;
-  $('#game-over-dialog').close();
+  if ($('#game-over-dialog').open) $('#game-over-dialog').close();
+  document.body.classList.remove('game-active');
   $('#game').hidden = true;
   $('#setup').hidden = false;
   game = null;
