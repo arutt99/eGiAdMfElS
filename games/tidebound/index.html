@@ -41,15 +41,16 @@
         <div class="status-row">
           <div id="round-info" class="round-info"></div>
           <div id="message" class="message" aria-live="polite"></div>
-          <button id="rules-button" class="text-button" type="button">How to play</button>
+          <div class="game-menu">
+            <button id="menu-button" class="menu-button" type="button" aria-expanded="false" aria-controls="game-menu-popover">Menu</button>
+            <div id="game-menu-popover" class="menu-popover" hidden>
+              <button id="log-button" type="button">Game log</button>
+              <button id="rules-button" type="button">How to play</button>
+            </div>
+          </div>
         </div>
 
         <section id="scoreboard" class="scoreboard" aria-label="Scoreboard"></section>
-
-        <section class="game-log-panel" aria-label="Game log">
-          <div class="log-heading"><span>CAPTAIN'S LOG</span><button id="clear-log" class="text-button" type="button">Clear log</button></div>
-          <ol id="game-log" class="game-log" aria-live="polite"></ol>
-        </section>
 
         <section class="table" aria-label="Game table">
           <div class="sea-lines"></div>
@@ -71,6 +72,18 @@
       <h2>Chart the next course</h2>
       <p>You took a trick containing a suit’s highest card. Choose who opens the next trick.</p>
       <div id="lead-options" class="lead-options"></div>
+    </dialog>
+
+    <dialog id="log-dialog" class="dialog log-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Captain's log</p>
+          <h2>Game log</h2>
+        </div>
+        <button class="close" data-close="log-dialog" aria-label="Close" type="button">×</button>
+      </div>
+      <ol id="game-log" class="game-log" aria-live="polite"></ol>
+      <button id="clear-log" class="button secondary" type="button">Clear log</button>
     </dialog>
 
     <dialog id="rules-dialog" class="dialog rules">

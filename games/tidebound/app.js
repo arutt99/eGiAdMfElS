@@ -146,6 +146,12 @@ function render() {
 
 $('#start-game').onclick = startGame;
 $('#new-game').onclick = () => { if (game && !confirm('Start a new game? Current scores will be lost.')) return; $('#game').hidden = true; $('#setup').hidden = false; game = null; };
-$('#rules-button').onclick = () => $('#rules-dialog').showModal();
+const menuPopover = $('#game-menu-popover');
+const menuButton = $('#menu-button');
+function closeMenu() { menuPopover.hidden = true; menuButton.setAttribute('aria-expanded', 'false'); }
+menuButton.onclick = () => { const open = menuPopover.hidden; menuPopover.hidden = !open; menuButton.setAttribute('aria-expanded', String(open)); };
+$('#log-button').onclick = () => { closeMenu(); $('#log-dialog').showModal(); };
+$('#rules-button').onclick = () => { closeMenu(); $('#rules-dialog').showModal(); };
+document.addEventListener('click', (event) => { if (!event.target.closest('.game-menu')) closeMenu(); });
 $('#clear-log').onclick = () => { if (!game) return; game.log = []; $('#game-log').innerHTML = ''; };
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => document.getElementById(b.dataset.close).close());
