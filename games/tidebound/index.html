@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07536a" />
+    <title>Tidebound</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="masthead">
+        <a class="home-button" href="../../" aria-label="Back to Pocket Table" title="Pocket Table home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"></path><path d="M6.5 10v9h11v-9M10 19v-5h4v5"></path></svg>
+        </a>
+        <div class="title-lockup">
+          <p class="eyebrow">A trick-taking voyage</p>
+          <h1>Tidebound</h1>
+        </div>
+        <button id="new-game" class="button secondary" type="button">New game</button>
+      </header>
+
+      <section id="setup" class="setup panel">
+        <div>
+          <p class="eyebrow">Make your play</p>
+          <h2>How many rivals?</h2>
+          <p>You are joined by computer captains. Take the fewest tricks to make it safely home.</p>
+        </div>
+        <label>AI captains
+          <select id="bot-count">
+            <option value="2">2 bots (3 players)</option>
+            <option value="3" selected>3 bots (4 players)</option>
+            <option value="4">4 bots (5 players)</option>
+            <option value="5">5 bots (6 players)</option>
+          </select>
+        </label>
+        <button id="start-game" class="button" type="button">Start game</button>
+      </section>
+
+      <section id="game" hidden>
+        <div class="status-row">
+          <div id="round-info" class="round-info"></div>
+          <div id="message" class="message" aria-live="polite"></div>
+          <button id="rules-button" class="text-button" type="button">How to play</button>
+        </div>
+
+        <section id="scoreboard" class="scoreboard" aria-label="Scoreboard"></section>
+
+        <section class="game-log-panel" aria-label="Game log">
+          <div class="log-heading"><span>CAPTAIN'S LOG</span><button id="clear-log" class="text-button" type="button">Clear log</button></div>
+          <ol id="game-log" class="game-log" aria-live="polite"></ol>
+        </section>
+
+        <section class="table" aria-label="Game table">
+          <div class="sea-lines"></div>
+          <div id="opponents" class="opponents"></div>
+          <div class="trick-area">
+            <p class="trick-label">Current trick</p>
+            <div id="trick" class="trick"></div>
+          </div>
+        </section>
+
+        <section class="hand-panel">
+          <div class="hand-heading"><span>YOUR HAND</span><small id="legal-hint"></small></div>
+          <div id="hand" class="hand" aria-label="Your hand"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="lead-dialog" class="dialog">
+      <h2>Chart the next course</h2>
+      <p>You took a trick containing a suit’s highest card. Choose who opens the next trick.</p>
+      <div id="lead-options" class="lead-options"></div>
+    </dialog>
+
+    <dialog id="rules-dialog" class="dialog rules">
+      <button class="close" data-close="rules-dialog" aria-label="Close" type="button">×</button>
+      <p class="eyebrow">Navigation notes</p>
+      <h2>Avoid the tricks</h2>
+      <p>Each trick, play one card. If you hold a card in any suit already in the trick, you must play one of those suits. Otherwise, play any card.</p>
+      <p>The suit with the most cards wins the trick. If suits tie, the highest card among those tied suits wins. The player who wins normally leads the next trick.</p>
+      <p>If the won trick contains the highest card of any suit, its winner may choose the next leader. A round ends when every hand is empty; every trick taken adds one penalty point.</p>
+    </dialog>
+    <script src="app.js"></script>
+  </body>
+</html>
