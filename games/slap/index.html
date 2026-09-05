@@ -42,32 +42,28 @@
         .icon-button svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 2; }
         .game-board { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; display: grid; align-content: start; gap: 9px; padding: 10px 10px 12px; }
         .opponents { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
-        .player-area { position: relative; min-width: 0; padding: 7px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: linear-gradient(145deg, rgba(3,14,12,.74), rgba(5,25,20,.58)); box-shadow: inset 0 1px rgba(255,255,255,.04), 0 6px 14px rgba(0,0,0,.18); opacity: .74; transition: .2s; }
-        .player-area.active { opacity: 1; border-color: rgba(245,196,81,.82); box-shadow: inset 0 0 20px rgba(245,196,81,.06), 0 0 0 1px rgba(245,196,81,.2), 0 8px 22px rgba(0,0,0,.28); transform: translateY(-1px); }
+        .player-area { position: relative; min-width: 0; height: 112px; padding: 7px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: linear-gradient(145deg, rgba(3,14,12,.74), rgba(5,25,20,.58)); box-shadow: inset 0 1px rgba(255,255,255,.04), 0 6px 14px rgba(0,0,0,.18); opacity: .74; transition: border-color .2s, box-shadow .2s, opacity .2s; }
+        .player-area.active { opacity: 1; border-color: rgba(245,196,81,.82); box-shadow: inset 0 0 20px rgba(245,196,81,.06), 0 0 0 1px rgba(245,196,81,.2), 0 8px 22px rgba(0,0,0,.28); }
         .player-area.active::after { content: "TURN"; position: absolute; top: -6px; right: 8px; padding: 2px 6px; border-radius: 99px; background: var(--gold); color: #241605; font: 800 .56rem/1 "Segoe UI", sans-serif; letter-spacing: .1em; box-shadow: 0 2px 7px #0008; }
         .player-header { min-height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,.08); color: #d8e2dc; font-family: "Segoe UI", sans-serif; font-size: .77rem; font-weight: 800; }
         .player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .score-wrap { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: .65rem; }
         .score-pill { min-width: 29px; padding: 3px 7px; text-align: center; border: 1px solid rgba(245,196,81,.28); border-radius: 99px; color: var(--gold); background: rgba(0,0,0,.52); font: 900 .83rem/1 "Segoe UI", sans-serif; }
-        .cards-container { min-height: 49px; display: flex; align-items: flex-start; gap: 3px; padding-top: 6px; overflow: hidden; }
+        .cards-container { height: 78px; min-height: 78px; display: flex; align-items: flex-start; gap: 5px; padding-top: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+        .cards-container::-webkit-scrollbar { display: none; }
         .empty-hand { align-self: center; color: rgba(233,241,236,.35); font: 700 .62rem/1 "Segoe UI", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
-        .card-stack { display: flex; min-width: 0; flex-direction: column; }
+        .card-stack { display: flex; min-width: 0; flex-direction: row; }
         .card { position: relative; width: 34px; height: 47px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border: 1px solid #c8bca3; border-radius: 5px; color: #1f1a14; background: linear-gradient(135deg, rgba(255,255,255,.68), rgba(255,255,255,.08) 38%), url("assets/slap-card-front.png") center / cover, #f3ead7; box-shadow: 0 3px 7px rgba(0,0,0,.38), inset 0 0 0 2px rgba(255,255,255,.4); }
-        .card-stack .card:not(:first-child) { margin-top: -31px; box-shadow: 0 -2px 4px rgba(0,0,0,.2), 0 3px 7px rgba(0,0,0,.36); }
-        .card::before, .card::after { content: attr(data-val); position: absolute; z-index: 2; font: 900 .57rem/1 Georgia, serif; }
-        .card::before { top: 3px; left: 4px; } .card::after { right: 4px; bottom: 3px; transform: rotate(180deg); }
+        .card-stack .card:not(:first-child) { margin-left: -25px; box-shadow: -2px 0 4px rgba(0,0,0,.2), 0 3px 7px rgba(0,0,0,.36); }
         .chip { position: relative; width: 24px; height: 24px; display: grid; place-items: center; border: 3px dashed currentColor; border-radius: 50%; background: #fffdf8; box-shadow: inset 0 0 0 2px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.35); font: 950 .85rem/1 "Arial Black", sans-serif; }
         .chip::before { content: ""; position: absolute; width: 12px; height: 12px; border: 1px solid currentColor; border-radius: 50%; opacity: .3; }
         .c1 .chip{color:var(--c1)}.c2 .chip{color:var(--c2)}.c3 .chip{color:var(--c3)}.c4 .chip{color:var(--c4)}.c5 .chip{color:var(--c5)}.c6 .chip{color:var(--c6)}.c7 .chip{color:var(--c7)}.c8 .chip{color:var(--c8)}.c9 .chip{color:var(--c9)}.c10 .chip{color:var(--c10)}
-        .center-stage { position: relative; min-height: 146px; display: grid; grid-template-columns: 70px minmax(0,1fr) 70px; align-items: center; gap: 8px; padding: 10px; border: 1px solid rgba(245,196,81,.32); border-radius: 70px; background: radial-gradient(circle, rgba(12,83,61,.7), rgba(4,31,25,.58) 70%); box-shadow: inset 0 0 40px rgba(0,0,0,.24), 0 8px 24px rgba(0,0,0,.18); transition: transform .2s ease, filter .2s ease; }
+        .center-stage { position: relative; height: 146px; min-height: 146px; display: grid; grid-template-columns: 70px minmax(0,1fr) 70px; align-items: center; gap: 8px; padding: 10px; border: 1px solid rgba(245,196,81,.32); border-radius: 70px; background: radial-gradient(circle, rgba(12,83,61,.7), rgba(4,31,25,.58) 70%); box-shadow: inset 0 0 40px rgba(0,0,0,.24), 0 8px 24px rgba(0,0,0,.18); transition: filter .2s ease; }
         .center-stage.impact { animation: tableImpact .46s ease-out; }
         .deck-zone,.discard-zone { display: grid; justify-items: center; gap: 5px; }
-        .deck-stack { position: relative; width: 52px; height: 72px; display: grid; place-items: center; padding: 0; border: 2px solid #d6b460; border-radius: 7px; background: linear-gradient(rgba(3,16,13,.1), rgba(3,16,13,.4)), url("assets/slap-card-back.png") center / cover, #171410; box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), inset 0 0 0 3px #2d261b; color: var(--gold); font: 950 1.12rem/1 "Segoe UI", sans-serif; cursor: not-allowed; transition: transform .18s ease, filter .18s ease, box-shadow .18s ease; }
+        .deck-stack { position: relative; width: 52px; height: 72px; display: grid; place-items: center; padding: 0; border: 2px solid #d6b460; border-radius: 7px; background: linear-gradient(rgba(3,16,13,.1), rgba(3,16,13,.4)), url("assets/slap-card-back.png") center / cover, #171410; box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), inset 0 0 0 3px #2d261b; color: var(--gold); font: 950 1.12rem/1 "Segoe UI", sans-serif; cursor: not-allowed; transition: filter .18s ease, box-shadow .18s ease; }
         .deck-stack > span { position: absolute; right: 4px; bottom: 4px; min-width: 22px; padding: 3px 4px; border-radius: 99px; color: #1a1206; background: rgba(255,222,123,.94); font: 950 .72rem/1 "Segoe UI", sans-serif; }
-        .deck-stack:not(:disabled).is-ready { cursor: pointer; filter: saturate(1.12); animation: deckReady 1.5s ease-in-out infinite; }
-        .deck-stack:not(:disabled):hover { transform: translateY(-3px) rotate(-2deg); box-shadow: 4px 7px 0 #ad914d, 7px 12px 16px rgba(0,0,0,.42), inset 0 0 0 3px #2d261b; }
-        .deck-stack:not(:disabled):active { transform: translateY(2px) rotate(1deg); box-shadow: 2px 2px 0 #ad914d, 3px 5px 8px rgba(0,0,0,.4); }
-        .deck-stack.deck-flip { animation: deckFlip .48s cubic-bezier(.22,.76,.32,1); }
+        .deck-stack:not(:disabled).is-ready { cursor: pointer; filter: saturate(1.08); box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), 0 0 0 4px rgba(245,196,81,.1); }
         .pile-label { color: var(--muted); font: 700 .6rem/1 "Segoe UI", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
         .discard-pile { width: 44px; height: 61px; display: grid; place-items: center; border: 1px dashed rgba(255,255,255,.23); border-radius: 6px; color: rgba(255,255,255,.5); background: rgba(0,0,0,.16); font: 900 .92rem/1 "Segoe UI", sans-serif; }
         .dealer { min-width: 0; display: grid; justify-items: center; align-content: center; gap: 7px; text-align: center; }
@@ -76,21 +72,19 @@
         .drawn-card-area .card { width: 42px; height: 58px; }
         .drawn-card-area .card.card--drawn { animation: deal .18s ease-out; }
         .drawn-card-area .chip { width: 30px; height: 30px; font-size: 1rem; }
-        .drawn-card-area .card-stack .card:not(:first-child) { margin-top: -38px; }
+        .drawn-card-area .card-stack .card:not(:first-child) { margin-left: -30px; }
         .drawn-card-area .empty-hand { align-self: center; }
-        .message-banner { min-height: 34px; display: grid; place-items: center; color: var(--gold); font-size: .98rem; font-weight: 800; line-height: 1.05; text-shadow: 0 2px 4px #000; }
-        .turn-note { color: var(--muted); font: 600 .66rem/1.2 "Segoe UI", sans-serif; }
+        .message-banner { height: 34px; min-height: 34px; display: -webkit-box; overflow: hidden; place-items: center; color: var(--gold); font-size: .98rem; font-weight: 800; line-height: 1.05; text-align: center; text-shadow: 0 2px 4px #000; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        .turn-note { height: 16px; min-height: 16px; overflow: hidden; color: var(--muted); font: 600 .66rem/1.2 "Segoe UI", sans-serif; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
         @keyframes deal { from { opacity: 0; transform: translateY(-12px) rotate(-4deg) scale(.92); } to { opacity: 1; transform: none; } }
-        @keyframes deckReady { 0%,100% { box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), 0 0 0 0 rgba(245,196,81,0); } 50% { box-shadow: 3px 3px 0 #ad914d, 5px 8px 14px rgba(0,0,0,.42), 0 0 0 7px rgba(245,196,81,.12); } }
-        @keyframes deckFlip { 0% { transform: perspective(400px) rotateY(0) translateY(0); } 45% { transform: perspective(400px) rotateY(88deg) translateY(-5px); } 100% { transform: perspective(400px) rotateY(0) translateY(0); } }
-        @keyframes tableImpact { 0% { transform: scale(1); filter: saturate(1); } 45% { transform: scale(1.012); filter: saturate(1.35) brightness(1.08); } 100% { transform: scale(1); filter: saturate(1); } }
+        @keyframes tableImpact { 0%,100% { filter: saturate(1); } 45% { filter: saturate(1.35) brightness(1.08); } }
         @keyframes messagePop { 0% { opacity: .4; transform: translateY(4px) scale(.96); } 100% { opacity: 1; transform: none; } }
-        .human-area .player-area { padding: 9px; opacity: 1; border-color: rgba(255,255,255,.16); }
+        .human-area .player-area { height: 125px; padding: 9px; opacity: 1; border-color: rgba(255,255,255,.16); }
         .human-area .player-header { min-height: 28px; font-size: .9rem; }
-        .human-area .cards-container { min-height: 70px; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 7px 2px 2px; }
+        .human-area .cards-container { height: 78px; min-height: 78px; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 7px 2px 2px; }
         .human-area .card { width: 43px; height: 60px; border-radius: 6px; }
         .human-area .chip { width: 31px; height: 31px; font-size: 1rem; }
-        .human-area .card-stack .card:not(:first-child) { margin-top: -38px; }
+        .human-area .card-stack .card:not(:first-child) { margin-left: -31px; }
         .action-dock { position: relative; z-index: 30; padding: 9px 10px calc(9px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: linear-gradient(180deg, rgba(3,16,13,.88), rgba(2,12,10,.98)); box-shadow: 0 -7px 24px rgba(0,0,0,.26); }
         .controls { width: min(100%,470px); min-height: 48px; margin: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
         .action-button { min-height: 48px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; color: #fff; box-shadow: inset 0 1px rgba(255,255,255,.2), 0 4px 0 rgba(0,0,0,.38); font-family: "Segoe UI", sans-serif; font-size: .92rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
@@ -118,8 +112,8 @@
         .primary-cta { width: min(100%,310px); min-height: 56px; border: 1px solid #ffdd7b; border-radius: 15px; color: #241704; background: linear-gradient(#ffd974,#e8a933); box-shadow: inset 0 1px #fff7ca, 0 5px 0 #8b5514, 0 12px 25px #0008; font-family: "Segoe UI",sans-serif; font-size: 1.05rem; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
         .overlay-actions { display:grid;gap:13px;justify-items:center }.text-button{border:0;color:#d5e1da;background:transparent;font-family:"Segoe UI",sans-serif;font-size:.82rem;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
         .toast { position:fixed;left:50%;bottom:calc(82px + env(safe-area-inset-bottom));z-index:140;width:max-content;max-width:calc(100% - 28px);padding:10px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);background:#091c17;box-shadow:var(--shadow);font:700 .78rem/1.2 "Segoe UI",sans-serif;opacity:0;pointer-events:none;transform:translate(-50%,10px);transition:.22s ease}.toast.show{opacity:1;transform:translate(-50%,0)}
-        @media (min-width:700px) and (orientation:landscape){.game-board{width:min(100%,980px);margin:auto;grid-template-columns:minmax(350px,1fr) minmax(300px,.9fr);align-content:center;padding:16px}.opponents{grid-column:1}.center-stage{grid-column:2;grid-row:1/span 2;min-height:250px}.human-area{grid-column:1}}
-        @media (max-height:690px) and (orientation:portrait){.topbar{min-height:50px;padding-top:5px;padding-bottom:5px}.brand span{display:none}.game-board{gap:7px;padding-top:7px}.player-area{padding:5px 6px}.cards-container{min-height:42px;padding-top:4px}.card{width:31px;height:42px}.chip{width:21px;height:21px;font-size:.74rem}.card-stack .card:not(:first-child){margin-top:-28px}.center-stage{min-height:124px;padding:7px}.human-area .cards-container{min-height:61px}}
+        @media (min-width:700px) and (orientation:landscape){.game-board{width:min(100%,980px);margin:auto;grid-template-columns:minmax(350px,1fr) minmax(300px,.9fr);align-content:center;padding:16px}.opponents{grid-column:1}.center-stage{grid-column:2;grid-row:1/span 2;height:250px;min-height:250px}.human-area{grid-column:1}}
+        @media (max-height:690px) and (orientation:portrait){.topbar{min-height:50px;padding-top:5px;padding-bottom:5px}.brand span{display:none}.game-board{gap:7px;padding-top:7px}.player-area{padding:5px 6px}.cards-container{height:62px;min-height:62px;padding-top:4px}.card{width:31px;height:42px}.chip{width:21px;height:21px;font-size:.74rem}.card-stack .card:not(:first-child){margin-top:0;margin-left:-22px}.center-stage{height:124px;min-height:124px;padding:7px}.drawn-card-area{min-height:50px}.message-banner{height:30px;min-height:30px;font-size:.86rem}.turn-note{height:14px;min-height:14px}.human-area .cards-container{height:62px;min-height:62px}}
         @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;transition-duration:.001ms!important}}
     </style>
 </head>
@@ -172,7 +166,6 @@
         function renderLog(){const list=document.getElementById('game-log');if(!list)return;list.innerHTML='';if(!state.log.length){const empty=document.createElement('li');empty.className='log-empty';empty.textContent='Start a game to follow every draw, steal, bust, and bank.';list.append(empty);return}state.log.slice(-24).forEach(entry=>{const item=document.createElement('li');item.textContent=entry.text;list.append(item)});list.lastElementChild?.scrollIntoView({block:'nearest'})}
         function logEvent(text){state.log.push({text,time:Date.now()});if(state.log.length>60)state.log.shift();renderLog()}
         function syncDeckControl(){const deck=document.getElementById('deck-stack');if(!deck)return;const active=state.players[state.currentPlayerIndex];const ready=Boolean(state.gameActive&&state.phase==='choosing-draw'&&active?.isHuman&&state.inputResolver);deck.disabled=!ready;deck.classList.toggle('is-ready',ready);deck.setAttribute('aria-label',ready?'Tap to draw a card':'Draw pile')}
-        function triggerDeckFlip(){const deck=document.getElementById('deck-stack');if(!deck)return;deck.classList.remove('is-ready','deck-flip');void deck.offsetWidth;deck.classList.add('deck-flip');setTimeout(()=>deck.classList.remove('deck-flip'),520)}
         function impactTable(){const table=document.getElementById('center-stage');if(!table)return;table.classList.remove('impact');void table.offsetWidth;table.classList.add('impact')}
         function createDeck(){const cards=[];Object.entries(CARD_COUNTS).forEach(([value,count])=>{for(let i=0;i<count;i++)cards.push(Number(value))});for(let i=cards.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]]}return cards}
         function createPlayers(){return [{id:0,name:'You',persona:'',style:'human',isHuman:true,score:0,bankedCount:0,faceUp:[]},...BOT_PROFILES.map((profile,index)=>({id:index+1,...profile,isHuman:false,score:0,bankedCount:0,faceUp:[]}))]}
@@ -183,7 +176,7 @@
         function setMessage(message,note=''){const banner=document.getElementById('message-banner');banner.textContent=message;banner.classList.remove('pop');void banner.offsetWidth;banner.classList.add('pop');document.getElementById('turn-note').textContent=note}
         function renderActions(actions=[]){const controls=document.getElementById('controls');if(!actions.length){const active=state.players[state.currentPlayerIndex];controls.innerHTML=state.phase==='choosing-draw'&&active?.isHuman?'<div class="waiting-state">Tap the deck to draw</div>':'<div class="waiting-state">The table is playing…</div>';syncDeckControl();return}controls.innerHTML=actions.map(action=>`<button type="button" class="action-button ${action.className}" ${action.disabled?'disabled':''} onclick="handleAction('${action.value}')">${action.label}</button>`).join('');syncDeckControl()}
         function askHuman(actions){const promise=new Promise(resolve=>{state.inputResolver=resolve});renderActions(actions);syncDeckControl();return promise}
-        function handleAction(action){if(action==='RESTART'){startGame();return}if(!state.inputResolver)return;const resolve=state.inputResolver;state.inputResolver=null;if(action==='DRAW')triggerDeckFlip();renderActions();resolve(action)}
+        function handleAction(action){if(action==='RESTART'){startGame();return}if(!state.inputResolver)return;const resolve=state.inputResolver;state.inputResolver=null;renderActions();resolve(action)}
         function cancelPendingInput(){if(state.inputResolver){const resolve=state.inputResolver;state.inputResolver=null;resolve('CANCELLED')}}
         function bankExposedCards(player){if(!player.faceUp.length)return 0;const amount=sum(player.faceUp);player.score+=amount;player.bankedCount+=player.faceUp.length;player.faceUp=[];return amount}
         function opponentsWith(value,activeIndex){return state.players.filter((player,index)=>index!==activeIndex&&player.faceUp.includes(value))}
