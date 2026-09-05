@@ -14,7 +14,7 @@ function persist() {
 }
 function smallCard(c, { action = 'suit', danger = false, protectedCard = false, caption = '' } = {}) {
   const s = suitOf(c);
-  return `<button class="loot-card ${danger ? 'danger' : ''} ${protectedCard ? 'protected' : ''}" style="--suit:${s.color}" data-action="${action}" data-id="${c.id}" data-suit="${c.suit}" aria-label="${s.name} ${c.value}${danger ? ', causes a bust' : ''}${protectedCard ? ', protected by Anchor' : ''}"><span class="card-value">${c.value}</span>${icon(c.suit)}<span class="card-name">${s.name}</span>${caption ? `<span class="card-caption">${caption}</span>` : ''}${protectedCard ? '<span class="protected-dot" title="Protected">•</span>' : ''}</button>`;
+  return `<button class="loot-card ${danger ? 'danger' : ''} ${protectedCard ? 'protected' : ''}" style="--suit:${s.color};--card-art:url('assets/cards/${s.id}.jpg')" data-action="${action}" data-id="${c.id}" data-suit="${c.suit}" aria-label="${s.name} ${c.value}${danger ? ', causes a bust' : ''}${protectedCard ? ', protected by Anchor' : ''}"><span class="card-value">${c.value}</span><span class="card-art" aria-hidden="true"></span><span class="card-name">${s.name}</span>${caption ? `<span class="card-caption">${caption}</span>` : ''}${protectedCard ? '<span class="protected-dot" title="Protected">•</span>' : ''}</button>`;
 }
 function bankMarkup(n) {
   const bank = game.banks[n];
@@ -22,7 +22,7 @@ function bankMarkup(n) {
   const eligible = selectable ? options(game).map(c => c.id) : [];
   return `<section data-bank="${n}" class="bank ${n === game.active && game.phase === 'play' ? 'active-bank' : ''}" aria-label="${playerName(n)} bank"><div class="section-heading"><span>${n === 0 ? 'Your treasure' : 'Rook’s treasure'}</span><button class="text-button" data-action="bank" data-player="${n}">${bank.length} cards <span aria-hidden="true">↗</span></button></div><div class="bank-grid">${SUITS.map(s => {
     const cards = stack(bank, s.id), top = cards[0], can = eligible.includes(top?.id);
-    return `<button class="bank-slot ${top ? 'filled' : ''} ${can ? 'target drag-source' : ''}" style="--suit:${s.color}" data-action="${can ? 'choose' : 'stack'}" data-drag-card="${can ? 'true' : 'false'}" data-player="${n}" data-suit="${s.id}" data-id="${top?.id || ''}" aria-grabbed="false" aria-label="${s.name}: ${top ? cards.map(c => c.value).join(', ') : 'empty'}${can ? ', drag this card to continue' : ''}">${icon(s.id)}<b>${top?.value || '–'}</b><span>${s.name}</span>${cards.length > 1 ? `<i>${cards.length}</i>` : ''}</button>`;
+    return `<button class="bank-slot ${top ? 'filled' : ''} ${can ? 'target drag-source' : ''}" style="--suit:${s.color};--card-art:url('assets/cards/${s.id}.jpg')" data-action="${can ? 'choose' : 'stack'}" data-drag-card="${can ? 'true' : 'false'}" data-player="${n}" data-suit="${s.id}" data-id="${top?.id || ''}" aria-grabbed="false" aria-label="${s.name}: ${top ? cards.map(c => c.value).join(', ') : 'empty'}${can ? ', drag this card to continue' : ''}"><span class="bank-art" aria-hidden="true"></span><b>${top?.value || '–'}</b><span>${s.name}</span>${cards.length > 1 ? `<i>${cards.length}</i>` : ''}</button>`;
   }).join('')}</div></section>`;
 }
 function topbar(home = false) {

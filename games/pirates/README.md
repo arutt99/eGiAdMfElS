@@ -16,8 +16,9 @@ The bot follows the same action reducer as the human. It evaluates scoring gains
 
 - `engine.mjs`: rules, legal actions, scoring, bot decisions, save validation.
 - `app.mjs`: touch interface, dialogs, automatic saves, bot pacing.
-- `icons.mjs`, `style.css`, `table.css`: suit artwork, base controls, and responsive painted tabletop styling.
+- `icons.mjs`, `style.css`, `table.css`: suit UI, base controls, and responsive painted tabletop styling.
 - `assets/pirate-table.webp`: bundled pirate artwork (288 KiB); see `assets/ARTWORK.md` for generation details.
+- `assets/cards/`: ten reusable suit illustrations plus the illustrated deck back; see `assets/ARTWORK.md` for the art direction and generation details.
 - `manifest.webmanifest`, `icon.svg`: home-screen metadata and icon.
 
 Progress is stored under `pirates.v1` in local storage after each move. Resume restores pending choices and bot turns. If storage is unavailable, the game remains playable and explains that the tab must stay open. A new voyage requires confirmation while a game is in progress.
