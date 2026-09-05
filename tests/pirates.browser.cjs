@@ -54,6 +54,8 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   assert.ok(await page.locator('.play-grid').evaluate(el => el.scrollWidth <= el.clientWidth), 'all ten suits fit the landscape play row');
   await shot('03-landscape-ten-suits');
   await page.setViewportSize({ width: 390, height: 844 }); await load(s);
+  assert.equal(await page.locator('.draw-button').count(), 0, 'bottom draw button removed');
+  assert.equal(await page.locator('.draw-pile[data-action="draw"]').count(), 1, 'deck is the draw control');
   await page.locator('[data-action="draw"]').click(); await page.locator('.choice-grid').waitFor(); await noOverflow(); await shot('04-map-choice');
   const choiceState = await read();
   assert.equal(choiceState.choice.type, 'map');
@@ -63,6 +65,16 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   await page.locator('[data-action="menu"]').click(); await page.locator('[data-action="log"]').click(); assert.ok(await page.locator('.voyage-log article').count() > 0);
   await page.keyboard.press('Escape');
   await page.locator('[data-action="bank"][data-player="0"]').click(); assert.equal(await page.locator('.bank-list>div').count(), 10); await page.keyboard.press('Escape');
+  const hook = fixture({ draw: ['hook-5'], banks: [['key-7'], []] }); await load(hook);
+  await page.locator('.draw-pile').click();
+  assert.equal(await page.locator('.choice-panel').count(), 0, 'bank abilities do not open a choice panel');
+  await page.locator('.bank-slot[data-drag-card="true"][data-id="key-7"]').dragTo(page.locator('.play-grid[data-drop-target="play"]'));
+  assert.equal((await read()).choice, null, 'Hook resolves by dragging into the play line');
+  const cannon = fixture({ draw: ['cannon-4'], banks: [[], ['key-7']] }); await load(cannon);
+  await page.locator('.draw-pile').click();
+  assert.equal(await page.locator('.cannon-drop').count(), 1, 'Cannon renders a discard drop zone');
+  await page.locator('.bank-slot[data-drag-card="true"][data-id="key-7"]').dragTo(page.locator('.cannon-drop'));
+  assert.equal((await read()).choice, null, 'Cannon resolves by dragging into the discard zone');
   for (const width of [320, 375, 430]) { await page.setViewportSize({ width, height: 740 }); await noOverflow(); await shot(`05-table-${width}`); }
   await page.setViewportSize({ width: 390, height: 844 });
   // Follow the real buttons for an entire match. The app runs Rook on its normal timer.
@@ -75,7 +87,13 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
     else if (state.active === 1) await page.waitForTimeout(360);
     else {
       const action = engine.botAction(state);
-      if (action.type === 'choose') await page.locator(`.choice-grid [data-id="${action.id}"]`).click();
+      if (action.type === 'choose') {
+        const source = page.locator(`.bank-slot[data-drag-card="true"][data-id="${action.id}"]`);
+        if (await source.count()) {
+          const target = state.choice.type === 'cannon' ? page.locator('.cannon-drop') : page.locator('.play-grid[data-drop-target="play"]');
+          await source.dragTo(target);
+        } else await page.locator(`.choice-grid [data-id="${action.id}"]`).click();
+      }
       else await page.locator(`[data-action="${action.type}"]`).click();
     }
     await noOverflow();

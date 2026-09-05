@@ -93,9 +93,11 @@ test('last-card abilities resolve completely before game end', () => {
   assert.equal(s.phase, 'play'); choose(s, 'map-7'); assert.equal(s.choice.type, 'map'); choose(s, 'hook-6');
   assert.equal(s.choice, null); collect(s); assert.equal(s.phase, 'over'); assert.equal(s.result.kept.length, 3);
 });
-test('Oracle reveals safely and is hidden again when a turn ends', () => {
-  const s = scene({ draw: ['oracle-7', 'mermaid-9'] }); draw(s); assert.equal(s.oracle, true); collect(s);
-  assert.equal(s.oracle, false); act(s, { type: 'next' }); assert.equal(s.deck.at(-1).id, 'mermaid-9');
+test('Oracle reveals only the next card and is hidden after that draw or collect', () => {
+  const s = scene({ draw: ['oracle-7', 'mermaid-9', 'key-3'] }); draw(s); assert.equal(s.oracle, true);
+  draw(s); assert.equal(s.oracle, false); assert.equal(s.play.at(-1).id, 'mermaid-9');
+  collect(s); act(s, { type: 'next' }); assert.equal(s.deck.at(-1).id, 'key-3');
+  const t = scene({ draw: ['oracle-7', 'mermaid-9'] }); draw(t); assert.equal(t.oracle, true); collect(t); assert.equal(t.oracle, false);
 });
 test('score ties use total bank cards, then share victory', () => {
   const a = scene({ draw: [], play: ['key-7'], banks: [[], ['chest-7', 'chest-3']] }); collect(a); assert.equal(a.winner, 1);

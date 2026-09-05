@@ -5,7 +5,7 @@ export const SUITS = [
   { id: 'key', name: 'Key', color: '#edcd7e', short: 'Pair with a Chest', rule: 'Collect a Key and Chest together to gain one random discard card for every card collected. Bonus cards go straight to your bank; their abilities do not activate.' },
   { id: 'chest', name: 'Chest', color: '#eab66d', short: 'Pair with a Key', rule: 'Collect a Chest and Key together to gain one random discard card for every card collected, or all remaining discards if there are fewer.' },
   { id: 'map', name: 'Map', color: '#c5bd95', short: 'Recover lost treasure', rule: 'Reveal up to three random discards. Choose one to put into play and activate its ability. Return the others. You must choose, even if it makes you bust.' },
-  { id: 'oracle', name: 'Oracle', color: '#baa8e8', short: 'See the next card', rule: 'See the next card on the draw pile for the rest of your turn. You can draw it or collect. If you collect, it is hidden again.' },
+  { id: 'oracle', name: 'Oracle', color: '#baa8e8', short: 'See the next card', rule: 'See the next card on the draw pile. The reveal lasts until you draw that card or collect.' },
   { id: 'sword', name: 'Sword', color: '#9ac6e5', short: 'Steal a missing suit', rule: 'Steal the highest card of a rival’s suit that is absent from your own bank. Put it into play and activate its ability. You must choose, even if it makes you bust.' },
   { id: 'kraken', name: 'Kraken', color: '#d79bc2', short: 'Play two more cards', rule: 'Add two more cards to play before collecting. Cards brought in by a Hook, Sword or Map count toward these two. Resolve every ability along the way.' },
   { id: 'mermaid', name: 'Mermaid', color: '#8acbaa', short: 'A richer prize', rule: 'No activated ability. Mermaids are worth 4–9; every other suit is worth 2–7.' },
@@ -107,7 +107,11 @@ export function act(s, action, rng = Math.random) {
   }
   if (s.choice) return false;
   if (action.type === 'draw' && s.deck.length) {
-    const card = s.deck.pop(); s.seenDraw.push(card.id); enter(s, card, rng); return true;
+    const card = s.deck.pop();
+    // Oracle is a one-card reveal. Consume the current reveal before entering
+    // the card so a newly drawn Oracle can correctly arm the following reveal.
+    s.oracle = false;
+    s.seenDraw.push(card.id); enter(s, card, rng); return true;
   }
   if (action.type === 'collect' && s.play.length && (!s.forced || !s.deck.length)) { finish(s, false, rng); return true; }
   return false;
