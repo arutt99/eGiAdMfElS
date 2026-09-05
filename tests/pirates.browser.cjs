@@ -36,6 +36,24 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   await page.setViewportSize({ width: 390, height: 844 });
   const s = fixture({ draw: ['map-6', 'mermaid-8', 'hook-5', 'sword-3'], play: ['key-7', 'anchor-6', 'chest-5'], banks: [['mermaid-9', 'mermaid-5', 'oracle-4', 'cannon-5'], ['sword-7', 'map-7', 'key-6', 'kraken-4']] });
   await load(s); await shot('03-table-390');
+  // Landscape uses the whole table, including on a short phone screen.
+  for (const [width, height] of [[844, 390], [932, 430], [1280, 800]]) {
+    await page.setViewportSize({ width, height }); await noOverflow();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), 'landscape table fits vertically');
+    for (const action of ['draw', 'collect']) {
+      assert.ok(await page.locator(`[data-action="${action}"]`).evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return r.bottom <= innerHeight && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+      }), `${action} stays visible and unobscured`);
+    }
+    await shot(`03-landscape-${width}`);
+  }
+  const fullHaul = fixture({ draw: ['mermaid-9'], play: engine.SUITS.map(suit => `${suit.id}-${suit.id === 'mermaid' ? 8 : 6}`) });
+  await load(fullHaul); await page.setViewportSize({ width: 844, height: 390 });
+  assert.equal(await page.locator('.play-grid .loot-card').count(), 10);
+  assert.ok(await page.locator('.play-grid').evaluate(el => el.scrollWidth <= el.clientWidth), 'all ten suits fit the landscape play row');
+  await shot('03-landscape-ten-suits');
+  await page.setViewportSize({ width: 390, height: 844 }); await load(s);
   await page.locator('[data-action="draw"]').click(); await page.locator('.choice-grid').waitFor(); await noOverflow(); await shot('04-map-choice');
   const choiceState = await read();
   assert.equal(choiceState.choice.type, 'map');

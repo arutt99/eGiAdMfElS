@@ -1,6 +1,6 @@
 # Pirates
 
-A complete, portrait-first card game for one human and Captain Rook. Served as static files at `games/pirates/`; no build step, account, API, external assets, or server is required. The root game shelf links here.
+A complete card game for one human and Captain Rook, with a painted landscape table and a compact portrait layout. Served as static files at `games/pirates/`; no build step, account, API, externally hosted assets, or server is required. The root game shelf links here.
 
 ## Play
 
@@ -16,7 +16,8 @@ The bot follows the same action reducer as the human. It evaluates scoring gains
 
 - `engine.mjs`: rules, legal actions, scoring, bot decisions, save validation.
 - `app.mjs`: touch interface, dialogs, automatic saves, bot pacing.
-- `icons.mjs`, `style.css`: original suit artwork and responsive styling.
+- `icons.mjs`, `style.css`, `table.css`: suit artwork, base controls, and responsive painted tabletop styling.
+- `assets/pirate-table.webp`: bundled pirate artwork (288 KiB); see `assets/ARTWORK.md` for generation details.
 - `manifest.webmanifest`, `icon.svg`: home-screen metadata and icon.
 
 Progress is stored under `pirates.v1` in local storage after each move. Resume restores pending choices and bot turns. If storage is unavailable, the game remains playable and explains that the tab must stay open. A new voyage requires confirmation while a game is in progress.

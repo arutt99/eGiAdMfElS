@@ -1,0 +1,115 @@
+/* Painted tabletop theme. The compact layout remains available in portrait. */
+:root{--bg:#21190f;--deep:#0b0906;--panel:#302516;--ink:#f9ebc7;--muted:#c1b18f;--gold:#ebc572;--teal:#aaca96;--line:#cba45340;--red:#ffac91}
+html,body{background:#090806}
+body{background:radial-gradient(ellipse at center,#302516,#090806 80%)}
+.shell{background:linear-gradient(#100c0755,#100c0777),url('assets/pirate-table.webp') center/cover;box-shadow:0 0 70px #000c;position:relative}
+.topbar{position:relative;z-index:2;border-color:#d6ae5544;height:52px}
+.brand{color:var(--gold);font-variant:small-caps;letter-spacing:1px}
+.round-button,.shelf-link{color:var(--gold);text-shadow:0 2px 3px #000}
+.primary,.secondary{border-radius:3px;border:1px solid #cfad66;box-shadow:inset 0 0 0 3px #251507,inset 0 0 15px #0008,0 4px 12px #0007;color:#ffdf95;font-family:Georgia,serif}
+.primary{background:linear-gradient(0deg,#420b05,#8d2710 65%,#aa3918);text-shadow:0 2px 2px #210900}
+.primary:hover:not(:disabled){background:linear-gradient(#b74520,#6d170b)}
+.secondary{background:linear-gradient(135deg,#4b3c23,#20190f)}
+.secondary:hover:not(:disabled){background:#56442a}
+.home{width:min(100%,1440px);height:100svh;min-height:580px;padding:0 25px;overflow:hidden;background:linear-gradient(#0001,#0001),url('assets/pirate-table.webp') center/100% 100%}
+.landing{position:static;padding:0;display:flex;align-items:center;flex-direction:column}
+.title-lockup{position:absolute;top:16%;left:25%;right:25%;text-shadow:0 4px 6px #000}
+.title-lockup .eyebrow{font-size:11px;letter-spacing:3px}
+h1{font:small-caps 700 clamp(64px,8vw,120px)/1 Georgia,serif;letter-spacing:2px;color:#f8dc92;margin:8px 0}
+.intro{font:italic 20px Georgia,serif;color:#e0c99f;margin:10px 0}
+.match-versus{position:absolute;top:40%;left:50%;transform:translate(-50%,-5%);font:220px/1 Georgia,serif;color:#c1a26329;pointer-events:none}
+.match-banner{position:absolute;top:48%;left:0;right:0;height:78px;display:grid;grid-template-columns:1fr 280px 1fr;grid-template-rows:100%;align-items:center;border-block:2px solid #b39a61;background:repeating-linear-gradient(45deg,#0000 0 9px,#0002 9px 12px),linear-gradient(#942b10,#410b04);box-shadow:0 5px 20px #0009,inset 0 2px 0 #ebc57244}
+.captain-name{font:small-caps 30px Georgia,serif;color:#f8dc92;text-shadow:0 3px 3px #160703}
+.captain-name small{display:block;font:10px Arial,sans-serif;text-transform:uppercase;letter-spacing:2px;color:#d2b57d;margin-top:4px}
+.start-button{justify-content:center;font:small-caps 60px Georgia,serif;min-height:110px;border-width:3px;position:relative;margin:0;background:repeating-linear-gradient(45deg,#0000 0 8px,#0001 8px 11px),linear-gradient(#b13214,#5b0b06)}
+.start-button>span{font-size:36px}
+.landing-tools{position:absolute;left:36%;right:30%;top:calc(48% + 118px)}
+.learn-button{font:small-caps 21px Georgia,serif;min-height:45px;background:#160f08ba;margin:0 auto;width:auto;padding:10px 28px}
+.save-note{font:italic 14px/1.5 Georgia,serif;color:#d4c1a0;text-shadow:0 2px 3px #000}
+.new-voyage{color:#e8cc91;margin-top:12px}
+.home-footer{z-index:1;color:#d3b780;margin-top:auto;letter-spacing:3px;text-shadow:0 2px 4px #000;padding-bottom:20px}
+.score-panel{background:#1b120bba;border-color:#c29f5255;border-radius:3px}
+.score-panel.at-helm,.score-panel.rival{background:#3c311abf;border-color:#e8c36a}
+.score-panel>strong{color:#f7d98b;text-shadow:1px 2px #8b521c,0 4px 3px #000;font-size:36px}
+.score-panel .eyebrow{color:#f2d692}
+.bank-slot{border-radius:5px 5px 2px 2px;background:linear-gradient(105deg,#54442be6,#2c2318f2);border:1px solid #9e814c70;color:var(--suit);box-shadow:2px 3px 3px #0006}
+.bank-slot .icon{opacity:.9;filter:drop-shadow(0 1px 1px #000)}
+.bank-slot>span{color:#d2bd91}
+.bank-slot.filled{background:linear-gradient(110deg,#675232,#382a17);border-color:#bc955d99}
+.bank-slot:hover,.bank-slot.target{background:#735933;border-color:var(--gold)}
+.bank-slot b{color:#f2dca9}
+.section-heading>span{color:#dfc78f;font:small-caps 17px Georgia,serif;text-shadow:0 2px 2px #000;text-transform:none;letter-spacing:1px}
+.table{background:linear-gradient(#100d09d9,#0b0906dc);border-block:2px solid #b497565f;box-shadow:0 5px 20px #0008,inset 0 1px #ebd29844;padding:12px}
+.loot-card{background:radial-gradient(ellipse at 50% 40%,#816542,#4a3723 80%);border-color:#b4996399;border-radius:5px;box-shadow:2px 5px 5px #0008}
+.loot-card::before{border-color:#d3ae6555;border-radius:2px}
+.loot-card:hover{background:#846744}
+.loot-card>.icon{filter:drop-shadow(0 2px 2px #120c06)}
+.card-name{color:#f4dfb1}
+.card-value{color:#ffe2a3;text-shadow:0 2px #35200c}
+.loot-card.danger{background:#682d20}
+.empty-sea{color:#beaa7d}
+.ability-note{color:#d4c2a0}
+.turn-status{background:linear-gradient(130deg,#344b2dee,#1b3c23f5);border:1px solid #83a45b;border-radius:14px 5px 17px 5px;padding:12px 16px;box-shadow:0 4px 8px #0008,inset 0 0 10px #94ce4444;margin-top:12px}
+.turn-status h2{color:#f3edd7;font-variant:small-caps}
+.turn-status p{color:#e0dfc6;max-width:none}
+.bust-status{background:linear-gradient(130deg,#632c22,#3a1a10);border-color:#c67b50}
+.action-dock{background:linear-gradient(#302416f5,#140e08);border-color:#ac8b4c;box-shadow:0 -4px 20px #0008}
+.choice-panel{background:#271e12f5;border:1px solid #bf9e5c;padding:14px;border-radius:4px;margin-block:12px;box-shadow:0 6px 18px #0009}
+.draw-pile{display:none}
+dialog{background:radial-gradient(at top,#453621,#1e170e);border-color:#ac8b4c;border-radius:8px;box-shadow:0 20px 100px #000b}
+dialog::backdrop{background:#090603c9}
+.rules-note,.final-scores>div,.bot-working>.text-button{border-color:#a2854b55;border-radius:4px}
+.oracle-peek{background:#342b40;border-color:#bda1c777}
+.tag{background:#4b5f2d77}.tag.gold{background:#77602566}.tag.warning{background:#71315566}
+
+@media(min-width:760px) and (orientation:landscape), (min-width:1100px){
+ .game-shell{width:min(100%,1440px);height:100svh;max-height:1000px;min-height:420px;margin:auto;padding:0 22px;display:grid;grid-template-columns:14% 1fr 17%;grid-template-rows:48px minmax(72px,1fr) minmax(66px,.7fr) minmax(175px,2fr) minmax(105px,1.2fr);column-gap:16px;background:linear-gradient(#0001,#0001),url('assets/pirate-table.webp') center/100% 100%}
+ .game-shell .topbar{grid-column:1/-1;grid-row:1;height:44px}
+ .scoreboard{display:contents}.scoreboard>.versus{display:none}
+ .score-panel{grid-row:5;grid-column:3;align-self:end;z-index:1;display:flex;flex-direction:column-reverse;margin:0 0 18px;background:none;border:0;text-align:center;gap:12px}
+ .score-panel.at-helm,.score-panel.rival{background:none;border:0}
+ .score-panel>strong{font-size:65px}.score-panel>strong small{display:none}.score-panel>div>small{font-size:10px}.score-panel .eyebrow{font:small-caps 19px Georgia,serif;letter-spacing:0}
+ .score-panel:last-child{grid-row:2;grid-column:1;align-self:center;margin:0}
+ .score-panel.at-helm>strong{filter:drop-shadow(0 0 12px #e9b34d88)}
+ .bank[data-bank="1"]{grid-row:2;grid-column:2;margin-right:6%;align-self:center}
+ .bank[data-bank="0"]{grid-row:5;grid-column:2;margin-left:15%;align-self:center;padding-bottom:9px}
+ .bank-grid{grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+ .bank-slot{min-height:62px;display:flex;flex-direction:column;gap:3px;padding:6px 2px}.bank-slot .icon{width:22px;height:22px}.bank-slot b{font-size:20px}.bank-slot>span{font-size:8px}.bank-slot i{font-size:8px}
+ .section-heading{height:28px}.section-heading .text-button{color:#e2c994}
+ .turn-status{grid-row:3;grid-column:2;margin:4px 3% 12px 0;align-self:center;min-height:0;padding:10px 18px;position:relative}
+ .turn-status:after{content:'';position:absolute;right:-17px;top:15px;border-block:8px solid transparent;border-left:17px solid #61814a}
+ .turn-status h2{font-size:24px;margin-bottom:4px}.turn-status p{font-size:12px}
+ .table{grid-row:4;grid-column:1/-1;margin:0 -22px;padding:12px 24px 72px 160px;position:relative;min-height:0}
+ .table-topline{margin:0 0 8px}.table-topline>.eyebrow{font-size:10px}.pile-count{font-size:11px}
+ .play-grid{display:flex;align-items:center;justify-content:center;gap:8px;min-height:94px;flex-wrap:nowrap}.empty-play{min-height:94px}
+ .play-grid .loot-card{width:clamp(52px,7vw,92px);min-height:100px;flex:0 1 92px}.loot-card>.icon{width:30px;height:30px}.card-name{font-size:9px}
+ .draw-pile{display:flex;position:absolute;left:25px;top:20px;bottom:20px;width:108px;max-height:174px;border:3px double #bc994b;border-radius:8px;box-shadow:3px 2px #40321b,6px 4px #ac915b,9px 6px #372b18,12px 8px #9c8659;align-items:center;justify-content:space-evenly;flex-direction:column;color:#cba750;background:repeating-conic-gradient(from 45deg,#c5a34d14 0% 25%,transparent 0% 50%) 0 0/19px 19px,#19160c}
+ .draw-pile:before{content:'';position:absolute;inset:5px;border:1px solid #b79950;border-radius:30% 30% 10% 10%}.draw-pile strong{font:40px Georgia,serif;background:#1c170b;border:2px solid #ba974b;border-radius:50%;padding:2px 8px;z-index:1}.draw-pile>.icon{height:28px;width:28px}.draw-pile>span{font:10px Georgia,serif;letter-spacing:2px}.deck-ornament{font-size:14px}
+ .ability-note{min-height:24px;padding:5px 0;font-size:11px;max-width:60%}.ability-note .icon{width:16px;height:16px}
+ .table-tags{position:absolute;bottom:12px;left:160px;max-width:40%}.oracle-peek{position:absolute;bottom:8px;left:160px;margin:0;width:240px;padding:5px;z-index:1}.table:has(.oracle-peek) .table-tags{bottom:51px}
+ .action-dock{position:relative;grid-row:4;grid-column:2/4;align-self:end;justify-self:end;left:auto;bottom:auto;transform:none;width:360px;max-width:100%;padding:0 0 9px;border:0;background:none;box-shadow:none;gap:9px}
+ .action-dock>.primary,.action-dock>.secondary{min-height:50px;padding:8px 13px;font-size:16px}.action-dock small{margin-top:3px}.bot-working{min-height:45px;text-shadow:0 2px 2px #000}.bot-working>span:nth-child(2){color:#f1dcae}.bottom-space{display:none}
+ .choice-panel{position:absolute;z-index:6;left:19%;right:19%;top:32%;max-height:59%;overflow:auto;margin:0;box-shadow:0 0 0 100vmax #0006,0 8px 30px #000b}
+ .choice-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.choice-grid .loot-card{min-height:115px}.choice-reminder{display:none}
+}
+@media(min-width:760px) and (orientation:landscape) and (max-height:600px){
+ .home{min-height:360px}.home .title-lockup{top:9%}.title-lockup h1{font-size:68px}.title-lockup .eyebrow{font-size:9px}.intro{font-size:16px}.match-banner{top:47%;height:55px;grid-template-columns:1fr 220px 1fr}.captain-name{font-size:24px}.start-button{font-size:45px;min-height:78px}.landing-tools{top:calc(47% + 75px)}.learn-button{font-size:17px;min-height:40px}.save-note{margin-top:9px;font-size:12px}.home-footer{font-size:8px;padding-bottom:12px}
+ .game-shell{grid-template-rows:36px 60px 56px minmax(153px,1fr) 75px;min-height:380px;column-gap:10px}.game-shell .topbar{height:38px}.brand{font-size:19px}.game-shell .topbar .round-button,.game-shell .shelf-link{height:36px;width:38px}
+ .score-panel>strong{font-size:36px}.score-panel{gap:2px;margin-bottom:8px}.score-panel .eyebrow{font-size:12px;white-space:nowrap}.score-panel>div>small{font-size:8px;margin-top:2px}
+ .bank-slot{min-height:40px;padding:3px 1px;gap:1px}.bank-slot .icon{width:16px;height:16px}.bank-slot b{font-size:14px}.bank-slot>span{display:none}.section-heading{height:20px}.section-heading>span{font-size:14px}.bank[data-bank="0"]{padding-bottom:2px}
+ .turn-status{padding:6px 12px;margin:2px 4% 3px 0}.turn-status h2{font-size:18px;line-height:1;margin-bottom:3px}.turn-status p{font-size:10px;line-height:1.3}
+ .table{padding:7px 20px 50px 124px}.table-topline{margin-bottom:4px}.play-grid{min-height:78px;gap:5px}.play-grid .loot-card{min-height:76px;max-width:65px;padding:5px;gap:3px}.loot-card>.icon{width:22px;height:22px}.loot-card .card-value{font-size:16px}.card-name{font-size:8px}.empty-play{min-height:77px}.empty-sea>span{font-size:15px}.empty-sea>.icon{width:38px;height:38px}.ability-note{font-size:9px;padding-top:3px;min-height:18px}.ability-note .icon{height:13px;width:13px}
+ .draw-pile{left:18px;top:12px;bottom:16px;width:77px}.draw-pile strong{font-size:30px}.draw-pile>.icon{width:21px;height:21px}.deck-ornament{font-size:10px}.draw-pile>span{font-size:8px}
+ .action-dock{width:310px;padding-bottom:5px}.action-dock>.primary,.action-dock>.secondary{min-height:40px;font-size:14px;padding:5px 10px}.action-dock small{font-size:8px}.table-tags{left:124px;bottom:6px}.oracle-peek{left:124px;width:205px;font-size:9px}.table:has(.oracle-peek) .ability-note{max-width:50%}
+}
+@media(max-width:759px), (max-width:1099px) and (orientation:portrait){
+ .home{max-width:600px;min-height:650px;padding-inline:15px;background-size:auto 100%;background-position:center}
+ .home:before,.home:after{content:'';position:absolute;pointer-events:none;background-image:url('assets/pirate-table.webp');background-repeat:no-repeat;background-size:auto 100%;opacity:.85}
+ .home:before{left:0;bottom:0;width:64%;height:47%;background-position:left bottom;mask-image:linear-gradient(to right,#000 50%,transparent),linear-gradient(to top,#000 80%,transparent);mask-composite:intersect}
+ .home:after{right:0;top:50px;width:48%;height:30%;background-position:right top;mask-image:linear-gradient(to left,#000 50%,transparent),linear-gradient(to bottom,#000 70%,transparent);mask-composite:intersect}
+ .title-lockup,.match-banner,.landing-tools{z-index:1}
+ .title-lockup{top:17%;left:8%;right:8%}.title-lockup .eyebrow{font-size:9px;letter-spacing:2px}.title-lockup h1{font-size:78px}.intro{font-size:18px}
+ .match-banner{top:46%;height:69px;grid-template-columns:1fr 135px 1fr}.captain-name{font-size:18px;padding:0 6px}.captain-name small{font-size:8px;letter-spacing:0;line-height:1.4}.start-button{font-size:36px;min-height:93px;gap:5px;padding-inline:8px}.start-button>span{font-size:24px}.match-versus{top:39%;font-size:160px}
+ .landing-tools{left:27%;right:8%;top:calc(46% + 125px)}.learn-button{font-size:20px;padding:12px 20px}.save-note{font-size:13px}.home-footer{font-size:8px;letter-spacing:1.5px}
+ .game-shell{max-width:550px;background-attachment:fixed;padding-bottom:1px}.game-shell .topbar{height:50px}.scoreboard{margin-top:10px}.score-panel{padding:10px}.score-panel>strong{font-size:30px}.bank-slot{min-height:45px}.table{margin-top:12px}.turn-status{margin-bottom:7px}.turn-status h2{font-size:22px}.turn-status p{font-size:11px}.action-dock{max-width:550px}.choice-panel{scroll-margin-bottom:100px}
+}
