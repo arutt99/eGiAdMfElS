@@ -10,14 +10,11 @@
         :root {
             color-scheme: dark;
             --bg: #071310;
-            --panel: rgba(16, 34, 28, .82);
+            --panel: rgba(16, 34, 28, .74);
             --ink: #f8f0dc;
             --muted: #adc0b6;
             --gold: #f3c75d;
-            --coral: #ef836e;
-            --violet: #b89cff;
             --line: rgba(248, 240, 220, .14);
-            --shadow: 0 24px 70px rgba(0, 0, 0, .35);
         }
 
         * { box-sizing: border-box; }
@@ -29,41 +26,29 @@
             color: var(--ink);
             font-family: Georgia, "Times New Roman", serif;
             background:
-                radial-gradient(circle at 12% 0%, rgba(52, 145, 104, .26), transparent 30rem),
-                radial-gradient(circle at 92% 14%, rgba(166, 103, 238, .16), transparent 26rem),
+                radial-gradient(circle at 12% 0%, rgba(52, 145, 104, .2), transparent 30rem),
                 linear-gradient(145deg, #0d261e, var(--bg) 62%);
         }
 
         a { color: inherit; }
-        .site-shell { width: min(100% - 32px, 1080px); margin: 0 auto; padding: 22px 0 34px; }
+        .site-shell { width: min(100% - 32px, 900px); margin: 0 auto; padding: 22px 0 34px; }
         .site-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .wordmark { display: inline-flex; align-items: center; gap: 10px; font: 900 .78rem/1 Arial, sans-serif; letter-spacing: .18em; text-transform: uppercase; }
         .wordmark-mark { width: 31px; height: 31px; display: grid; place-items: center; border: 2px solid var(--gold); border-radius: 9px; color: var(--bg); background: var(--gold); font: 900 1rem/1 Arial, sans-serif; transform: rotate(-7deg); }
         .header-note { color: var(--muted); font: 700 .72rem/1.2 Arial, sans-serif; text-align: right; }
-        .hero { max-width: 720px; padding: clamp(68px, 14vw, 132px) 0 54px; }
+        .hero { max-width: 640px; padding: clamp(68px, 14vw, 132px) 0 54px; }
         .eyebrow { margin: 0 0 14px; color: var(--gold); font: 900 .68rem/1 Arial, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
-        h1 { max-width: 680px; margin: 0; font-size: clamp(3rem, 10vw, 6.8rem); line-height: .92; letter-spacing: -.055em; text-wrap: balance; }
-        .hero-copy { max-width: 570px; margin: 24px 0 0; color: var(--muted); font: 1.08rem/1.6 Arial, sans-serif; }
+        h1 { max-width: 600px; margin: 0; font-size: clamp(3rem, 9vw, 5.8rem); line-height: .92; letter-spacing: -.055em; text-wrap: balance; }
+        .hero-copy { max-width: 430px; margin: 22px 0 0; color: var(--muted); font: 1rem/1.55 Arial, sans-serif; }
         .section-label { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; color: var(--muted); font: 900 .68rem/1 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
         .section-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
-        .game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-        .game-card { position: relative; min-height: 330px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 25px; border: 1px solid var(--line); border-radius: 24px; background: linear-gradient(145deg, rgba(255,255,255,.08), transparent 37%), var(--panel); box-shadow: var(--shadow); isolation: isolate; }
-        .game-card::after { content: ""; position: absolute; z-index: -1; width: 180px; height: 180px; right: -52px; top: -54px; border: 26px solid currentColor; border-radius: 50%; opacity: .13; }
-        .game-card.slap { color: var(--coral); background-color: #2b1c1d; }
-        .game-card.shady { color: var(--violet); background-color: #211c35; }
-        .game-card.tidebound { color: #6bd7d0; background-color: #12313a; }
-        .game-card.spies { color: #f0ba58; background-color: #183c37; }
-        .game-card.pirates { color: #eac67a; background-color: #102e38; }
-        .card-topline { display: flex; justify-content: space-between; gap: 12px; color: currentColor; font: 900 .67rem/1 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
-        .card-number { opacity: .7; }
-        .game-card h2 { margin: 58px 0 10px; color: var(--ink); font-size: clamp(2.15rem, 6vw, 4rem); line-height: .9; letter-spacing: -.04em; }
-        .game-card p { max-width: 360px; margin: 0; color: #d7ded5; font: .94rem/1.5 Arial, sans-serif; }
-        .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 28px; }
-        .game-tag { color: currentColor; font: 800 .7rem/1 Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
-        .play-link { display: inline-flex; align-items: center; gap: 8px; padding: 12px 15px; border: 1px solid currentColor; border-radius: 12px; color: var(--ink); background: rgba(0,0,0,.2); font: 900 .76rem/1 Arial, sans-serif; letter-spacing: .05em; text-decoration: none; text-transform: uppercase; transition: transform .18s ease, background .18s ease; }
-        .play-link::after { content: "↗"; color: currentColor; font-size: 1rem; }
-        .play-link:hover, .play-link:focus-visible { background: rgba(255,255,255,.1); transform: translateY(-2px); }
-        .play-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+        .game-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 12px; }
+        .game-card { position: relative; min-height: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+        .game-card:hover, .game-card:focus-within { border-color: rgba(243, 199, 93, .7); background: rgba(29, 53, 43, .9); transform: translateY(-2px); }
+        .game-card a { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; padding: 18px 20px; color: var(--ink); font-size: clamp(1.35rem, 3vw, 1.85rem); line-height: 1; letter-spacing: -.035em; text-decoration: none; }
+        .game-card a::after { content: "↗"; color: var(--gold); font: 900 1.15rem/1 Arial, sans-serif; transition: transform .18s ease; }
+        .game-card a:hover::after, .game-card a:focus-visible::after { transform: translate(2px, -2px); }
+        .game-card a:focus-visible { outline: 2px solid var(--gold); outline-offset: -5px; border-radius: 13px; }
         .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 52px; color: var(--muted); font: .78rem/1.5 Arial, sans-serif; }
         .site-footer p { margin: 0; }
         .phone-hint { color: var(--gold); text-align: right; }
@@ -74,8 +59,7 @@
             .hero { padding: 78px 0 42px; }
             .hero-copy { font-size: 1rem; }
             .game-grid { grid-template-columns: 1fr; }
-            .game-card { min-height: 285px; padding: 21px; }
-            .game-card h2 { margin-top: 42px; }
+            .game-card a { min-height: 68px; padding: 16px 18px; }
             .site-footer { align-items: flex-start; flex-direction: column; padding-top: 40px; }
             .phone-hint { text-align: left; }
         }
@@ -95,54 +79,30 @@
         <section class="hero" aria-labelledby="page-title">
             <p class="eyebrow">A tiny shelf of games</p>
             <h1 id="page-title">Pick a game.<br>Pass the phone.</h1>
-        <p class="hero-copy">Five quick card games for your pocket. Gather around one screen or challenge a bot captain. Choose a table below and start playing in your browser.</p>
+        <p class="hero-copy">Five quick games for your pocket. Pick one and start playing in your browser.</p>
         </section>
 
         <section aria-labelledby="games-title">
-            <p class="section-label" id="games-title">Choose your table</p>
+            <p class="section-label" id="games-title">Choose a game</p>
             <div class="game-grid">
-                <article class="game-card slap">
-                    <div>
-                        <div class="card-topline"><span>01 · Push your luck</span><span class="card-number">◆</span></div>
-                        <h2>Slap!</h2>
-                        <p>Build your loot, steal matching cards, and decide how long you can keep pressing your luck.</p>
-                    </div>
-                    <div class="card-footer"><span class="game-tag">Fast · Competitive</span><a class="play-link" href="games/slap/">Play Slap!</a></div>
+                <article class="game-card">
+                    <a href="games/slap/">Slap!</a>
                 </article>
 
-                <article class="game-card shady">
-                    <div>
-                        <div class="card-topline"><span>02 · Trick-taking</span><span class="card-number">♠</span></div>
-                        <h2>Shady<br>Tricks</h2>
-                        <p>Read the table, play the right card, and keep your score safely below the edge.</p>
-                    </div>
-                    <div class="card-footer"><span class="game-tag">Tactical · Sneaky</span><a class="play-link" href="games/shady-tricks/">Play Shady Tricks</a></div>
+                <article class="game-card">
+                    <a href="games/shady-tricks/">Shady Tricks</a>
                 </article>
 
-                <article class="game-card tidebound">
-                    <div>
-                        <div class="card-topline"><span>03 · Trick-taking</span><span class="card-number">♒</span></div>
-                        <h2>Tidebound</h2>
-                        <p>Read the tide, shed the tricks, and keep your penalty score below the edge.</p>
-                    </div>
-                    <div class="card-footer"><span class="game-tag">Tactical · Nautical</span><a class="play-link" href="games/tidebound/">Play Tidebound</a></div>
+                <article class="game-card">
+                    <a href="games/tidebound/">Tidebound</a>
                 </article>
 
-                <article class="game-card spies">
-                    <div>
-                        <div class="card-topline"><span>04 · Bluffing duel</span><span class="card-number">◈</span></div>
-                        <h2>Spies</h2>
-                        <p>Offer one agent in the open, hide another, and make every recruit move your secret mission forward.</p>
-                    </div>
-                    <div class="card-footer"><span class="game-tag">Bluffing · Tactical</span><a class="play-link" href="games/spies/">Play Spies</a></div>
+                <article class="game-card">
+                    <a href="games/spies/">Spies</a>
                 </article>
-                <article class="game-card pirates">
-                    <div>
-                        <div class="card-topline"><span>05 · Push your luck</span><span class="card-number">⚓</span></div>
-                        <h2>Pirates</h2>
-                        <p>Draw treasure, steal from a rival captain, and know when to sail away. A little greed can cost your whole haul.</p>
-                    </div>
-                    <div class="card-footer"><span class="game-tag">Solo vs. bot · Nautical</span><a class="play-link" href="games/pirates/">Play Pirates</a></div>
+
+                <article class="game-card">
+                    <a href="games/pirates/">Pirates</a>
                 </article>
             </div>
         </section>
