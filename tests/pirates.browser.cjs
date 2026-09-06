@@ -21,6 +21,13 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
     await page.reload(); await page.locator('[data-action="resume"]').click();
   }
   async function noOverflow() { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'horizontal overflow'); }
+  async function dragCard(id, to) {
+    const from = await page.locator(`.bank-slot[data-drag-card="true"][data-id="${id}"]`).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await page.mouse.move(from.x, from.y); await page.mouse.down();
+    await page.mouse.move(from.x + (to.x > from.x ? 12 : -12), from.y); await page.mouse.move(to.x, to.y);
+    await page.mouse.up();
+  }
+  const settled = () => page.waitForFunction(() => JSON.parse(localStorage.getItem('pirates.v1')).phase !== 'turnEnd');
   function fixture({ draw = ['mermaid-8'], play = [], banks = [[], []] } = {}) {
     const s = engine.newGame(); const all = engine.allCards(); const get = id => all.find(c => c.id === id);
     s.active = 0; s.deck = draw.map(get).reverse(); s.play = play.map(get); s.banks = banks.map(b => b.map(get));
@@ -56,6 +63,13 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   await page.setViewportSize({ width: 390, height: 844 }); await load(s);
   assert.equal(await page.locator('.draw-button').count(), 0, 'bottom draw button removed');
   assert.equal(await page.locator('.draw-pile[data-action="draw"]').count(), 1, 'deck is the draw control');
+  // A finished turn hands the table over without a tap.
+  await page.locator('[data-action="collect"]').click();
+  assert.equal((await read()).phase, 'turnEnd');
+  assert.equal(await page.locator('.turn-receipt').count(), 1, 'the turn result is shown while it hands over');
+  await settled();
+  assert.equal((await read()).active, 1, 'Rook takes the helm on its own');
+  await load(s);
   await page.locator('[data-action="draw"]').click(); await page.locator('.choice-grid').waitFor(); await noOverflow(); await shot('04-map-choice');
   const choiceState = await read();
   assert.equal(choiceState.choice.type, 'map');
@@ -68,13 +82,21 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   const hook = fixture({ draw: ['hook-5'], banks: [['key-7'], []] }); await load(hook);
   await page.locator('.draw-pile').click();
   assert.equal(await page.locator('.choice-panel').count(), 0, 'bank abilities do not open a choice panel');
-  await page.locator('.bank-slot[data-drag-card="true"][data-id="key-7"]').dragTo(page.locator('.play-grid[data-drop-target="play"]'));
-  assert.equal((await read()).choice, null, 'Hook resolves by dragging into the play line');
-  const cannon = fixture({ draw: ['cannon-4'], banks: [[], ['key-7']] }); await load(cannon);
+  // The whole table takes the card, not one small box inside it.
+  const corner = await page.locator('.table[data-drop-target="play"]').evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width - 12, y: r.y + r.height - 8 }; });
+  await dragCard('key-7', corner);
+  assert.equal((await read()).choice, null, 'Hook resolves by dragging anywhere onto the table');
+  const cannon = fixture({ draw: ['cannon-4'], banks: [[], ['key-7', 'map-6']] }); await load(cannon);
   await page.locator('.draw-pile').click();
-  assert.equal(await page.locator('.cannon-drop').count(), 1, 'Cannon renders a discard drop zone');
-  await page.locator('.bank-slot[data-drag-card="true"][data-id="key-7"]').dragTo(page.locator('.cannon-drop'));
-  assert.equal((await read()).choice, null, 'Cannon resolves by dragging into the discard zone');
+  assert.equal(await page.locator('.cannon-drop').count(), 1, 'Cannon renders a discard rail');
+  const short = await page.locator('.bank-slot[data-drag-card="true"][data-id="key-7"]').evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2 + 30, y: r.y + r.height / 2 + 20 }; });
+  await dragCard('key-7', short);
+  assert.equal((await read()).choice?.type, 'cannon', 'a short nudge does not fire the Cannon');
+  // A long swipe to the right fires, without having to land on the rail itself.
+  const swipe = await page.locator('.bank-slot[data-drag-card="true"][data-id="key-7"]').evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2 + 200, y: r.y + r.height / 2 }; });
+  assert.ok(swipe.x < await page.locator('.cannon-drop').evaluate(el => el.getBoundingClientRect().x), 'the swipe ends short of the rail');
+  await dragCard('key-7', swipe);
+  assert.equal((await read()).choice, null, 'Cannon fires on a swipe to the right');
   for (const width of [320, 375, 430]) { await page.setViewportSize({ width, height: 740 }); await noOverflow(); await shot(`05-table-${width}`); }
   await page.setViewportSize({ width: 390, height: 844 });
   // Follow the real buttons for an entire match. The app runs Rook on its normal timer.
@@ -83,15 +105,15 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   while (++steps < 400) {
     const state = await read();
     if (state.phase === 'over') break;
-    if (state.phase === 'turnEnd') await page.locator('[data-action="next"]').click();
+    if (state.phase === 'turnEnd') await settled();
     else if (state.active === 1) await page.waitForTimeout(360);
     else {
       const action = engine.botAction(state);
       if (action.type === 'choose') {
         const source = page.locator(`.bank-slot[data-drag-card="true"][data-id="${action.id}"]`);
         if (await source.count()) {
-          const target = state.choice.type === 'cannon' ? page.locator('.cannon-drop') : page.locator('.play-grid[data-drop-target="play"]');
-          await source.dragTo(target);
+          const box = await (state.choice.type === 'cannon' ? page.locator('.cannon-drop') : page.locator('.table[data-drop-target="play"]')).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+          await dragCard(action.id, box);
         } else await page.locator(`.choice-grid [data-id="${action.id}"]`).click();
       }
       else await page.locator(`[data-action="${action.type}"]`).click();
@@ -112,6 +134,6 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   await blocked.locator('[data-action="menu"]').click(); await blocked.locator('[data-action="restart"]').click(); await blocked.locator('#sheet [data-action="start"]').click();
   assert.equal(await blocked.locator('.storage-warning').count(), 1);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ result: 'PASS', matchSteps: steps, finalScores: final.banks.map(engine.score), widths: [320, 375, 390, 430, 768, 1280], consoleErrors: errors.length, checks: ['full match via UI', 'all ten rules', 'Map save/resume', 'bank inspection', 'voyage log', 'restart', 'restart cancellation', 'storage denied', 'no overflow'] }));
+  console.log(JSON.stringify({ result: 'PASS', matchSteps: steps, finalScores: final.banks.map(engine.score), widths: [320, 375, 390, 430, 768, 1280], consoleErrors: errors.length, checks: ['full match via UI', 'all ten rules', 'automatic turn hand-over', 'drop anywhere on the table', 'Cannon swipe', 'Map save/resume', 'bank inspection', 'voyage log', 'restart', 'restart cancellation', 'storage denied', 'no overflow'] }));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

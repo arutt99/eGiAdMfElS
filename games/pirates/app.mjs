@@ -39,7 +39,7 @@ function status() {
   if (game.phase === 'turnEnd') return [game.result.busted ? 'Overboard!' : 'Treasure secured', game.message];
   if (game.active === 1) return ['Rook is at the helm', game.choice ? `Resolving ${game.choice.type}…` : game.forced ? `${game.forced} more ${game.forced === 1 ? 'card' : 'cards'} required by the Kraken.` : game.message];
   if (game.choice) {
-    const text = { hook: ['Replay your loot', 'Drag a highlighted card from your bank into the card line.'], sword: ['Take what’s missing', 'Drag a highlighted card from Rook’s bank into the card line.'], cannon: ['Fire the cannon', 'Drag a highlighted card from Rook’s bank into the red discard zone.'], map: ['Follow the map', 'Choose one recovered card to play.'] };
+    const text = { hook: ['Replay your loot', 'Drag a highlighted card from your hand onto the table.'], sword: ['Take what’s missing', 'Drag a highlighted card from Rook’s hand onto the table.'], cannon: ['Fire the cannon', 'Swipe a highlighted card from Rook’s hand to the right.'], map: ['Follow the map', 'Choose one recovered card to play.'] };
     return text[game.choice.type];
   }
   if (game.forced) return ['The Kraken demands more', `Play ${game.forced} more ${game.forced === 1 ? 'card' : 'cards'} before collecting.`];
@@ -61,34 +61,28 @@ function render() {
   const playDrop = bankChoice && game.choice.type !== 'cannon';
   const cannonDrop = bankChoice && game.choice.type === 'cannon';
   const deckDisabled = !human || !playing || Boolean(game.choice) || !game.deck.length;
-  const dragCopy = { hook: 'Drag a highlighted card from your bank to the card line.', sword: 'Drag a highlighted card from Rook’s bank to the card line.', cannon: 'Drag a highlighted card from Rook’s bank to the red discard zone.' };
-  const dropLabel = { hook: 'Drop here to replay', sword: 'Drop here to steal' };
-  $('#app').innerHTML = `<div class="shell game-shell">${topbar()}<div class="scoreboard"><div class="score-panel ${human && playing ? 'at-helm' : ''}"><div><span class="eyebrow">YOU</span><small>${human && playing ? 'At the helm' : 'Your bank'}</small></div><strong>${score(game.banks[0])}<small>pts</small></strong></div><span class="versus">vs</span><div class="score-panel ${!human && playing ? 'at-helm rival' : ''}"><div><span class="eyebrow">CAPTAIN ROOK</span><small>${!human && playing ? 'At the helm' : 'Bot captain'}</small></div><strong>${score(game.banks[1])}<small>pts</small></strong></div></div>${bankMarkup(1)}<section class="turn-status ${game.result?.busted ? 'bust-status' : ''}" aria-label="Turn instructions"><h2>${title}</h2><p>${esc(subtitle)}</p></section><section class="table" aria-label="Cards in play"><div class="table-topline"><span class="eyebrow">TURN ${game.turn} <span class="turn-dot ${human ? '' : 'rival-dot'}"></span> ${human ? 'YOUR' : 'ROOK’S'} HAUL</span><span class="pile-count"><b>${game.deck.length}</b> draw <span>·</span> <b>${game.discard.length}</b> discard</span></div><div class="draw-pile" aria-hidden="true"><div class="deck-ornament">✦</div>${icon('ship')}<strong>${game.deck.length}</strong><span>PIRATES</span><div class="deck-ornament">✦</div></div><div class="play-grid ${!cards.length ? 'empty-play' : ''}">${cards.length ? cards.map((c, i) => smallCard(c, { protectedCard: anchor >= 0 && i < anchor, danger: Boolean(game.result?.busted && i === cards.length - 1) })).join('') : `<div class="empty-sea">${icon('compass')}<span>Every fortune starts<br>with a little courage.</span></div>`}</div>${last ? `<button class="ability-note" data-action="suit" data-suit="${s.id}" style="--suit:${s.color}">${icon(s.id)}<span><b>${s.name}</b> ${s.short}</span><span class="info-mark">i</span></button>` : ''}<div class="table-tags">${anchor > 0 ? `<span class="tag safe">${anchor} protected by Anchor</span>` : ''}${combo ? '<span class="tag gold">Key + Chest bonus ready</span>' : ''}${game.forced && playing ? `<span class="tag warning">${game.forced} more required</span>` : ''}</div>${game.oracle && game.deck.length && playing ? `<div class="oracle-peek" style="--suit:${suitOf(game.deck.at(-1)).color}">${icon('oracle')}<span>Next card <b>${suitOf(game.deck.at(-1)).name} ${game.deck.at(-1).value}</b></span><strong class="${duplicate(game, game.deck.at(-1)) ? 'risk-text' : ''}">${duplicate(game, game.deck.at(-1)) ? 'Will bust' : 'New suit'}</strong></div>` : ''}</section>${choice ? `<section class="choice-panel" aria-label="${game.choice.type} card choices"><div class="choice-heading"><span>CHOOSE A CARD</span><span>Ability required</span></div><div class="choice-grid">${options(game).map(c => smallCard(c, { action: 'choose', danger: game.choice.type !== 'cannon' && duplicate(game, c), caption: game.choice.type === 'cannon' ? 'Discard' : duplicate(game, c) ? 'Will bust' : 'Play card' })).join('')}</div></section>` : ''}${bankMarkup(0)}<div class="bottom-space"></div><footer class="action-dock">${game.phase === 'over' ? '<button class="primary" data-action="results">View final scores <span>→</span></button>' : game.phase === 'turnEnd' ? `<div class="turn-receipt"><span>${game.result.busted ? 'BUST' : 'COLLECTED'}</span><b>+${game.result.delta} pts${game.result.bonus.length ? ` · ${game.result.bonus.length} bonus cards` : ''}</b></div><button class="primary" data-action="next">${human ? 'Rook’s turn' : 'Your turn'} <span>→</span></button>` : !human ? `<div class="bot-working"><span class="thinking-dots"><i></i><i></i><i></i></span><span>Captain Rook is weighing the odds</span><button class="text-button" data-action="speed">${fast ? '1×' : '2×'}</button></div>` : choice ? '<div class="choice-reminder">Choose a highlighted card above to continue.</div>' : `<button class="secondary draw-button" data-focus="draw" data-action="draw" ${!game.deck.length ? 'disabled' : ''}>${icon('ship')}<span>${game.forced ? 'Draw required' : 'Draw a card'}<small>${game.deck.length} remaining</small></span></button><button class="primary collect-button" data-focus="collect" data-action="collect" ${!game.play.length || game.forced && game.deck.length ? 'disabled' : ''}><span>Collect<small>${game.forced ? 'Kraken must resolve' : game.play.length ? `${game.play.length} cards · +${preview} pts${combo ? ' + bonus' : ''}` : 'Draw to begin'}</small></span><span>→</span></button>`}</footer>${saveFailed ? '<p class="storage-warning">Saving is unavailable in this browser. Keep this tab open to finish your voyage.</p>' : ''}</div>`;
-  const table = $('.table');
-  if (table) {
-    const deck = table.querySelector('.draw-pile');
-    deck.outerHTML = `<button class="draw-pile" data-focus="draw" data-action="draw" ${deckDisabled ? 'disabled' : ''} aria-label="${game.deck.length ? 'Draw the next card' : 'The draw deck is empty'}"><div class="deck-ornament">✦</div>${icon('ship')}<strong>${game.deck.length}</strong><span>PIRATES</span><small>CLICK TO DRAW</small><div class="deck-ornament">✦</div></button>`;
-    $('.draw-button')?.remove();
-    if (bankChoice) $('.choice-panel')?.remove();
-    if (playDrop) {
-      const play = table.querySelector('.play-grid');
-      play.dataset.dropTarget = 'play';
-      play.classList.add('drag-target');
-      play.setAttribute('aria-label', `${dropLabel[game.choice.type]}; ${dragCopy[game.choice.type]}`);
-      play.insertAdjacentHTML('afterend', `<div class="ability-instruction"><span class="instruction-icon">${icon(game.choice.type)}</span><span><b>${dropLabel[game.choice.type]}</b><small>${dragCopy[game.choice.type]}</small></span></div>`);
-    } else if (cannonDrop) {
-      table.querySelector('.play-grid').insertAdjacentHTML('afterend', `<div class="ability-drop-zone cannon-drop" data-drop-target="discard" role="status" aria-label="Drop a highlighted card here to discard it"><span class="instruction-icon">${icon('cannon')}</span><span><b>Drop to discard</b><small>${dragCopy.cannon}</small></span></div>`);
-    }
-    if (bankChoice) $('.choice-reminder').textContent = dragCopy[game.choice.type];
-  }
+  const dragCopy = { hook: 'Drag it anywhere onto the table.', sword: 'Drag it anywhere onto the table.', cannon: 'Swipe it out to the right of the screen.' };
+  const dropLabel = { hook: 'Replay your loot', sword: 'Steal the card', cannon: 'Sink the card' };
+  const peek = game.oracle && game.deck.length && playing ? game.deck.at(-1) : null;
+  const info = `${bankChoice ? `<div class="ability-instruction"><span class="instruction-icon">${icon(game.choice.type)}</span><span><b>${dropLabel[game.choice.type]}</b><small>${dragCopy[game.choice.type]}</small></span></div>` : last ? `<button class="ability-note" data-action="suit" data-suit="${s.id}" style="--suit:${s.color}">${icon(s.id)}<span><b>${s.name}</b> ${s.short}</span><span class="info-mark">i</span></button>` : ''}${peek ? `<div class="oracle-peek" style="--suit:${suitOf(peek).color}">${icon('oracle')}<span>Next card <b>${suitOf(peek).name} ${peek.value}</b></span><strong class="${duplicate(game, peek) ? 'risk-text' : ''}">${duplicate(game, peek) ? 'Will bust' : 'New suit'}</strong></div>` : ''}<div class="table-tags">${anchor > 0 ? `<span class="tag safe">${anchor} protected by Anchor</span>` : ''}${combo ? '<span class="tag gold">Key + Chest bonus ready</span>' : ''}${game.forced && playing ? `<span class="tag warning">${game.forced} more required</span>` : ''}</div>`;
+  const dock = game.phase === 'over' ? '<button class="primary" data-action="results">View final scores <span>→</span></button>'
+    : game.phase === 'turnEnd' ? `<button class="turn-receipt ${game.result.busted ? 'bust-receipt' : ''}" data-action="next" aria-label="${game.result.busted ? 'Bust' : 'Collected'}. Continue to the next turn."><span>${game.result.busted ? 'BUST' : 'COLLECTED'}</span><b>+${game.result.delta} pts${game.result.bonus.length ? ` · ${game.result.bonus.length} bonus cards` : ''}</b><small>${human ? 'Rook takes the helm' : 'Your turn'}<i class="turn-progress ${fast ? 'quick' : ''}"></i></small></button>`
+    : !human ? `<div class="bot-working"><span class="thinking-dots"><i></i><i></i><i></i></span><span>Captain Rook is weighing the odds</span><button class="text-button" data-action="speed">${fast ? '1×' : '2×'}</button></div>`
+    : bankChoice ? `<div class="choice-reminder">${dragCopy[game.choice.type]}</div>`
+    : choice ? '<div class="choice-reminder">Choose a highlighted card above to continue.</div>'
+    : `<button class="primary collect-button" data-focus="collect" data-action="collect" ${!game.play.length || game.forced && game.deck.length ? 'disabled' : ''}><span>Collect<small>${game.forced ? 'Kraken must resolve' : game.play.length ? `${game.play.length} cards · +${preview} pts${combo ? ' + bonus' : ''}` : 'Draw to begin'}</small></span><span>→</span></button>`;
+  $('#app').innerHTML = `<div class="shell game-shell">${topbar()}<div class="scoreboard"><div class="score-panel ${human && playing ? 'at-helm' : ''}"><div><span class="eyebrow">YOU</span><small>${human && playing ? 'At the helm' : 'Your bank'}</small></div><strong>${score(game.banks[0])}<small>pts</small></strong></div><span class="versus">vs</span><div class="score-panel ${!human && playing ? 'at-helm rival' : ''}"><div><span class="eyebrow">CAPTAIN ROOK</span><small>${!human && playing ? 'At the helm' : 'Bot captain'}</small></div><strong>${score(game.banks[1])}<small>pts</small></strong></div></div>${bankMarkup(1)}<section class="turn-status ${game.result?.busted ? 'bust-status' : ''} ${playDrop ? 'drag-target' : ''}" ${playDrop ? 'data-drop-target="play"' : ''} aria-label="Turn instructions"><h2>${title}</h2><p>${esc(subtitle)}</p></section><section class="table ${playDrop ? 'drag-target' : ''}" ${playDrop ? `data-drop-target="play" aria-label="${dropLabel[game.choice.type]}; ${dragCopy[game.choice.type]}"` : 'aria-label="Cards in play"'}><div class="table-topline"><span class="eyebrow">TURN ${game.turn} <span class="turn-dot ${human ? '' : 'rival-dot'}"></span> ${human ? 'YOUR' : 'ROOK’S'} HAUL</span><span class="pile-count"><b>${game.deck.length}</b> draw <span>·</span> <b>${game.discard.length}</b> discard</span></div><button class="draw-pile" data-focus="draw" data-action="draw" ${deckDisabled ? 'disabled' : ''} aria-label="${game.deck.length ? 'Draw the next card' : 'The draw deck is empty'}"><div class="deck-ornament">✦</div>${icon('ship')}<strong>${game.deck.length}</strong><span>PIRATES</span><small>CLICK TO DRAW</small><div class="deck-ornament">✦</div></button><div class="play-grid ${!cards.length ? 'empty-play' : ''}" style="--play-count:${cards.length}">${cards.length ? cards.map((c, i) => smallCard(c, { protectedCard: anchor >= 0 && i < anchor, danger: Boolean(game.result?.busted && i === cards.length - 1) })).join('') : `<div class="empty-sea">${icon('compass')}<span>Every fortune starts<br>with a little courage.</span></div>`}</div><div class="table-info">${info}</div></section>${cannonDrop ? `<div class="cannon-drop" data-drop-target="discard" role="status" aria-label="Swipe a highlighted card here to discard it"><span class="instruction-icon">${icon('cannon')}</span><b>Swipe to sink</b></div>` : ''}${choice && !bankChoice ? `<section class="choice-panel" aria-label="${game.choice.type} card choices"><div class="choice-heading"><span>CHOOSE A CARD</span><span>Ability required</span></div><div class="choice-grid">${options(game).map(c => smallCard(c, { action: 'choose', danger: duplicate(game, c), caption: duplicate(game, c) ? 'Will bust' : 'Play card' })).join('')}</div></section>` : ''}${bankMarkup(0)}<div class="bottom-space"></div><footer class="action-dock">${dock}</footer>${saveFailed ? '<p class="storage-warning">Saving is unavailable in this browser. Keep this tab open to finish your voyage.</p>' : ''}</div>`;
   if (focus) $(`[data-focus="${focus}"]`)?.focus({ preventScroll: true });
   $('#announcer').textContent = `${title}. ${subtitle}`;
-  scheduleBot();
+  scheduleTurn();
 }
-function scheduleBot() {
+// The table hands itself back and forth: a finished turn rolls into the next one,
+// and Rook plays on its own timer, so the only taps needed are the player's moves.
+function scheduleTurn() {
   clearTimeout(timer);
   if (screen !== 'game' || !game || $('#sheet').open) return;
-  if (game.active === 1 && game.phase === 'play') timer = setTimeout(() => move(botAction(game)), fast ? 330 : 1100);
+  if (game.phase === 'turnEnd') timer = setTimeout(() => move({ type: 'next' }), fast ? 900 : 1800);
+  else if (game.active === 1 && game.phase === 'play') timer = setTimeout(() => move(botAction(game)), fast ? 330 : 1100);
 }
 function move(action) {
   const wasChoice = Boolean(game.choice);
@@ -112,11 +106,11 @@ function modal(title, content, cls = '') {
   sheet.scrollTop = 0;
 }
 function closeModal() { $('#sheet').close(); }
-$('#sheet').addEventListener('close', () => { if (returnFocus?.isConnected) returnFocus.focus(); scheduleBot(); });
+$('#sheet').addEventListener('close', () => { if (returnFocus?.isConnected) returnFocus.focus(); scheduleTurn(); });
 $('#sheet').addEventListener('click', e => { if (e.target === $('#sheet')) { const rect = e.target.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) closeModal(); } });
 
 function help() {
-  modal('Learn the ropes', `<div class="help-intro">The richest captain wins.<br><span>Only your highest card in each suit scores.</span></div><ol class="help-steps"><li><b>Draw treasure</b><p>Click the deck to draw a card. Its ability activates immediately. Resolve it before doing anything else.</p></li><li><b>Keep your nerve</b><p>Keep drawing different suits to grow your haul. Repeat any suit in play and you bust: discard the haul, except cards protected by an Anchor.</p></li><li><b>Know when to leave</b><p>Collect to move the whole haul into your bank. Then your rival takes a turn. The highest card of each suit scores; lower cards stay underneath.</p></li></ol><div class="rules-note"><b>The last card</b><p>Finish every required ability on the final draw, then collect or bust. Highest score wins. Ties go to the captain with more banked cards, then a shared victory.</p></div><h3 class="guide-title">Know your ten suits</h3><div class="suit-guide">${SUITS.map(s => `<article style="--suit:${s.color}">${icon(s.id)}<div><h3>${s.name}</h3><p>${s.rule}</p></div></article>`).join('')}</div><div class="rules-note"><b>A few finer points</b><p>Abilities trigger whenever a card enters play, including stolen or recovered cards. Hook, Sword, and Cannon cards are resolved by dragging a highlighted bank card to the card line or discard zone. A card that causes a bust never activates. If there is no legal target, skip that ability. When an Anchor saves both a Key and Chest, those protected cards earn the bonus, too.</p><p>The 60-card deck has six cards per suit. The lowest of each suit starts in the discard; shuffle the other 50 to draw from. The starting captain is chosen at random.</p><p>Tap any suit to read its ability. Tap a bank to inspect all its cards. Your voyage saves after every move.</p></div><button class="primary full" data-action="close">Ready, Captain</button>`);
+  modal('Learn the ropes', `<div class="help-intro">The richest captain wins.<br><span>Only your highest card in each suit scores.</span></div><ol class="help-steps"><li><b>Draw treasure</b><p>Click the deck to draw a card. Its ability activates immediately. Resolve it before doing anything else.</p></li><li><b>Keep your nerve</b><p>Keep drawing different suits to grow your haul. Repeat any suit in play and you bust: discard the haul, except cards protected by an Anchor.</p></li><li><b>Know when to leave</b><p>Collect to move the whole haul into your hand. The table then passes to your rival on its own. The highest card of each suit scores; lower cards stay underneath.</p></li></ol><div class="rules-note"><b>The last card</b><p>Finish every required ability on the final draw, then collect or bust. Highest score wins. Ties go to the captain with more banked cards, then a shared victory.</p></div><h3 class="guide-title">Know your ten suits</h3><div class="suit-guide">${SUITS.map(s => `<article style="--suit:${s.color}">${icon(s.id)}<div><h3>${s.name}</h3><p>${s.rule}</p></div></article>`).join('')}</div><div class="rules-note"><b>A few finer points</b><p>Abilities trigger whenever a card enters play, including stolen or recovered cards. Hook and Sword are resolved by dragging a highlighted card from a hand anywhere onto the table; a Cannon fires when you swipe the card out to the right. A card that causes a bust never activates. If there is no legal target, skip that ability. When an Anchor saves both a Key and Chest, those protected cards earn the bonus, too.</p><p>The 60-card deck has six cards per suit. The lowest of each suit starts in the discard; shuffle the other 50 to draw from. The starting captain is chosen at random.</p><p>Tap any suit to read its ability. Tap a bank to inspect all its cards. Your voyage saves after every move.</p></div><button class="primary full" data-action="close">Ready, Captain</button>`);
 }
 function showSuit(id, n) {
   const s = SUITS.find(s => s.id === id); if (!s) return;
@@ -138,20 +132,25 @@ let dragState = null, dragGhost = null, suppressClick = false;
 function clearDragPreview() {
   document.querySelectorAll('.dragging').forEach(el => { el.classList.remove('dragging'); el.setAttribute('aria-grabbed', 'false'); });
   document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
+  document.body.classList.remove('drop-armed');
   dragGhost?.remove(); dragGhost = null;
 }
-function dropTargetAt(x, y) {
-  const target = document.elementFromPoint(x, y)?.closest('[data-drop-target]');
-  if (!target || !dragState || !game?.choice) return null;
-  const expected = game.choice.type === 'cannon' ? 'discard' : 'play';
-  return target.dataset.dropTarget === expected ? target : null;
+const inside = (el, x, y) => { const r = el.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; };
+// Dropping is forgiving on purpose: the whole table takes a replayed card, and a
+// cannon fires on any long swipe to the right, not just a hit on the rail.
+function dropZones(x, y) {
+  if (!dragState || !game?.choice) return [];
+  const cannon = game.choice.type === 'cannon';
+  const zones = [...document.querySelectorAll(`[data-drop-target="${cannon ? 'discard' : 'play'}"]`)];
+  if (cannon && x - dragState.startX > Math.min(150, innerWidth * .22)) return zones;
+  return zones.filter(el => inside(el, x, y));
 }
 document.addEventListener('pointerdown', e => {
   if ((e.pointerType === 'mouse' && e.button !== 0) || !game?.choice) return;
   const source = e.target.closest('[data-drag-card="true"]');
   if (!source || !options(game).some(c => c.id === source.dataset.id)) return;
   dragState = { id: source.dataset.id, source, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false };
-  source.setPointerCapture?.(e.pointerId);
+  try { source.setPointerCapture(e.pointerId); } catch { /* Capture is a nicety; the document listeners still see the drag. */ }
 });
 document.addEventListener('pointermove', e => {
   if (!dragState || e.pointerId !== dragState.pointerId) return;
@@ -168,18 +167,20 @@ document.addEventListener('pointermove', e => {
     document.body.append(dragGhost);
   }
   dragGhost.style.transform = `translate(${e.clientX + 12}px, ${e.clientY + 12}px)`;
-  document.querySelectorAll('[data-drop-target].drop-hover').forEach(el => el.classList.remove('drop-hover'));
-  dropTargetAt(e.clientX, e.clientY)?.classList.add('drop-hover');
+  const armed = dropZones(e.clientX, e.clientY);
+  document.querySelectorAll('[data-drop-target].drop-hover').forEach(el => { if (!armed.includes(el)) el.classList.remove('drop-hover'); });
+  armed.forEach(el => el.classList.add('drop-hover'));
+  document.body.classList.toggle('drop-armed', armed.length > 0);
 }, { passive: false });
 function endDrag(e) {
   if (!dragState || e.pointerId !== dragState.pointerId) return;
   const { id, moved } = dragState;
-  const target = moved ? dropTargetAt(e.clientX, e.clientY) : null;
+  const dropped = moved && dropZones(e.clientX, e.clientY).length > 0;
   clearDragPreview(); dragState = null;
   if (!moved) return;
   suppressClick = true;
   setTimeout(() => { suppressClick = false; }, 0);
-  if (target) move({ type: 'choose', id });
+  if (dropped) move({ type: 'choose', id });
 }
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', e => { if (dragState?.pointerId === e.pointerId) { clearDragPreview(); dragState = null; } });
@@ -205,5 +206,5 @@ document.addEventListener('click', e => {
     else if (action === 'choose') move({ type: 'choose', id: b.dataset.id });
   }
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else scheduleBot(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else scheduleTurn(); });
 home();

@@ -1,6 +1,6 @@
 # Pirates
 
-A complete card game for one human and Captain Rook, with a painted landscape table and a compact portrait layout. Served as static files at `games/pirates/`; no build step, account, API, externally hosted assets, or server is required. The root game shelf links here.
+A complete card game for one human and Captain Rook. Landscape fills the screen with a single unscrolled table: an oversized haul in the middle, the deck at one side, and both banks fanned out as hands. Portrait keeps a compact stacked layout. Served as static files at `games/pirates/`; no build step, account, API, externally hosted assets, or server is required. The root game shelf links here.
 
 ## Play
 
@@ -8,7 +8,7 @@ Draw different suits, resolve every ability, and collect before repeating a suit
 
 The base deck has 60 cards: six cards in each of ten suits. Mermaids run from 4 to 9; other suits run from 2 to 7. The lowest of each suit starts in a shuffled discard pile. Both banks begin empty and the starting player is random.
 
-All ten abilities are implemented, including mandatory bank choices, chained abilities, Anchor protection, Key and Chest bonuses, Oracle reveals, and the Kraken counting cards from every source. Hook, Sword, and Cannon choices are resolved by dragging highlighted bank cards to the play line or discard zone; the deck itself is clicked to draw. Oracle reveals only the next card. Protected Key and Chest cards collected via Anchor also earn the bonus. Bonus cards enter the bank directly without triggering abilities. The built-in guide explains every suit and edge case.
+All ten abilities are implemented, including mandatory bank choices, chained abilities, Anchor protection, Key and Chest bonuses, Oracle reveals, and the Kraken counting cards from every source. Hook and Sword choices are resolved by dragging a highlighted card from either hand anywhere onto the table; a Cannon fires on any long swipe to the right, or onto the rail down the right edge. The deck itself is clicked to draw, and a finished turn hands the table to the next captain on its own. Oracle reveals only the next card. Protected Key and Chest cards collected via Anchor also earn the bonus. Bonus cards enter the bank directly without triggering abilities. The built-in guide explains every suit and edge case.
 
 The bot follows the same action reducer as the human. It evaluates scoring gains, Cannon damage, safe ability targets, protection, bonuses, and how far it trails near the end. Its draw estimates use public card-counting information. Hidden draw order never affects its choice; Oracle permits looking at the next card.
 
