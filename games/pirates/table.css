@@ -43,14 +43,16 @@ h1{font:small-caps 700 clamp(64px,8vw,120px)/1 Georgia,serif;letter-spacing:2px;
 .bank{isolation:isolate}
 .section-heading>span{color:#dfc78f;font:small-caps 17px Georgia,serif;text-shadow:0 2px 2px #000;text-transform:none;letter-spacing:1px}
 .table{background:linear-gradient(#100d09d9,#0b0906dc);border-block:2px solid #b497565f;box-shadow:0 5px 20px #0008,inset 0 1px #ebd29844;padding:12px}
-.loot-card{overflow:hidden;background:linear-gradient(165deg,#4e3c22 0%,#2b2013 48%,#191308 100%);border-color:#b4996399;border-radius:5px;box-shadow:2px 5px 5px #0008}
-.loot-card::before{border-color:#d3ae6555;border-radius:2px}
-.loot-card>.card-art{width:100%;min-height:40px;flex:1 1 auto;border:1px solid #f2d58b66;border-radius:3px;background-image:var(--card-art);background-position:center;background-size:cover;box-shadow:0 2px 3px #0008}
-.loot-card:hover{background:linear-gradient(165deg,#6d5533,#3b2a17 48%,#241a0e)}
-.loot-card>.icon{filter:drop-shadow(0 2px 2px #120c06)}
-.card-name{color:#f4dfb1}
-.card-value{color:#ffe2a3;text-shadow:0 2px #35200c}
-.loot-card.danger{background:linear-gradient(165deg,#6e2c1e,#39130c 48%,#210b07)}
+/* Same stock as the fanned hands: gilt edge, art to the border, value on top. */
+.loot-card{background:linear-gradient(150deg,#6d5531,#2f2415);border:1px solid #bc955d;border-radius:6px;box-shadow:2px 5px 7px #0009}
+.loot-card::before{border-color:#e4c77d77;border-radius:4px;box-shadow:inset 0 0 14px #000a}
+.loot-card>.card-art{box-shadow:inset 0 0 0 1px #00000059}
+.loot-card:hover{border-color:var(--gold)}
+.card-name{color:#f7e6bd;background:linear-gradient(#0000,#0b070380 40%,#0b0703ee)}
+.card-caption{background:#150e05f2;color:#f3d495}
+.card-value{color:#ffe2a3;text-shadow:0 2px 2px #150a02,0 0 10px #000}
+.loot-card.danger{border-color:#e7856a}
+.loot-card.danger::before{border-color:#e7856a;background:#6b1a10a6}
 .empty-sea{color:#beaa7d}
 .ability-note{color:#d4c2a0}
 .turn-status{background:linear-gradient(130deg,#344b2dee,#1b3c23f5);border:1px solid #83a45b;border-radius:14px 5px 17px 5px;padding:12px 16px;box-shadow:0 4px 8px #0008,inset 0 0 10px #94ce4444;margin-top:12px}
@@ -60,11 +62,10 @@ h1{font:small-caps 700 clamp(64px,8vw,120px)/1 Georgia,serif;letter-spacing:2px;
 .action-dock{background:linear-gradient(#302416f5,#140e08);border-color:#ac8b4c;box-shadow:0 -4px 20px #0008}
 .choice-panel{position:fixed;z-index:9;right:9px;top:52%;transform:translateY(-50%);margin:0;padding:0;background:none;border:0;box-shadow:none;pointer-events:none}
 .choice-panel .choice-grid{pointer-events:auto}
-.choice-grid .loot-card{width:auto;height:clamp(94px,min(25svh,42vw),172px);aspect-ratio:.68;min-height:0;padding:7px 6px 5px;gap:4px;box-shadow:0 12px 28px #000d,0 0 0 1px #ebc57266}
-.choice-grid .loot-card>.card-art{min-height:0;flex:1 1 auto;width:100%}
+.choice-grid .loot-card{width:auto;height:clamp(94px,min(25svh,42vw),172px);aspect-ratio:.68;min-height:0;padding:0;box-shadow:0 12px 28px #000d,0 0 0 1px #ebc57266}
 .choice-grid .loot-card .card-value{font-size:clamp(15px,4.4svh,29px)}
 .choice-grid .card-name{font-size:9px}
-.choice-grid .card-caption{font-size:8px;padding:3px 0}
+.choice-grid .card-caption{font-size:8px}
 .draw-pile{display:grid;position:relative;place-items:center;width:min(100%,150px);min-height:96px;margin:0 auto 10px;padding:0;border:2px double #bc994b;border-radius:8px;box-shadow:3px 2px #40321b,6px 4px #ac915b,9px 6px #372b18;background-image:linear-gradient(#0a0d0ccc,#0a0d0cbb),url('assets/cards/back.jpg');background-position:center;background-size:cover;color:#f3dda6}
 .draw-pile:not(:disabled):hover{filter:brightness(1.2);transform:translateY(-1px)}
 .draw-pile:disabled{cursor:default;opacity:.68}
@@ -179,12 +180,11 @@ dialog::backdrop{background:#090603c9}
  /* Cards fill the band, and a long haul slides into a fan instead of shrinking. */
  .play-grid{display:flex;align-items:center;justify-content:center;flex-wrap:nowrap;gap:0;width:100%;height:min(var(--card-h),100%);min-height:0}
  .play-grid.empty-play{min-height:0}
- .play-grid .loot-card{flex:none;width:var(--card-w);height:100%;min-height:0;max-width:none;aspect-ratio:auto;padding:calc(var(--card-h)*.055) calc(var(--card-w)*.08) calc(var(--card-h)*.045);gap:calc(var(--card-h)*.035);box-shadow:-8px 0 13px #0009,2px 5px 6px #0008}
+ .play-grid .loot-card{--stock:clamp(3px,calc(var(--card-h)*.03),9px);--caption-h:clamp(14px,calc(var(--card-h)*.105),30px);flex:none;width:var(--card-w);height:100%;min-height:0;max-width:none;aspect-ratio:auto;padding:0;box-shadow:-8px 0 13px #0009,2px 5px 6px #0008}
  .play-grid .loot-card+.loot-card{margin-left:min(10px,calc((100% - var(--play-count)*var(--card-w))/(var(--play-count) - 1)))}
- .play-grid .loot-card>.card-art{min-height:0;flex:1 1 auto;width:100%}
- .play-grid .loot-card .card-value{font-size:clamp(14px,calc(var(--card-h)*.165),42px)}
- .play-grid .card-name{font-size:clamp(7px,calc(var(--card-h)*.055),13px)}
- .play-grid .loot-card>.icon{width:calc(var(--card-h)*.2);height:calc(var(--card-h)*.2)}
+ .play-grid .loot-card .card-value{font-size:clamp(14px,calc(var(--card-h)*.155),42px)}
+ .play-grid .card-name{font-size:clamp(7px,calc(var(--card-h)*.05),13px);padding:calc(var(--card-h)*.05) 3px calc(var(--card-h)*.027)}
+ .play-grid .card-caption{font-size:clamp(7px,calc(var(--card-h)*.042),12px)}
  .empty-sea>span{font-size:clamp(12px,2.6svh,18px)}.empty-sea>.icon{width:clamp(32px,7svh,55px);height:clamp(32px,7svh,55px)}
  .table-info{position:absolute;right:12px;top:7px;width:calc(var(--dock-col) - 6px);gap:5px;z-index:2}
  .ability-note{min-height:0;padding:3px 0;font-size:10px;max-width:none;width:100%}
@@ -275,7 +275,7 @@ dialog::backdrop{background:#090603c9}
  .table{display:grid;grid-template-columns:62px minmax(0,1fr);align-items:center;column-gap:8px;row-gap:7px;margin-top:0;padding:9px 6px 10px}
  .table-topline{grid-column:1/-1;margin:0}.table-topline>.eyebrow,.pile-count{font-size:9px}
  .draw-pile{grid-column:1;grid-row:2;align-self:center;width:62px;height:91px;min-height:0;margin:0;padding:0;box-shadow:2px 2px #40321b,4px 3px #ac915b,6px 4px #372b18}.draw-pile strong{font-size:31px}
- .play-grid{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;min-height:150px;gap:6px;align-content:center}.play-grid.empty-play{display:flex;min-height:150px}.play-grid .loot-card{min-height:0;width:100%;aspect-ratio:.66;padding:9px 6px 7px;gap:5px}.play-grid .loot-card>.card-art{min-height:0;flex:1 1 auto}.play-grid .loot-card .card-value{font-size:26px}.play-grid .loot-card>.icon{width:29px;height:29px}.play-grid .card-name{font-size:9px}.play-grid:has(.loot-card:only-child){grid-template-columns:minmax(0,170px);justify-content:center}.play-grid:has(.loot-card:nth-child(3)){grid-template-columns:repeat(2,minmax(0,1fr))}.play-grid:has(.loot-card:nth-child(5)){grid-template-columns:repeat(3,minmax(0,1fr))}
+ .play-grid{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;min-height:150px;gap:6px;align-content:center}.play-grid.empty-play{display:flex;min-height:150px}.play-grid .loot-card{--stock:4px;min-height:0;width:100%;aspect-ratio:.68;padding:0}.play-grid .loot-card .card-value{font-size:25px}.play-grid .card-name{font-size:9px}.play-grid:has(.loot-card:only-child){grid-template-columns:minmax(0,170px);justify-content:center}.play-grid:has(.loot-card:nth-child(3)){grid-template-columns:repeat(2,minmax(0,1fr))}.play-grid:has(.loot-card:nth-child(5)){grid-template-columns:repeat(3,minmax(0,1fr))}
  .draft-shell{padding-inline:12px}
  .trait-card{padding:14px;gap:11px}.trait-card b{font-size:20px}.trait-card small{font-size:11px}.trait-card i{display:none}
  .trait-tag{min-height:21px;padding:1px 7px;font-size:9px}.trait-tag b{font-size:11px}.trait-tag .icon{width:12px;height:12px}
@@ -283,3 +283,9 @@ dialog::backdrop{background:#090603c9}
  .table-info{grid-column:1/-1;gap:5px}.ability-note{min-height:27px;padding:2px 0;font-size:9px}.oracle-peek{margin:0;padding:7px;font-size:9px}.table-tags .tag{margin-top:0}
  .bottom-space{height:104px}.action-dock{padding:9px 10px calc(9px + env(safe-area-inset-bottom));gap:8px}.action-dock>.primary,.action-dock>.secondary{min-height:54px;padding:8px 10px}.action-dock small{margin-top:3px}
 }
+
+/* A drawn card leaves the deck face down and turns over as it lands. The card
+   itself flies; this is the back of the same card, half a turn behind it, so
+   backface-visibility hands the view from one to the other at the halfway point. */
+.flip-back{position:fixed;z-index:31;pointer-events:none;backface-visibility:hidden;border:1px solid #bc994b;border-radius:6px;background-image:linear-gradient(#0a0d0ccc,#0a0d0cbb),url('assets/cards/back.jpg');background-position:center;background-size:cover;box-shadow:0 16px 30px #000c}
+.loot-card.flipping{position:relative;z-index:30;backface-visibility:hidden;box-shadow:0 16px 30px #000c}

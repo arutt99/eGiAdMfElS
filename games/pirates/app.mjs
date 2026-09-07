@@ -134,6 +134,42 @@ function render() {
   $('#announcer').textContent = `${title}. ${subtitle}`;
   scheduleTurn();
 }
+// A draw should read as a deal: the card leaves the deck face down, turns over
+// in the air and lands in its place in the haul. The real card flies, so nothing
+// has to be kept in sync; the back is a stand-in half a turn behind it, and
+// backface-visibility hands the view over at the halfway point.
+let flipBack = null;
+function clearFlip() { flipBack?.remove(); flipBack = null; }
+function dealFlip() {
+  clearFlip();
+  if (matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  const deck = $('.draw-pile'), table = $('.table'), cards = document.querySelectorAll('.play-grid .loot-card');
+  const card = cards[cards.length - 1];
+  if (!deck || !table || !card) return;
+  const from = deck.getBoundingClientRect(), to = card.getBoundingClientRect();
+  if (!from.width || !to.width) return;
+  const back = document.createElement('div');
+  back.className = 'flip-back';
+  back.style.cssText = `left:${to.left}px;top:${to.top}px;width:${to.width}px;height:${to.height}px`;
+  table.append(back);
+  flipBack = back;
+  card.classList.add('flipping');
+  const dx = from.left - to.left + (from.width - to.width) / 2, dy = from.top - to.top + (from.height - to.height) / 2;
+  const sx = from.width / to.width, sy = from.height / to.height;
+  // Half a turn apart, so exactly one face points at the player at any moment.
+  const arc = spin => [
+    { transform: `perspective(1100px) translate(${dx}px,${dy}px) scale(${sx},${sy}) rotateY(${180 + spin}deg)` },
+    { transform: `perspective(1100px) translate(${dx * .5}px,${dy * .5 - 18}px) scale(${(sx + 1.07) / 2},${(sy + 1.07) / 2}) rotateY(${90 + spin}deg)`, offset: .5 },
+    { transform: `perspective(1100px) rotateY(${spin}deg)` },
+  ];
+  const ms = fast ? 300 : 460, options = { duration: ms, easing: 'cubic-bezier(.3,.8,.35,1)', fill: 'both' };
+  const flight = card.animate(arc(0), options);
+  back.animate(arc(-180), options);
+  deck.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-4px)' }, { transform: 'none' }], { duration: Math.min(240, ms), easing: 'ease-out' });
+  const land = () => { flight.cancel(); card.classList.remove('flipping'); if (flipBack === back) clearFlip(); };
+  flight.onfinish = land;
+  setTimeout(land, ms + 60);
+}
 // The table hands itself back and forth: a finished turn rolls into the next one,
 // and Rook plays on its own timer, so the only taps needed are the player's moves.
 function scheduleTurn() {
@@ -153,6 +189,8 @@ function move(action) {
     const source = $('[data-drag-card="true"]');
     if (source) source.closest('.bank')?.scrollIntoView({ block: 'center', behavior: 'instant' });
     else if (wasChoice || action.type === 'next') $('.table')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Measured after any scroll, so the card flies to where it actually landed.
+    if (action.type === 'draw') dealFlip();
   });
   if (game.phase === 'over') showResults();
 }
