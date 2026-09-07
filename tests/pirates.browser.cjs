@@ -28,11 +28,13 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
     await page.mouse.up();
   }
   const settled = () => page.waitForFunction(() => JSON.parse(localStorage.getItem('pirates.v1')).phase !== 'turnEnd');
-  function fixture({ draw = ['mermaid-8'], play = [], banks = [[], []] } = {}) {
-    const s = engine.newGame(); const all = engine.allCards(); const get = id => all.find(c => c.id === id);
+  function fixture({ draw = ['mermaid-8'], play = [], banks = [[], []] } = {}, variants = {}, traits) {
+    const s = engine.newGame(Math.random, variants); const mermaid = Boolean(variants.mermaid);
+    const all = engine.allCards(mermaid); const get = id => all.find(c => c.id === id);
     s.active = 0; s.deck = draw.map(get).reverse(); s.play = play.map(get); s.banks = banks.map(b => b.map(get));
     const used = [...draw, ...play, ...banks.flat()]; s.discard = all.filter(c => !used.includes(c.id));
-    s.seenDraw = all.filter(c => c.value > (c.suit === 'mermaid' ? 4 : 2) && !draw.includes(c.id)).map(c => c.id);
+    s.seenDraw = all.filter(c => c.value > engine.lowValue(c.suit, mermaid) && !draw.includes(c.id)).map(c => c.id);
+    if (traits) { s.traits = traits; s.phase = 'play'; }
     assert.ok(engine.validSave(s)); return s;
   }
   await page.goto(base); await page.locator('.start-button').waitFor(); await noOverflow(); await shot('01-title-390');
@@ -128,12 +130,41 @@ const base = process.env.PIRATES_URL || 'http://127.0.0.1:4173/games/pirates/';
   const before = await read(); await page.locator('#sheet [data-action="close"]').last().click(); assert.deepEqual(await read(), before);
   await page.locator('[data-action="menu"]').click(); await page.locator('[data-action="home"]').click();
   await page.locator('[data-action="resume"]').waitFor();
+  // Both variants are opt-in from the title screen and change how a voyage deals.
+  await page.evaluate(() => { localStorage.removeItem('pirates.v1'); localStorage.removeItem('pirates.variants'); });
+  await page.reload();
+  assert.equal(await page.locator('.variant-toggle').count(), 2, 'the title screen offers both variants');
+  await page.locator('.variant-toggle[data-variant="traits"]').click();
+  await page.locator('.variant-toggle[data-variant="mermaid"]').click();
+  assert.equal(await page.locator('.variant-toggle.on').count(), 2);
+  await noOverflow(); await shot('07-variants-on');
+  await page.locator('[data-action="start"]').click();
+  assert.equal((await read()).phase, 'traitPick', 'traits open with a draft');
+  assert.equal(await page.locator('.trait-card').count(), 2);
+  await noOverflow(); await shot('08-trait-draft');
+  await page.locator('.trait-card').first().click();
+  const drafted = await read();
+  assert.equal(drafted.phase, 'play'); assert.ok(drafted.traits.every(Boolean), 'both captains keep a trait');
+  assert.equal(await page.locator('.trait-tag').count(), 2, 'both traits stay visible on the table');
+  // A Mermaid picks its replay straight out of the haul, and a Siren takes the card instead.
+  const siren = fixture({ draw: ['mermaid-7'], play: ['cannon-3', 'key-4'], banks: [[], ['chest-6']] }, { traits: true, mermaid: true }, ['golden-scales', 'siren']);
+  await load(siren);
+  await page.locator('.draw-pile').click();
+  assert.equal((await read()).choice.type, 'mermaid');
+  assert.equal(await page.locator('.play-grid .loot-card.target[data-action="choose"]').count(), 2, 'the earlier cards become the targets');
+  await noOverflow(); await shot('09-mermaid-replay');
+  await page.locator('.play-grid .loot-card.target').first().click();
+  const claimed = await read();
+  assert.equal(claimed.choice, null);
+  assert.ok(claimed.banks[1].some(c => c.id === 'cannon-3'), 'the Siren banks the card the Mermaid selected');
+  await page.evaluate(() => localStorage.removeItem('pirates.variants'));
+  await page.reload(); await page.locator('[data-action="resume"], [data-action="start"]').first().waitFor();
   // Storage-denied browsers can still start and play.
   const blocked = await context.newPage(); await blocked.addInitScript(() => { Storage.prototype.setItem = () => { throw new Error('disabled'); }; });
   await blocked.goto(base); await blocked.locator('[data-action="resume"], [data-action="start"]').first().click();
   await blocked.locator('[data-action="menu"]').click(); await blocked.locator('[data-action="restart"]').click(); await blocked.locator('#sheet [data-action="start"]').click();
   assert.equal(await blocked.locator('.storage-warning').count(), 1);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ result: 'PASS', matchSteps: steps, finalScores: final.banks.map(engine.score), widths: [320, 375, 390, 430, 768, 1280], consoleErrors: errors.length, checks: ['full match via UI', 'all ten rules', 'automatic turn hand-over', 'drop anywhere on the table', 'Cannon swipe', 'Map save/resume', 'bank inspection', 'voyage log', 'restart', 'restart cancellation', 'storage denied', 'no overflow'] }));
+  console.log(JSON.stringify({ result: 'PASS', matchSteps: steps, finalScores: final.banks.map(engine.score), widths: [320, 375, 390, 430, 768, 1280], consoleErrors: errors.length, checks: ['full match via UI', 'all ten rules', 'automatic turn hand-over', 'drop anywhere on the table', 'Cannon swipe', 'Map save/resume', 'bank inspection', 'voyage log', 'restart', 'restart cancellation', 'variant toggles', 'trait draft', 'Mermaid replay', 'storage denied', 'no overflow'] }));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
