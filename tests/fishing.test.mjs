@@ -130,3 +130,22 @@ test('score counts boats, level three licenses, buildings and the king crab bonu
   assert.equal(sc.buildings, 17);
   assert.equal(sc.bonus, 4);
 });
+
+test('long-press help covers every section and builds for any game state', async () => {
+  const I = await import('../games/fishing/info.mjs');
+  const { HIT, SECTION_SHEET, SHEETS } = await import('../games/fishing/layout.mjs');
+  for (const sec of E.allSections()) {
+    const [x0, y0, x1, y1] = HIT[sec];
+    const reg = I.regionAt(SECTION_SHEET[sec], (x0 + x1) / 2, y0 + 8);
+    assert.ok(reg, `no help region for ${sec}`);
+  }
+  for (let seed = 1; seed <= 30; seed++) {
+    const s = play(seed % 2 ? 'rival' : 'open', seed);
+    for (const sheet of ['boats', 'harbor']) for (let y = 5; y < SHEETS[sheet].h; y += 23) for (let x = 5; x < SHEETS[sheet].w; x += 37) {
+      const reg = I.regionAt(sheet, x, y);
+      if (reg) { const inf = I.sheetInfo(s, reg.ref); assert.ok(inf?.title && inf.body && !/undefined|NaN/.test(inf.title + inf.body), JSON.stringify(reg.ref)); }
+    }
+    s.pool = E.BOAT_FACES.map(face => ({ kind: 'boat', face, by: null })).concat(['harbor', 'wharf', 'market'].map(face => ({ kind: 'town', face, by: 'rival' })));
+    s.pool.forEach((_, i) => { const inf = I.dieInfo(s, i); assert.ok(inf && !/undefined|NaN/.test(inf.title + inf.body)); });
+  }
+});

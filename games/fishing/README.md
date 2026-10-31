@@ -1,6 +1,6 @@
 # Fishing
 
-A roll-and-write dice game for one player, built for a phone held in portrait. Each sheet fills the screen; swipe sideways (or tap the two tabs beside the prompt) to flip between the **boat sheet** and the **harbor & wharf sheet**. The dice tray and a single menu button sit underneath. Served as static files at `games/fishing/`; no build step, account or server.
+A roll-and-write dice game for one player, built for a phone held in portrait. Each sheet fills the screen; swipe sideways (or tap the two tabs beside the prompt) to flip between the **boat sheet** and the **harbor & wharf sheet**. The dice tray slides up over the space under the sheet whenever new dice are rolled; it tucks into a slim row of mini dice (tap **Dice** to bring it back) when it would cover the sheet. **Hold any area** of either sheet, or any die, for a card explaining what it does and what it's worth for you right now. Served as static files at `games/fishing/`; no build step, account or server.
 
 ## Play
 
@@ -22,6 +22,7 @@ Any die can be traded for a coin instead. Coins fill the track on the harbor she
 
 - `engine.mjs` – rules, dice flow, Rival behaviour, scoring, save validation (no DOM).
 - `layout.mjs` – pixel positions of every box, fish slot and tap area on the two sheet images.
+- `info.mjs` – long-press help: the area under a point and its explanation for the current game.
 - `app.mjs` – rendering of marks over the sheets, dice tray, prompts, menu, saves, undo.
 - `style.css`, `index.html`, `manifest.webmanifest`, `icon.svg`.
 - `assets/sheet-*.webp`, `assets/dice/*.webp` – sheet art and transparent dice faces.
