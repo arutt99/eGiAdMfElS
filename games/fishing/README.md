@@ -1,0 +1,35 @@
+# Fishing
+
+A roll-and-write dice game for one player, built for a phone held in portrait. Each sheet fills the screen; swipe sideways (or tap the two tabs beside the prompt) to flip between the **boat sheet** and the **harbor & wharf sheet**. The dice tray and a single menu button sit underneath. Served as static files at `games/fishing/`; no build step, account or server.
+
+## Play
+
+Every round you pick a die, the game highlights where it can go, and you tap a section — the top open box is marked for you. Circled boxes trigger licenses (L), boat launches (B), your choice of either (?), or a private fishing trip (F). Then the leftover shared die is used too.
+
+1. **Boat dice** – Shrimp, Cod, Lobster, Swordfish, Oyster or three coins.
+2. **Income** – 1 coin plus Lobster license and Canning Co. bonuses (max 10).
+3. **Fishing** – even rounds. Launched boats catch a fish each; oyster boats catch two or one plus a coin.
+4. **Town dice** – Harbor (mark a harbor ship), Wharf (mark a building), Market (coins by fish caught); one boat die is always in the town pool.
+
+Any die can be traded for a coin instead. Coins fill the track on the harbor sheet; a star on the track gives a star action (mark the top open box of any section). Wharf buildings switch on when their last box is marked. The final score panel on the boat sheet is kept live.
+
+## Modes
+
+- **Versus Rival** (8 rounds): three boat dice / two town dice + one boat die. A Rival takes a die each phase and strikes the two lowest open boxes in that section (one for the shared die); Market dice strike your next coin-track star. Red **R** pins show where it is heading. It moves first in even rounds.
+- **Solo waters** (10 rounds): no Rival, one die fewer in each pool.
+
+## Files
+
+- `engine.mjs` – rules, dice flow, Rival behaviour, scoring, save validation (no DOM).
+- `layout.mjs` – pixel positions of every box, fish slot and tap area on the two sheet images.
+- `app.mjs` – rendering of marks over the sheets, dice tray, prompts, menu, saves, undo.
+- `style.css`, `index.html`, `manifest.webmanifest`, `icon.svg`.
+- `assets/sheet-*.webp`, `assets/dice/*.webp` – sheet art and transparent dice faces.
+
+Progress saves to local storage (`fishing.v1`) after every move; best scores per mode live under `fishing.best`. Undo steps back through your own moves within the current roll of the dice.
+
+## Test
+
+```sh
+node --test tests/fishing.test.mjs
+```

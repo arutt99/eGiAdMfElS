@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b2030">
+  <meta name="description" content="Fishing — a roll-and-write dice game. Launch boats, haul fish and build up the wharf.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Fishing</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/sheet-boats.webp" as="image">
+  <link rel="preload" href="assets/sheet-harbor.webp" as="image">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <div id="stage">
+      <div id="pages">
+        <section class="page" data-sheet="boats" aria-label="Boat sheet"><div class="sheet" style="--ar: 1100 / 1429"><img src="assets/sheet-boats.webp" alt="" draggable="false"><svg viewBox="0 0 1100 1429" aria-hidden="true"></svg></div></section>
+        <section class="page" data-sheet="harbor" aria-label="Harbor and wharf sheet"><div class="sheet" style="--ar: 1122 / 1402"><img src="assets/sheet-harbor.webp" alt="" draggable="false"><svg viewBox="0 0 1122 1402" aria-hidden="true"></svg></div></section>
+      </div>
+    </div>
+    <div id="dock">
+      <div class="bar">
+        <button id="menu-btn" class="icon-btn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <p id="prompt" aria-live="polite"></p>
+        <button id="undo-btn" class="icon-btn" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+        <div id="tabs" role="tablist" aria-label="Sheets">
+          <button role="tab" data-sheet="boats" aria-label="Boat sheet"><img src="assets/dice/cod.webp" alt=""></button>
+          <button role="tab" data-sheet="harbor" aria-label="Harbor and wharf sheet"><img src="assets/dice/harbor.webp" alt=""></button>
+        </div>
+      </div>
+      <div id="dice"></div>
+      <div id="actions"></div>
+    </div>
+  </main>
+  <dialog id="dlg"></dialog>
+  <noscript><p class="noscript">Fishing needs JavaScript. Enable it and reload.</p></noscript>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>
