@@ -21,6 +21,9 @@
         <section class="page" data-sheet="boats" aria-label="Boat sheet"><div class="sheet" style="--ar: 1100 / 1429"><img src="assets/sheet-boats.webp" alt="" draggable="false"><svg viewBox="0 0 1100 1429" aria-hidden="true"></svg></div></section>
         <section class="page" data-sheet="harbor" aria-label="Harbor and wharf sheet"><div class="sheet" style="--ar: 1122 / 1402"><img src="assets/sheet-harbor.webp" alt="" draggable="false"><svg viewBox="0 0 1122 1402" aria-hidden="true"></svg></div></section>
       </div>
+      <div id="tray" aria-label="Dice tray">
+        <div id="dice"></div>
+      </div>
     </div>
     <div id="dock">
       <div class="bar">
@@ -32,10 +35,14 @@
           <button role="tab" data-sheet="harbor" aria-label="Harbor and wharf sheet"><img src="assets/dice/harbor.webp" alt=""></button>
         </div>
       </div>
-      <div id="dice"></div>
+      <div id="dicebar">
+        <div id="mini"></div>
+        <button id="dice-toggle" aria-controls="tray" aria-expanded="true"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
+      </div>
       <div id="actions"></div>
     </div>
   </main>
+  <div id="info" role="dialog" aria-modal="false" aria-labelledby="info-title" hidden></div>
   <dialog id="dlg"></dialog>
   <noscript><p class="noscript">Fishing needs JavaScript. Enable it and reload.</p></noscript>
   <script type="module" src="app.mjs"></script>

@@ -1,13 +1,14 @@
 import * as E from './engine.mjs';
+import { regionAt, sheetInfo, dieInfo } from './info.mjs';
 import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX, SALVAGE_STARS, MARKET_ROWS, MARKET_X, coinPos, TRACK } from './layout.mjs';
 
 const KEY = 'fishing.v1', BEST = 'fishing.best';
 const $ = sel => document.querySelector(sel);
-const pages = $('#pages'), promptEl = $('#prompt'), diceEl = $('#dice'), actionsEl = $('#actions'), dlg = $('#dlg');
+const pages = $('#pages'), promptEl = $('#prompt'), diceEl = $('#dice'), miniEl = $('#mini'), trayEl = $('#tray'), toggleEl = $('#dice-toggle'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
 const svgs = { boats: $('.page[data-sheet="boats"] svg'), harbor: $('.page[data-sheet="harbor"] svg') };
 
 let s = load() || E.newGame('rival');
-let ui = { sel: null, sheet: 'boats', toast: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1 };
+let ui = { sel: null, sheet: 'boats', toast: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, tray: true, hl: null };
 let history = [], timer = null;
 
 // ---------- persistence ----------
@@ -135,6 +136,7 @@ function renderSheets() {
   }
   for (const sec of tg) { const [x0, y0, x1, y1] = HIT[sec]; out[SECTION_SHEET[sec]] += rect('hit', x0, y0, x1, y1, 16, `data-sec="${sec}"`); }
 
+  if (ui.hl) { const [x0, y0, x1, y1] = ui.hl.rect; out[ui.hl.sheet] += rect('info-hl', x0, y0, x1, y1, 14); }
   svgs.boats.innerHTML = out.boats;
   svgs.harbor.innerHTML = out.harbor;
   ui.prevMarks = ui.nextMarks; ui.firstPaint = false;
@@ -152,8 +154,9 @@ function renderDock() {
   const task = E.currentTask(s), st = s.step, o = currentOptions();
   const rolled = s.rolls !== ui.lastRolls; ui.lastRolls = s.rolls;
   // dice
+  if (rolled && s.pool.length) ui.tray = true; // fresh dice: show them up front
   const usingIdx = st.k === 'use' ? st.die : null;
-  diceEl.innerHTML = s.pool.map((d, i) => {
+  const dieHtml = (mini) => s.pool.map((d, i) => {
     const sharedNow = !d.by && (st.k === 'use' && st.src === 'shared' || (st.k === 'rival' && st.shared));
     let tag = '';
     if (d.by === 'rival') tag = '<span class="tag rival">Rival</span>';
@@ -162,8 +165,11 @@ function renderDock() {
     const sel = (st.k === 'pick' && ui.sel === i) || usingIdx === i;
     const taken = d.by && usingIdx !== i;
     const can = st.k === 'pick' && !d.by && !task;
-    return `<button class="die ${d.kind}${sel ? ' selected' : ''}${taken ? ' taken' : ''}${d.by === 'you' ? ' mine' : ''}${rolled ? ' rolling' : ''}" data-die="${i}" ${can ? '' : 'disabled'} aria-label="${E.label(d.face)} die" style="animation-delay:${i * 70}ms">${faceImg(d.face)}${tag}</button>`;
+    return `<button class="die ${d.kind}${mini ? ' mini' : ''}${sel ? ' selected' : ''}${taken ? ' taken' : ''}${d.by === 'you' ? ' mine' : ''}${rolled ? ' rolling' : ''}" data-die="${i}" aria-disabled="${!can}" aria-label="${E.label(d.face)} die${d.by ? `, ${d.by === 'rival' ? 'taken by Rival' : 'yours'}` : ''}" style="animation-delay:${i * 70}ms">${faceImg(d.face)}${tag}</button>`;
   }).join('');
+  diceEl.innerHTML = dieHtml(false);
+  miniEl.innerHTML = dieHtml(true);
+  syncTray(st.k === 'pick' && !task && ui.sel == null);
 
   // prompt + actions
   const head = s.phase === 'over' ? 'Game over' : `Round ${s.round}/${s.rounds} · ${phaseName()}`;
@@ -221,6 +227,17 @@ function useMsg(o) {
   return '';
 }
 
+function syncTray(needPick) {
+  const open = ui.tray && s.pool.length > 0 && s.phase !== 'over';
+  trayEl.classList.toggle('closed', !open);
+  trayEl.inert = !open;
+  miniEl.classList.toggle('hidden', open);
+  toggleEl.setAttribute('aria-expanded', String(open));
+  toggleEl.disabled = !s.pool.length || s.phase === 'over';
+  toggleEl.querySelector('span').textContent = open ? 'Hide' : needPick ? 'Pick a die' : 'Dice';
+  toggleEl.classList.toggle('attn', !open && needPick);
+}
+
 function render() {
   renderSheets(); renderDock(); syncTabs(); save();
 }
@@ -269,6 +286,7 @@ function doAct(a) {
   return true;
 }
 function afterChange() {
+  if (!infoEl.hidden) { infoEl.hidden = true; ui.hl = null; }
   render();
   focusTargets();
   const t = E.currentTask(s);
@@ -299,13 +317,66 @@ function pump() {
   }, delay);
 }
 
-diceEl.addEventListener('click', ev => {
-  const b = ev.target.closest('.die'); if (!b || b.disabled) return;
+function onDieTap(ev) {
+  const b = ev.target.closest('.die'); if (!b || b.getAttribute('aria-disabled') === 'true') return;
   const i = +b.dataset.die;
-  if (s.step.k !== 'pick') return;
+  if (s.step.k !== 'pick' || E.currentTask(s)) return;
   ui.sel = ui.sel === i ? null : i;
+  if (ui.sel != null && trayCoversSheet()) ui.tray = false; // tuck the tray away so the highlighted sections show
   renderSheets(); renderDock(); focusTargets();
-});
+}
+function trayCoversSheet() {
+  const sheet = pages.querySelector(`.page[data-sheet="${ui.sheet}"] .sheet`);
+  return trayEl.getBoundingClientRect().top < sheet.getBoundingClientRect().bottom - 6;
+}
+diceEl.addEventListener('click', onDieTap);
+miniEl.addEventListener('click', onDieTap);
+toggleEl.addEventListener('click', () => { ui.tray = !ui.tray; renderDock(); });
+$('#dicebar').addEventListener('click', ev => { if (ev.target.id === 'mini' || ev.target.id === 'dicebar') { ui.tray = true; renderDock(); } });
+
+// ---------- long-press info ----------
+let pressT = null, pressAt = null, suppressClick = false;
+function pressTarget(ev) {
+  const die = ev.target.closest?.('.die');
+  if (die) return { info: () => dieInfo(s, +die.dataset.die) };
+  const svg = ev.target.closest?.('.sheet svg'); if (!svg) return null;
+  const sheet = svg.closest('.page').dataset.sheet, r = svg.getBoundingClientRect(), dims = SHEETS[sheet];
+  const x = (ev.clientX - r.left) * dims.w / r.width, y = (ev.clientY - r.top) * dims.h / r.height;
+  const reg = regionAt(sheet, x, y); if (!reg) return null;
+  return { info: () => sheetInfo(s, reg.ref), hl: { sheet, rect: reg.rect }, bottom: r.top + reg.rect[3] * r.height / dims.h };
+}
+document.addEventListener('pointerdown', ev => {
+  clearTimeout(pressT); suppressClick = false;
+  if (!ev.isPrimary || ev.button > 0) return;
+  if (!infoEl.hidden && !infoEl.contains(ev.target)) { closeInfo(); suppressClick = true; return; }
+  const t = pressTarget(ev); if (!t) return;
+  pressAt = [ev.clientX, ev.clientY];
+  pressT = setTimeout(() => { pressT = null; suppressClick = true; openInfo(t); }, 450);
+}, true);
+document.addEventListener('pointermove', ev => {
+  if (pressT && pressAt && Math.hypot(ev.clientX - pressAt[0], ev.clientY - pressAt[1]) > 10) { clearTimeout(pressT); pressT = null; }
+}, true);
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => { clearTimeout(pressT); pressT = null; }, true);
+pages.addEventListener('scroll', () => { clearTimeout(pressT); pressT = null; }, { passive: true });
+document.addEventListener('click', ev => { if (suppressClick) { suppressClick = false; ev.stopPropagation(); ev.preventDefault(); } }, true);
+document.addEventListener('contextmenu', ev => { if (ev.target.closest('.sheet, .die')) ev.preventDefault(); });
+function openInfo(t) {
+  const info = t.info(); if (!info) return;
+  infoEl.innerHTML = `<button class="x" data-close aria-label="Close">×</button><p class="kicker">${info.kicker}</p><h2 id="info-title">${info.title}</h2>${info.body}<p class="hint">Tap anywhere to close · hold any area for help</p>`;
+  infoEl.classList.remove('top');
+  infoEl.hidden = false;
+  if (t.bottom && infoEl.getBoundingClientRect().top < t.bottom) infoEl.classList.add('top'); // don't cover what's being explained
+  ui.hl = t.hl || null;
+  if (navigator.vibrate) navigator.vibrate(12);
+  renderSheets();
+}
+function closeInfo() {
+  if (infoEl.hidden) return;
+  infoEl.hidden = true; ui.hl = null; renderSheets();
+}
+infoEl.addEventListener('click', ev => { if (ev.target.closest('[data-close]')) closeInfo(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeInfo(); });
+
 for (const svg of Object.values(svgs)) {
   svg.addEventListener('click', ev => {
     const kc = ev.target.closest('[data-kc]'); if (kc) { doAct({ type: 'kc', choice: kc.dataset.kc }); return; }
@@ -386,6 +457,7 @@ function onOver(force = false) {
 function openRules() {
   openDlg(`<h2>How to play</h2>
   <p>Score the most points by launching boats, catching fish, earning licenses and finishing wharf buildings. Swipe the sheet (or use the two tabs) to flip between your boats and the harbor &amp; wharf.</p>
+  <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. The dice tray hides with the <b>Hide</b> button and comes back with <b>Dice</b>.</p>
   <h3>Each round</h3>
   <ul>
     <li><b>Boat dice</b> — pick a die and tap its column; the top open box is marked for you. Then everyone uses the last die left over.</li>
