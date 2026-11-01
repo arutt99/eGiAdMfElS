@@ -3,14 +3,17 @@ import { regionAt, sheetInfo, dieInfo, LIC_TEXT, kcValues, BUILDING_LINE } from 
 import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX, SALVAGE_STARS, MARKET_ROWS, MARKET_X, coinPos, TRACK, PAGE_SETS, composePage, pageAt } from './layout.mjs';
 import { moments, nextStarIn, nextRank } from './moments.mjs';
 import { prefs, setPref, haptic, play, banner, busyFor, clearBanners, floater, countUp, confetti, reduced } from './fx.mjs';
+import { OPPONENT, rivalLine, aiLine } from './people.mjs';
 
 const KEY = 'fishing.v1', BEST = 'fishing.best';
 const $ = sel => document.querySelector(sel);
 const pages = $('#pages'), stage = $('#stage'), tabsEl = $('#tabs'), promptEl = $('#prompt'), diceEl = $('#dice'), controlsEl = $('#controls'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
+const oppEl = $('#opp'), bubbleEl = $('#bubble'), whoEl = $('#who'), titleEl = $('#title'), coachEl = $('#coach');
 const newsEl = $('#news'), choicesEl = $('#choices'), scoreChip = $('#st-score'), coinChip = $('#st-coins'), roundChip = $('#st-round');
 
+const hadSave = !!load();
 let s = load() || E.newGame('rival');
-let ui = { view: 'you', sel: null, page: 'boats', set: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, hl: null, lastMsg: '', paused: false, holdUntil: 0, hudVals: null, choiceKey: null };
+let ui = { view: 'you', sel: null, page: 'boats', set: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, hl: null, lastMsg: '', title: true, coach: null, flash: null, holdUntil: 0, hudVals: null, choiceKey: null };
 let layout = [], panels = []; // composed pages of the current set, and every rendered panel
 let history = [], timer = null;
 
@@ -47,24 +50,35 @@ const vsAI = () => s.mode === 'ai' && !!s.bot;
 function setView(v) {
   v = v === 'ai' && vsAI() ? 'ai' : 'you';
   if (v === ui.view) return;
-  ui.view = v; ui.firstPaint = true; ui.hl = null; ui.hudVals = null;
-  if (!infoEl.hidden) infoEl.hidden = true;
+  if (!infoEl.hidden) { infoEl.hidden = true; ui.hl = null; }
   play('sheet');
-  render();
-  if (v === 'you') focusTargets();
+  const swap = () => { ui.view = v; ui.firstPaint = true; ui.hudVals = null; render(); if (v === 'you') focusTargets(); };
+  syncSeg(v);
+  if (reduced()) return swap();
+  // turn the sheet over like a card: out to the edge, swap, back in
+  stage.classList.remove('flip-in'); stage.classList.add('flip-out');
+  setTimeout(() => { swap(); stage.classList.remove('flip-out'); void stage.offsetWidth; stage.classList.add('flip-in'); setTimeout(() => stage.classList.remove('flip-in'), 260); }, 170);
+}
+function syncSeg(v = ui.view) {
+  whoEl.classList.toggle('on-ai', v === 'ai');
+  whoEl.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
 }
 function syncView() {
-  const btn = $('#who-btn'), on = vsAI();
-  btn.hidden = !on;
+  const on = vsAI();
+  whoEl.hidden = !on;
   document.body.classList.toggle('vs-ai', on);
   document.body.classList.toggle('viewing-ai', on && ui.view === 'ai');
   if (!on) return;
   const me = E.score(s).total, ai = E.score(s.bot).total;
-  btn.innerHTML = ui.view === 'ai' ? `<span class="lbl">You</span><b>${me}</b><i>›</i>` : `<span class="lbl">AI</span><b>${ai}</b><i>›</i>`;
-  btn.setAttribute('aria-pressed', String(ui.view === 'ai'));
-  btn.setAttribute('aria-label', ui.view === 'ai' ? `Back to your sheet (you ${me})` : `View the AI player's sheet (AI ${ai})`);
-  $('#viewing').hidden = ui.view !== 'ai';
+  const [youB, aiB] = whoEl.querySelectorAll('b');
+  if (+youB.textContent !== me) { if (ui.hudVals) countUp(youB, me, { from: +youB.textContent }); else youB.textContent = me; }
+  if (+aiB.textContent !== ai) { if (ui.hudVals) countUp(aiB, ai, { from: +aiB.textContent }); else aiB.textContent = ai; }
+  whoEl.querySelector('[data-view="you"]').setAttribute('aria-label', `Your sheet, ${me} points`);
+  whoEl.querySelector('[data-view="ai"]').setAttribute('aria-label', `AI player's sheet, ${ai} points`);
+  syncSeg();
 }
+// Where "+VP" floaters land: your score chip, or your half of the You | AI toggle.
+const scoreTarget = () => vsAI() ? whoEl.querySelector('[data-view="you"]') : scoreChip;
 function currentOptions() {
   if (E.currentTask(s)) return null;
   if (s.step.k === 'pick') return ui.sel != null ? E.options(s, ui.sel) : null;
@@ -174,6 +188,11 @@ function renderSheets() {
   }
   for (const sec of tg) { const [x0, y0, x1, y1] = HIT[sec]; out[SECTION_SHEET[sec]] += rect('hit', x0, y0, x1, y1, 16, `data-sec="${sec}"`); }
 
+  // boxes the Rival just struck pulse for a moment
+  if (ui.flash && mine && performance.now() < ui.flash.until) for (const [sec, i] of ui.flash.hits) {
+    if (sec === 'coin') { const { x, y } = coinPos(i); out.harbor += `<circle class="flash" cx="${x}" cy="${y}" r="17"/>`; }
+    else { const c = CELLS[sec][i]; out[SECTION_SHEET[sec]] += `<circle class="flash" cx="${c.x}" cy="${c.y}" r="${c.r + 9}"/>`; }
+  }
   if (ui.hl) { const [x0, y0, x1, y1] = ui.hl.rect; out[ui.hl.sheet] += rect('info-hl', x0, y0, x1, y1, 14); }
   for (const p of panels) p.marks.innerHTML = out[p.sheet];
   ui.prevMarks = ui.nextMarks; ui.firstPaint = false;
@@ -217,6 +236,7 @@ function renderDock() {
   const task = E.currentTask(s), st = s.step, o = currentOptions();
   renderDice(task);
   renderChoices(task);
+  renderOpp();
   // the status line stays put; news has its own place above the dock
   const head = s.phase === 'over' ? `Game over · ${E.modeName(s.mode)}` : `Round ${s.round}/${s.rounds} · ${phaseName()} dice`.replace('Income dice', 'Income').replace('Fishing dice', 'Fishing');
   let msg = '', acts = [];
@@ -242,8 +262,8 @@ function renderDock() {
   } else if (st.k === 'roll') msg = 'Rolling the dice…';
   else if (st.k === 'income') msg = 'Collecting income…';
   else if (st.k === 'fishing') msg = 'Boats are out fishing…';
-  else msg = ui.lastMsg;
-  ui.lastMsg = msg;
+  else msg = coachHolds() ? 'Tour — tap <b>Next</b> to carry on' : ui.lastMsg;
+  if (!coachHolds()) ui.lastMsg = msg;
   if (o) {
     if (o.coins) btn(`${faceImg('coins')} +3 coins`, 'data-a="coins"', 'primary');
     if (o.market) btn(`${faceImg('market')} +${o.market} coins`, 'data-a="market"', 'primary');
@@ -323,6 +343,69 @@ function news(html, kind = '') {
 }
 function clearNews() { clearTimeout(newsT); newsEl.hidden = true; }
 
+// ---------- the opponent's seat ----------
+// The Rival or the AI sits at the left of the dock: it fidgets while choosing, dice fly to it, and it
+// says what it did in a speech bubble — with a button to see the boxes it struck on another page.
+const oppKind = () => s.mode === 'rival' ? 'rival' : vsAI() ? 'ai' : null;
+function renderOpp() {
+  const who = oppKind();
+  oppEl.hidden = !who; document.body.classList.toggle('has-opp', !!who);
+  if (!who) { bubbleEl.hidden = true; return; }
+  if (oppEl.dataset.who !== who) {
+    oppEl.dataset.who = who;
+    oppEl.querySelector('.face').innerHTML = OPPONENT[who].face;
+    oppEl.querySelector('.name').textContent = OPPONENT[who].name;
+  }
+  const thinking = (s.step.k === 'rival' || s.step.k === 'ai') && s.phase !== 'over';
+  oppEl.classList.toggle('thinking', thinking);
+  oppEl.setAttribute('aria-label', `${OPPONENT[who].name}${thinking ? ', choosing' : ''}`);
+}
+let sayT = null;
+function say(html, { show = null, see = false } = {}) {
+  const btn = show ? `<button class="say-btn" data-show="${show}">Show me</button>` : see ? '<button class="say-btn" data-see>See its sheet</button>' : '';
+  bubbleEl.innerHTML = `<div class="say-text">${html}</div>${btn}`;
+  bubbleEl.className = oppKind() || ''; bubbleEl.hidden = false;
+  replay(bubbleEl, 'in');
+  clearTimeout(sayT);
+  sayT = setTimeout(() => { bubbleEl.classList.add('out'); sayT = setTimeout(() => { bubbleEl.hidden = true; bubbleEl.classList.remove('out'); }, 260); }, btn ? 4400 : 3400);
+}
+function hush() { clearTimeout(sayT); bubbleEl.hidden = true; }
+bubbleEl.addEventListener('click', ev => {
+  const show = ev.target.closest('[data-show]'), see = ev.target.closest('[data-see]');
+  if (show) {
+    haptic(); play('tap');
+    if (ui.view !== 'you') setView('you');
+    showPage(show.dataset.show);
+    if (ui.lastHits) { ui.flash = { hits: ui.lastHits, until: performance.now() + 2600 }; renderSheets(); setTimeout(() => { ui.flash = null; renderSheets(); }, 2700); }
+    show.remove();
+  }
+  if (see) { haptic(); setView('ai'); see.remove(); }
+});
+// The engine's short move text ("Cod → King Crab") as a sentence.
+function aiDid(t) {
+  const m = /→ (.+)$/.exec(t);
+  if (m) return `Marked a box in its ${m[1]}${E.TYPES.some(x => E.label(x) === m[1]) ? ' column' : ''}`;
+  return t[0].toUpperCase() + t.slice(1);
+}
+// The die the opponent took flies from the tray into its portrait.
+function flyDie(i) {
+  const el = diceEls[i], face = oppEl.querySelector('.face');
+  if (!el || oppEl.hidden || reduced()) return;
+  const a = el.getBoundingClientRect(), b = face.getBoundingClientRect();
+  if (!a.width || !b.width) return;
+  const c = el.cloneNode(true);
+  c.className = `die ${s.pool[i]?.kind || ''} flying`; c.removeAttribute('data-die'); c.querySelector('.tag')?.remove();
+  Object.assign(c.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px` });
+  document.body.append(c);
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  c.animate([
+    { transform: 'none' },
+    { transform: `translate(${dx * .55}px, ${dy * .55 - 46}px) rotate(-140deg) scale(.85)`, offset: .55 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(-250deg) scale(.32)`, opacity: .3 },
+  ], { duration: 540, easing: 'cubic-bezier(.45, 0, .55, 1)' }).onfinish = () => { c.remove(); replay(oppEl, 'gloat'); };
+  play('pick');
+}
+
 // Dice live in the dock. Elements persist between renders so selection and state changes animate;
 // a fresh roll rebuilds them with a tumble that flickers through faces before settling.
 const FACES = { boat: E.BOAT_FACES, town: ['harbor', 'wharf', 'market'] };
@@ -379,8 +462,10 @@ function tumble(el, die, i) {
 for (const f of new Set([...FACES.boat, ...FACES.town])) new Image().src = `assets/dice/${f}.webp`;
 
 function render(statusDelay = 0) {
-  renderSheets(); renderDock(); syncTabs(); syncView(); renderStatus(statusDelay); save();
+  renderSheets(); renderDock(); syncTabs(); syncView(); renderStatus(statusDelay); save(); coachSync();
 }
+// Automatic turns wait while a sheet, the title screen or a tour card that needs reading is up.
+const paused = () => dlg.open || ui.title || coachHolds();
 
 // ---------- pages ----------
 // Phones in portrait get three tall pages (boats, harbor, wharf); wider screens get the two whole sheets.
@@ -448,6 +533,7 @@ function syncTabs() {
     b.classList.toggle('has-target', tg.has(b.dataset.page) && b.dataset.page !== ui.page);
   });
   if (!scrolling) tabsEl.style.setProperty('--pos', pageIndex(ui.page));
+  if (ui.view === 'you') bubbleEl.querySelector(`[data-show="${ui.page}"]`)?.remove(); // already looking at it
 }
 function focusTargets() {
   const t = targets(); if (!t.length || ui.view !== 'you') return;
@@ -530,9 +616,9 @@ function stageMoments(prev, { user = false } = {}) {
     for (const m of shown) {
       let delay = 0;
       if (m.k === 'fish') { delay = fishAt * STAGGER.fish; fishAt += m.n; }
-      floater(`+${m.vp} VP`, momentPoint(m), scoreChip, { delay }); floats++;
+      floater(`+${m.vp} VP`, momentPoint(m), scoreTarget(), { delay }); floats++;
     }
-    if (rest) { floater(`+${rest} VP`, null, scoreChip, { delay: 200 }); floats++; }
+    if (rest) { floater(`+${rest} VP`, null, scoreTarget(), { delay: 200 }); floats++; }
     if (coinM) { floater(`+${coinM.n}`, momentPoint(coinM), coinChip, { kind: 'coin' }); floats++; }
   }
   ui.holdUntil = performance.now() + hold;
@@ -566,24 +652,26 @@ function afterChange(prev = null, opts = {}) {
 }
 function pump() {
   clearTimeout(timer);
-  if (ui.paused || !E.isAuto(s)) return;
+  if (paused() || !E.isAuto(s)) return;
   const k = s.step.k;
   const base = { rival: 900, ai: 950, roll: 380, income: 450, fishing: 650, end: 450, next: 120 }[k] ?? 300;
   const wait = Math.max(base, busyFor() + (k === 'roll' ? 150 : 0), ui.holdUntil - performance.now());
   if (k === 'rival' || k === 'ai') renderDock();
   timer = setTimeout(() => {
-    if (ui.paused) return;
+    if (paused()) return;
     const before = JSON.parse(JSON.stringify(s));
     const e = E.auto(s);
     if (!e) return;
     if (e.k === 'roll') { history = []; ui.sel = null; }
+    if ((e.k === 'rival' || e.k === 'ai') && !e.shared) flyDie(e.die);
     if (e.k === 'rival') {
       const n = e.hits.length, h = e.hits[0]?.[0];
-      const where = !n ? 'nothing to strike' : h === 'coin' ? 'a ★ on your coin track' : `${n} box${n > 1 ? 'es' : ''} in ${E.label(h)}`;
-      news(`<b>Rival ${e.shared ? 'used the shared' : 'took'} ${E.label(e.face)}</b> — struck ${where}`, 'rival');
-      if (n) ping(h === 'coin' ? pageOf('harbor', [0, 1200, 1122, 1360]) : secPage(h));
+      const where = !n ? 'Nothing left to strike.' : h === 'coin' ? 'Struck the next ★ on your coin track.' : `Struck ${n} box${n > 1 ? 'es' : ''} in your ${E.label(h)}${E.TYPES.includes(h) ? ' column' : ''}.`;
+      const page = !n ? null : h === 'coin' ? pageOf('harbor', [0, 1200, 1122, 1360]) : secPage(h);
+      if (n) { ui.lastHits = e.hits; ui.flash = { hits: e.hits, until: performance.now() + 2600 }; setTimeout(() => { ui.flash = null; renderSheets(); }, 2700); ping(page); }
+      say(`<b>${rivalLine(e)}</b><span>${where}</span>`, { show: n && (page !== ui.page || ui.view !== 'you') ? page : null });
     }
-    if (e.k === 'ai') news(`<b>AI ${e.shared ? 'used the shared die' : 'took a die'}:</b> ${e.text}`, 'rival');
+    if (e.k === 'ai') say(`<b>${aiLine(e)}</b><span>${aiDid(e.text)}${e.score != null ? ` — AI now ${e.score}` : ''}</span>`, { see: ui.view !== 'ai' });
     if (e.k === 'income') news(`<b>Income</b> +${e.n} coin${e.n > 1 ? 's' : ''}`);
     if (e.k === 'fishing') {
       if (ui.view === 'you' && ui.page !== 'boats' && e.n) showPage('boats');
@@ -600,7 +688,7 @@ function onDieTap(ev) {
   ui.sel = ui.sel === i ? null : i;
   play(ui.sel == null ? 'put' : 'pick'); haptic();
   if (ui.view === 'ai') { ui.view = 'you'; ui.firstPaint = true; ui.hudVals = null; syncView(); }
-  renderSheets(); renderDock(); syncTabs(); renderStatus(); focusTargets();
+  renderSheets(); renderDock(); syncTabs(); renderStatus(); focusTargets(); coachSync();
 }
 diceEl.addEventListener('click', onDieTap);
 // a tap on the sheet that can't be used: point back at what's needed
@@ -655,7 +743,7 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeInfo(
 
 pages.addEventListener('click', ev => {
   if (!ev.target.closest('.panel')) return;
-  if (ui.view === 'ai') { replay($('#viewing'), 'nudge'); return; }
+  if (ui.view === 'ai') { replay(whoEl, 'nudge'); news("You're looking at the AI's sheet — tap <b>You</b> to go back"); return; }
   const kc = ev.target.closest('[data-kc]'); if (kc) { doAct({ type: 'kc', choice: kc.dataset.kc }); return; }
   const hit = ev.target.closest('[data-sec]');
   if (!hit) { if (E.currentTask(s)?.t === 'star' || ['pick', 'use'].includes(s.step.k)) nudge(); return; }
@@ -684,8 +772,7 @@ $('#undo-btn').addEventListener('click', () => {
   afterChange();
 });
 $('#menu-btn').addEventListener('click', () => { play('tap'); haptic(); openMenu(); });
-$('#who-btn').addEventListener('click', () => { haptic(); setView(ui.view === 'ai' ? 'you' : 'ai'); });
-$('#viewing').addEventListener('click', () => setView('you'));
+whoEl.addEventListener('click', ev => { const b = ev.target.closest('[data-view]'); if (!b || b.dataset.view === ui.view) return; haptic(); setView(b.dataset.view); });
 
 // ---------- bottom sheets ----------
 // Menus, rules and the final score slide up from the bottom, close with a swipe down, a tap on the
@@ -696,16 +783,16 @@ function openSheet(html, { tall = false, cls = '' } = {}) {
   dlg.className = [tall ? 'tall' : '', cls, dlg.open ? 'in' : ''].filter(Boolean).join(' ');
   dlg.innerHTML = `<div class="scrim" data-dismiss></div><div class="sheet-card" tabindex="-1" autofocus><div class="grabber" aria-hidden="true"></div>${html}</div>`;
   if (!dlg.open) {
-    dlg.showModal(); play('sheet');
+    dlg.showModal(); play('sheet'); coachSync();
     requestAnimationFrame(() => requestAnimationFrame(() => dlg.classList.add('in')));
   }
-  ui.paused = true; clearTimeout(timer);
+  clearTimeout(timer);
 }
 function closeSheet() {
   if (!dlg.open) return;
   dlg.classList.remove('in');
   const card = dlg.querySelector('.sheet-card'); if (card) { card.style.transform = ''; card.style.transition = ''; }
-  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; ui.paused = false; pump(); }, reduced() ? 0 : 280);
+  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; pump(); coachSync(); }, reduced() ? 0 : 280);
 }
 dlg.addEventListener('cancel', ev => { ev.preventDefault(); closeSheet(); });
 // swipe down to dismiss
@@ -744,6 +831,7 @@ dlg.addEventListener('click', ev => {
   if (m === 'view-ai') { closeSheet(); setView('ai'); }
   if (m === 'view-me') { closeSheet(); setView('you'); }
   if (m === 'menu') openMenu();
+  if (m === 'tour') { closeSheet(); setView('you'); startCoach(); }
 });
 dlg.addEventListener('change', ev => {
   const p = ev.target.dataset?.pref; if (!p) return;
@@ -763,6 +851,7 @@ function openMenu() {
       ${vsAI() ? `<button data-m="${ui.view === 'ai' ? 'view-me' : 'view-ai'}">${ui.view === 'ai' ? 'View your sheet' : "View AI player's sheet"} <small>${ui.view === 'ai' ? E.score(s).total : E.score(s.bot).total} pts</small></button>` : ''}
       <button data-m="new">New game</button>
       <button data-m="rules">How to play</button>
+      <button data-m="tour">Replay the tour <small>6 quick tips</small></button>
       <a href="../../">All games <small>↗</small></a>
     </div>
     <div class="group">${toggle('sound', 'Sound effects')}${toggle('haptics', 'Haptics')}</div>
@@ -777,14 +866,16 @@ function openNew() {
       <button data-m="ai" class="primary"><span><b>Vs AI player</b><small>Draft the same dice; highest score wins</small></span><em>10 rounds</em></button>
       <button data-m="open"><span><b>Free play</b><small>No opponent — learn the sheet at your pace</small></span><em>10 rounds</em></button>
     </div>
-    <button class="text-btn" data-m="${s.phase === 'over' ? 'close' : 'menu'}">${s.phase === 'over' ? 'Cancel' : 'Back'}</button>
+    <button class="text-btn" data-m="${s.phase === 'over' || ui.title ? 'close' : 'menu'}">${s.phase === 'over' || ui.title ? 'Cancel' : 'Back'}</button>
     </div>`);
 }
 function startNew(mode) {
-  clearTimeout(timer); clearBanners(); clearNews();
+  clearTimeout(timer); clearBanners(); clearNews(); hush();
   s = E.newGame(mode); history = []; ui.sel = null; ui.view = 'you'; ui.hudVals = null;
   ui.firstPaint = true; overShown = false; showPage('boats', false);
+  if (ui.title) hideTitle();
   closeSheet();
+  if (!coachDone() && ui.coach == null) startCoach();
   roundBanner();
   setTimeout(() => news(`<b>Starting bonus:</b> ${E.label(s.start)} license and boat`), 900);
   afterChange();
@@ -844,36 +935,161 @@ async function revealScore({ quick, celebrate, lost }) {
   if (celebrate) { play('win'); confetti(dlg); } else if (lost) play('lose');
 }
 
+// How to play, illustrated with pieces of the real sheets.
+const art = (sheet, [x0, y0, x1, y1], extra = '', label = '') =>
+  `<svg class="rule-art" viewBox="${x0} ${y0} ${x1 - x0} ${y1 - y0}" ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'}><image href="${SHEETS[sheet].src}" width="${SHEETS[sheet].w}" height="${SHEETS[sheet].h}"/>${extra}</svg>`;
+const X = (x, y, r = 10) => { const d = r * .78; return `<path class="ink" d="M${x - d} ${y - d}L${x + d} ${y + d}M${x + d} ${y - d}L${x - d} ${y + d}"/>`; };
+const dice = faces => `<span class="rule-dice">${faces.map(f => `<img src="assets/dice/${f}.webp" alt="${E.label(f)}">`).join('')}</span>`;
 function openRules() {
+  const col = CELLS.cod, next = col[3];
+  const colArt = art('boats', [262, 92, 462, 412], col.slice(0, 3).map(c => X(c.x, c.y)).join('')
+    + `<rect class="target" x="${HIT.cod[0]}" y="${HIT.cod[1]}" width="${HIT.cod[2] - HIT.cod[0]}" height="${HIT.cod[3] - HIT.cod[1]}" rx="16"/><circle class="next" cx="${next.x}" cy="${next.y}" r="${next.r + 7}"/>`, 'A boat column with its top boxes marked');
+  const licArt = art('boats', [262, 408, 462, 738], X(...LICENSE.circles.cod[0], 11), 'Cod license cards');
+  const boatArt = art('boats', [262, 742, 462, 1100], X(SHIP.cod.marks[0].x, SHIP.cod.marks[0].y, 11) + SHIP.cod.fish[0].slice(0, 2).map(f => X(f.x, f.y)).join('')
+    + `<rect class="dim" x="262" y="${SHIP.cod.marks[1].y - 24}" width="166" height="94" rx="16"/><rect class="dim" x="262" y="${SHIP.cod.marks[2].y - 24}" width="166" height="94" rx="16"/>`, 'Cod boats, one launched with two fish');
+  const coinArt = art('harbor', [0, 1192, 600, 1300], [0, 1].map(i => X(coinPos(i).x, coinPos(i).y)).join('') + `<circle class="star-ring" cx="${coinPos(2).x}" cy="${coinPos(2).y}" r="16"/>`, 'The coin track');
+  const casinoArt = art('harbor', [572, 452, 818, 612], '', 'The Casino building');
+  const scoreArt = art('boats', [784, 1112, 1100, 1429], '', 'The final score table');
   openSheet(`<div class="sheet-head row"><h2>How to play</h2><button class="done-btn" data-m="close">Done</button></div>
-  <div class="sheet-body">
-  <p>Score the most points by launching boats, catching fish, earning licenses and finishing wharf buildings. Swipe the sheet (or use the tabs at the top) to flip between your boats, the harbor and the wharf.</p>
-  <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. Your dice sit at the bottom of the screen: tap one to pick it (tap again to put it back) and the sheet jumps to where it can go. A gold dot on a sheet tab means there's somewhere to tap on that page too.</p>
-  <h3>Each round</h3>
-  <ul>
-    <li><b>Boat dice</b> — pick a die and tap its column; the top open box is marked for you. Then everyone uses the last die left over.</li>
-    <li><b>Income</b> — 1 coin, plus Lobster license and Canning Co. bonuses (max 10).</li>
-    <li><b>Fishing</b> — even rounds only. Every launched boat catches 1 fish. Oyster boats catch 2, or 1 fish plus a coin.</li>
-    <li><b>Town dice</b> — Harbor marks any harbor ship, Wharf marks any building, Market pays coins for the fish you've caught.</li>
-  </ul>
-  <h3>Boxes &amp; circles</h3>
-  <ul>
-    <li>Always the top open box. Circled boxes trigger: <b>L</b> license, <b>B</b> launch a boat, <b>?</b> your choice, <b>F</b> a private fishing trip.</li>
-    <li>A second license of a type pays 2 coins. Third-level licenses score their VP.</li>
-    <li>Instead of using a die normally you may take 1 coin for it.</li>
-  </ul>
+  <div class="sheet-body rules">
+  <p class="lead">Launch boats, catch fish, earn licenses and finish wharf buildings. Every round you pick dice and mark boxes on your sheet; highest score wins.</p>
+  <div class="tip-card"><b>Hold anything</b> — a box, a boat, a card or a die — to see what it does and what it's worth right now.</div>
+
+  <h3>A round, in four steps</h3>
+  <ol class="steps">
+    <li>${dice(['shrimp', 'cod', 'coins'])}<div><b>Boat dice</b><span>Pick a die, then tap its column. Everyone then uses the die left over.</span></div></li>
+    <li>${dice(['coins'])}<div><b>Income</b><span>1 coin, plus Lobster license and Canning Co. bonuses (max 10).</span></div></li>
+    <li><span class="rule-dice fishmark">${FISH_PIP}</span><div><b>Fishing</b><span>Even rounds only: every launched boat catches a fish. Oyster boats catch 2, or 1 plus a coin.</span></div></li>
+    <li>${dice(['harbor', 'wharf', 'market'])}<div><b>Town dice</b><span>Harbor marks a harbor ship, Wharf a building, Market pays coins for your fish.</span></div></li>
+  </ol>
+
+  <h3>Marking boxes</h3>
+  <div class="fig">${colArt}<div><p>Pick a die and the column it fits glows gold. Tap it: the <b>top open box</b> is marked for you.</p><p>Circled boxes do more: <b>L</b> a license, <b>B</b> launch a boat, <b>?</b> your choice, <b>F</b> a private fishing trip.</p><p>Any die can be traded for 1 coin instead.</p></div></div>
+
+  <h3>Licenses</h3>
+  <div class="fig">${licArt}<div><p>Each level gives the ability on its card, replacing the one before. The second level pays 2 coins at once; the third scores its VP at the end.</p></div></div>
+
+  <h3>Boats &amp; fish</h3>
+  <div class="fig">${boatArt}<div><p>Launched boats score the VP under them, then catch a fish every Fishing phase until full. Every fish is 1 VP.</p></div></div>
+
   <h3>Coins &amp; stars</h3>
-  <p>Coins fill the track on the harbor sheet. Landing on a ★ gives a star action: mark the top open box of any section. The strip under the tabs shows your coins and how far the next ★ is.</p>
-  <h3>Wharf</h3>
-  <p>A building works once its last box is marked: Casino rerolls your chosen die, Bait Shop pays 2 coins per traded die, Salvage Yard turns a die into a star action (3×), Smokehouse adds 2 at the market, Canning Co. adds income per full boat, Seafood Buffet lets a boat die mark a matching hex.</p>
-  <h3>The Rival (Solo)</h3>
-  <p>The red <b>R</b> pins show where the Rival is heading. Each round it takes one die and strikes the two lowest open boxes in that section (one for the shared die). Market dice strike your next coin-track star. Struck boxes are lost to you. The Rival goes first in even rounds.</p>
-  <h3>Versus the AI player</h3>
-  <p>The AI drafts from the same dice: it takes one die and you take one (you pick first in odd rounds, the AI in even rounds), then you both use the leftover shared die on your own sheets. It never touches your sheet. Tap the <b>AI</b> score in the strip under the tabs to look at its sheet at any time; tap it again to come back. Highest total after 10 rounds wins.</p>
+  ${coinArt}
+  <p>Coins fill the track left to right. Landing on a <b>★</b> gives a star action: mark the top open box of any section. The strip under the tabs shows how far the next ★ is.</p>
+
+  <h3>The wharf</h3>
+  <div class="fig">${casinoArt}<div><p>A building works once its last box is marked — the Casino rerolls your picked die, the Bait Shop pays 2 coins per traded die, the Salvage Yard turns a die into a star action, and more. Hold one to read it.</p></div></div>
+
+  <h3>Opponents</h3>
+  <div class="fig opp"><span class="portrait">${OPPONENT.rival.face}</span><div><p><b>Solo:</b> the Rival takes a die each round and strikes the two lowest open boxes in that section (one for the shared die). Red <b>R</b> pins show where it is aiming. It goes first in even rounds.</p></div></div>
+  <div class="fig opp"><span class="portrait">${OPPONENT.ai.face}</span><div><p><b>Vs AI:</b> the AI drafts from the same dice for its own sheet and never touches yours. Tap <b>AI</b> in the strip to look at its sheet. Highest total after 10 rounds wins.</p></div></div>
+
   <h3>Final score</h3>
-  <p>Fish (1 each), launched boats, licenses, buildings, and your King Crab bonus (max 10). The sheet keeps a live total in the corner, and the strip under the tabs shows it too.</p>
+  <div class="fig">${scoreArt}<div><p>Fish, launched boats, level-3 licenses, buildings and your King Crab bonus (max 10). The sheet keeps a live total.</p></div></div>
+  <div class="menu-list"><button data-m="tour">Take the tour <small>on your sheet</small></button></div>
   </div>`, { tall: true });
 }
+
+// ---------- title screen ----------
+function showTitle() {
+  ui.title = true; titleEl.hidden = false; document.body.classList.add('at-title');
+  const resumable = hadSave && s.phase !== 'over';
+  const meta = `Round ${s.round} of ${s.rounds} · ${E.modeName(s.mode)} · ${E.score(s).total} points`;
+  titleEl.querySelector('.t-menu').innerHTML = resumable
+    ? `<button class="t-btn primary" data-t="continue"><b>Continue</b><small>${meta}</small></button><button class="t-btn" data-t="new"><b>New game</b></button><button class="t-btn" data-t="rules"><b>How to play</b></button>`
+    : `<button class="t-btn primary" data-t="new"><b>Play</b>${coachDone() ? '' : '<small>Starts with a quick tour</small>'}</button><button class="t-btn" data-t="rules"><b>How to play</b></button>`;
+}
+function hideTitle() {
+  ui.title = false; document.body.classList.remove('at-title');
+  if (reduced()) { titleEl.hidden = true; return; }
+  titleEl.classList.add('out');
+  setTimeout(() => { titleEl.hidden = true; titleEl.classList.remove('out'); }, 420);
+}
+titleEl.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-t]'); if (!b) return;
+  play('tap'); haptic();
+  if (b.dataset.t === 'continue') { hideTitle(); pump(); coachSync(); }
+  if (b.dataset.t === 'new') openNew();
+  if (b.dataset.t === 'rules') openRules();
+});
+
+// ---------- the tour ----------
+// Six coach marks over the real screen. The first two wait for you to do it (pick a die, use it);
+// the rest have a Next button and hold the automatic turns while they are up.
+const COACH = 'fishing.coach';
+function coachDone() { try { return localStorage.getItem(COACH) === '1'; } catch { return true; } }
+function coachSteps() {
+  const sheetTarget = () => [...pages.children[pageIndex(ui.page)]?.querySelectorAll('.target') || []][0] || actionsEl.querySelector('.act.primary') || actionsEl;
+  return [
+    { id: 'dice', wait: true, target: () => diceEl, text: 'These are your dice. <b>Tap one</b> to pick it — tap it again to put it back.' },
+    { id: 'sheet', wait: true, target: sheetTarget, text: () => pages.querySelector('.target') ? 'The <b>gold outline</b> shows where your die can go. <b>Tap it</b> — the top open box is marked for you.' : 'This die has no box to mark here — <b>tap a button</b> to use it instead.' },
+    { id: 'status', target: () => $('#status'), text: () => `Your score, your coins — with how many more until a free <b>★ star action</b> — and the round. Fish pips are Fishing rounds.${vsAI() ? ' Tap <b>AI</b> to see its sheet.' : ''}` },
+    { id: 'tabs', target: () => tabsEl, text: 'Your sheet has three pages. <b>Swipe</b> or tap a tab for the Harbor and the Wharf. A <b>gold dot</b> means your die fits there too.' },
+    { id: 'opp', when: () => !!oppKind(), target: () => oppEl.querySelector('.face'), text: () => s.mode === 'rival' ? 'This is the <b>Rival</b>. Each round it grabs a die and strikes boxes on your sheet. Red <b>R</b> pins show where it is aiming.' : 'This is the <b>AI player</b>. It drafts the same dice for its own sheet. Highest score after 10 rounds wins.' },
+    { id: 'hold', target: null, text: '<b>Hold anything</b> — a box, a boat, a card or a die — to see what it does and what it is worth right now. Good luck!' },
+  ].filter(st => !st.when || st.when());
+}
+function startCoach() { ui.coach = 0; ui.coachKey = null; coachSync(); }
+function endCoach(done = true) {
+  ui.coach = null; ui.coachKey = null; coachEl.hidden = true; document.body.classList.remove('coaching');
+  if (done) try { localStorage.setItem(COACH, '1'); } catch { }
+  pump();
+}
+const coachReady = st => !ui.title && !dlg.open && ui.view === 'you' && s.phase !== 'over'
+  && (st.wait ? (s.step.k === 'pick' || st.id === 'sheet') && !E.currentTask(s) : true);
+function coachHolds() { if (ui.coach == null) return false; const st = coachSteps()[ui.coach]; return !!st && !st.wait && coachReady(st); }
+function coachSync() {
+  if (ui.coach == null) return;
+  const steps = coachSteps();
+  let st = steps[ui.coach];
+  if (!st) return endCoach();
+  // the first two steps move on when you do the thing
+  if (st.id === 'dice' && s.step.k === 'pick' && ui.sel != null) { ui.coach++; return coachSync(); }
+  if (st.id === 'sheet') {
+    if (s.step.k !== 'pick' || E.currentTask(s)) { ui.coach++; return coachSync(); }
+    if (ui.sel == null) { ui.coach--; return coachSync(); }
+  }
+  const ready = coachReady(st);
+  coachEl.hidden = !ready; document.body.classList.toggle('coaching', ready);
+  if (!ready) return;
+  const key = `${st.id}:${typeof st.text === 'function' ? st.text() : st.text}`;
+  if (key !== ui.coachKey) {
+    ui.coachKey = key;
+    const last = ui.coach === steps.length - 1;
+    coachEl.querySelector('.coach-tip').innerHTML = `<p class="coach-k">Tour · ${ui.coach + 1} of ${steps.length}</p><p>${typeof st.text === 'function' ? st.text() : st.text}</p>
+      <div class="coach-btns"><button data-c="skip">${last ? '' : 'Skip tour'}</button>${st.wait ? '' : `<button data-c="next" class="primary">${last ? 'Got it' : 'Next'}</button>`}</div>`;
+    replay(coachEl.querySelector('.coach-tip'), 'in');
+  }
+  coachPlace();
+  requestAnimationFrame(coachPlace); setTimeout(coachPlace, 380); // after page scrolls and layout settle
+}
+function coachPlace() {
+  if (ui.coach == null || coachEl.hidden) return;
+  const st = coachSteps()[ui.coach]; if (!st) return;
+  const t = st.target?.(), spot = coachEl.querySelector('.coach-spot'), tip = coachEl.querySelector('.coach-tip');
+  const r = t?.getBoundingClientRect();
+  if (r && r.width) {
+    const pad = 6;
+    Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + 2 * pad}px`, height: `${r.height + 2 * pad}px`, opacity: 1 });
+    const below = r.top + r.height / 2 < innerHeight / 2;
+    tip.style.top = below ? `${r.bottom + pad + 14}px` : '';
+    tip.style.bottom = below ? '' : `${innerHeight - r.top + pad + 14}px`;
+    tip.classList.toggle('below', below); tip.classList.remove('center');
+    const w = tip.offsetWidth, cx = r.left + r.width / 2, left = Math.min(Math.max(12, cx - w / 2), innerWidth - w - 12);
+    tip.style.left = `${left}px`;
+    tip.style.setProperty('--arrow', `${Math.min(Math.max(22, cx - left), w - 22)}px`);
+  } else {
+    Object.assign(spot.style, { left: '50%', top: '50%', width: '0px', height: '0px', opacity: 1 });
+    tip.style.top = ''; tip.style.bottom = ''; tip.style.left = ''; tip.classList.add('center'); tip.classList.remove('below');
+  }
+}
+coachEl.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-c]'); if (!b) return;
+  play('tap'); haptic();
+  if (b.dataset.c === 'skip') return endCoach();
+  ui.coach++; coachSync(); pump();
+});
+pages.addEventListener('scroll', () => { if (ui.coach != null) requestAnimationFrame(coachPlace); }, { passive: true });
+addEventListener('resize', () => coachPlace());
 
 // ---------- boot ----------
 requestAnimationFrame(() => {
@@ -881,5 +1097,6 @@ requestAnimationFrame(() => {
   buildPages();
   showPage('boats', false);
   if (s.phase === 'over') overShown = true;
+  showTitle();
   afterChange();
 });
