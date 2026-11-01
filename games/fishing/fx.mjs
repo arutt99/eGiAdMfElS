@@ -1,5 +1,5 @@
 // Game feel: synthesized sound effects, haptics, banners, score floaters, confetti and count-ups.
-// Everything here is decoration — the game plays the same with all of it switched off.
+// Everything here is decoration; the game plays the same with all of it switched off.
 
 const PREFS = 'fishing.prefs';
 export const prefs = (() => {
@@ -162,7 +162,7 @@ export function floater(text, from, toEl, { kind = '', delay = 0 } = {}) {
 
 // ---------- count-up ----------
 export function countUp(el, to, { from = +el.textContent || 0, ms = 450, tick = false } = {}) {
-  if (reduced() || from === to) { el.textContent = to; return Promise.resolve(); }
+  if (from === to) { el.textContent = to; return Promise.resolve(); }
   return new Promise(res => {
     const t0 = performance.now(); let last = from;
     const step = now => {

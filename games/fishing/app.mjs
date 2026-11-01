@@ -54,8 +54,7 @@ function setView(v) {
   play('sheet');
   const swap = () => { ui.view = v; ui.firstPaint = true; ui.hudVals = null; render(); if (v === 'you') focusTargets(); };
   syncSeg(v);
-  if (reduced()) return swap();
-  // turn the sheet over like a card: out to the edge, swap, back in
+  // turn the sheet over like a card: out to the edge, swap, back in (a cross-fade with Reduce Motion)
   stage.classList.remove('flip-in'); stage.classList.add('flip-out');
   setTimeout(() => { swap(); stage.classList.remove('flip-out'); void stage.offsetWidth; stage.classList.add('flip-in'); setTimeout(() => stage.classList.remove('flip-in'), 260); }, 170);
 }
@@ -133,7 +132,7 @@ function renderSheets() {
   }
   // king crab license & bonus
   if (v.kc.on) out.harbor += xMark(KC.circle[0], KC.circle[1], 11, 'ink', 'kc');
-  else out.harbor += rect('dim', ...KC.card, 12);
+  else out.harbor += `<polygon class="dim" points="${KC.outline}"/>`;
   if (v.kc.bonus) { const [x, y] = KC.bonus[v.kc.bonus]; out.harbor += xMark(x, y, 13, 'ink', 'kcb'); }
   if (task?.t === 'kc') for (const [k, [x, y]] of Object.entries(KC.bonus)) out.harbor += `<circle class="choice" data-kc="${k}" cx="${x}" cy="${y}" r="20"/>`;
   // buffet hexes, salvage stars
@@ -208,7 +207,7 @@ function renderStatus(delay = 0) {
   if (!prev) { scoreB.textContent = total; coinB.textContent = coins; }
   else {
     const go = () => { countUp(scoreB, total, { from: prev.total }); countUp(coinB, coins, { from: prev.coins }); };
-    if (delay && !reduced()) setTimeout(go, delay); else go();
+    if (delay) setTimeout(go, delay); else go();
   }
   scoreChip.setAttribute('aria-label', `${ui.view === 'ai' ? 'AI score' : 'Score'} ${total}`);
   coinChip.querySelector('.sub').textContent = star ? `★ in ${star}` : '';
@@ -244,17 +243,17 @@ function renderDock() {
   if (s.phase === 'over') {
     const sc = E.score(s);
     if (vsAI()) { const ai = E.score(s.bot).total; msg = sc.total > ai ? `You win ${sc.total}–${ai}!` : sc.total < ai ? `AI wins ${ai}–${sc.total}` : `Tie at ${sc.total}`; }
-    else msg = `Final score ${sc.total}${s.mode === 'rival' ? ` — ${E.rank(sc.total)}` : ''}`;
+    else msg = `Final score ${sc.total}${s.mode === 'rival' ? ` · ${E.rank(sc.total)}` : ''}`;
     btn('Score', 'data-a="final"', 'ghost'); btn('New game', 'data-a="new"', 'primary');
   } else if (task) {
-    if (task.t === 'star') { msg = '★ Star action — tap any highlighted section'; btn('Skip', 'data-a="skip"', 'ghost'); }
+    if (task.t === 'star') { msg = '★ Star action: tap any highlighted section'; btn('Skip', 'data-a="skip"', 'ghost'); }
     else if (task.t === 'lb') msg = `${E.label(task.type)}: license or boat?`;
-    else if (task.t === 'kc') msg = 'King Crab license — choose your bonus';
+    else if (task.t === 'kc') msg = 'King Crab license: choose your bonus';
     else if (task.t === 'oyster') msg = `Oyster boat ${task.boat + 1}: what's the catch?`;
   } else if (st.k === 'pick') {
     msg = o ? useMsg(o) : 'Pick a die';
   } else if (st.k === 'use') {
-    msg = (st.src === 'shared' ? 'Shared die — ' : '') + useMsg(o);
+    msg = (st.src === 'shared' ? 'Shared die: ' : '') + useMsg(o);
   } else if (st.k === 'rival') {
     msg = `<span class="rival">Rival is choosing…</span>`;
   } else if (st.k === 'ai') {
@@ -262,7 +261,7 @@ function renderDock() {
   } else if (st.k === 'roll') msg = 'Rolling the dice…';
   else if (st.k === 'income') msg = 'Collecting income…';
   else if (st.k === 'fishing') msg = 'Boats are out fishing…';
-  else msg = coachHolds() ? 'Tour — tap <b>Next</b> to carry on' : ui.lastMsg;
+  else msg = coachHolds() ? 'Tour: tap <b>Next</b> to carry on' : ui.lastMsg;
   if (!coachHolds()) ui.lastMsg = msg;
   if (o) {
     if (o.coins) btn(`${faceImg('coins')} +3 coins`, 'data-a="coins"', 'primary');
@@ -284,7 +283,7 @@ function useMsg(o) {
   const f = o.face;
   if (o.left === 2 || (s.step.k === 'use' && s.step.used && o.left > 0)) return `Shrimp license: ${s.step.used ? 'second' : 'first'} of two boat faces`;
   if (E.TYPES.includes(f)) {
-    if (o.targets.length > 1) return 'Shrimp license — tap any boat column';
+    if (o.targets.length > 1) return 'Shrimp license: tap any boat column';
     return o.targets.length ? `Tap the ${E.label(f)} column` : `${E.label(f)} column is full`;
   }
   if (f === 'coins') return 'Take three coins';
@@ -326,7 +325,7 @@ function renderChoices(task) {
     html = card('data-a="oyster" data-v="fish"', { icon: faceImg('oyster'), title: `${Math.min(2, room)} fish`, sub: `Boat ${task.boat + 1}: ${b.fish}/${E.capacity(s, 'oyster')} fish`, perk: `+${Math.min(2, room)} VP` })
       + card('data-a="oyster" data-v="bonus"', { icon: star ? '<span class="glyph">★</span>' : faceImg('coins'), title: `1 fish + ${star ? '★' : 'coin'}`, sub: star ? 'and a star action' : 'and a coin on the track', perk: `+1 VP · ${star ? '★ action' : '+1 coin'}` });
   }
-  const q = task.t === 'lb' ? `${E.label(task.type)}: license or boat?` : task.t === 'kc' ? 'King Crab license — choose your bonus' : `Oyster boat ${task.boat + 1}: what's the catch?`;
+  const q = task.t === 'lb' ? `${E.label(task.type)}: license or boat?` : task.t === 'kc' ? 'King Crab license: choose your bonus' : `Oyster boat ${task.boat + 1}: what's the catch?`;
   choicesEl.className = `n${task.t === 'kc' ? 4 : 2}`;
   choicesEl.setAttribute('aria-label', q);
   choicesEl.innerHTML = `<p class="choices-q">${q}</p>${html}`;
@@ -334,7 +333,7 @@ function renderChoices(task) {
 }
 
 // ---------- news ----------
-// Short-lived news about what just happened (Rival moves, income, fishing) — the status line never changes for it.
+// Short-lived news about what just happened (Rival moves, income, fishing); the status line never changes for it.
 let newsT = null;
 function news(html, kind = '') {
   newsEl.innerHTML = html; newsEl.className = kind; newsEl.hidden = false;
@@ -345,7 +344,7 @@ function clearNews() { clearTimeout(newsT); newsEl.hidden = true; }
 
 // ---------- the opponent's seat ----------
 // The Rival or the AI sits at the left of the dock: it fidgets while choosing, dice fly to it, and it
-// says what it did in a speech bubble — with a button to see the boxes it struck on another page.
+// says what it did in a speech bubble, with a button to see the boxes it struck on another page.
 const oppKind = () => s.mode === 'rival' ? 'rival' : vsAI() ? 'ai' : null;
 function renderOpp() {
   const who = oppKind();
@@ -390,7 +389,8 @@ function aiDid(t) {
 // The die the opponent took flies from the tray into its portrait.
 function flyDie(i) {
   const el = diceEls[i], face = oppEl.querySelector('.face');
-  if (!el || oppEl.hidden || reduced()) return;
+  if (!el || oppEl.hidden) return;
+  if (reduced()) { play('pick'); replay(oppEl, 'gloat'); return; } // the die stays put; the tray marks it taken
   const a = el.getBoundingClientRect(), b = face.getBoundingClientRect();
   if (!a.width || !b.width) return;
   const c = el.cloneNode(true);
@@ -602,7 +602,7 @@ function stageMoments(prev, { user = false } = {}) {
   // banners for the big moments
   for (const m of list) {
     if (m.k === 'license') banner({ kind: 'license', icon: faceImg(m.type), title: `${E.label(m.type)} license ${'I'.repeat(m.lvl)}`, sub: LIC_TEXT[m.type][m.lvl - 1], sound: 'star' });
-    if (m.k === 'kc') banner({ kind: 'license', icon: '<span class="glyph">♛</span>', title: 'King Crab license', sub: '+5 VP — now choose your bonus', sound: 'stamp' });
+    if (m.k === 'kc') banner({ kind: 'license', icon: '<span class="glyph">♛</span>', title: 'King Crab license', sub: '+5 VP. Now choose your bonus', sound: 'stamp' });
     if (m.k === 'building') banner({ kind: 'stamp', title: `${E.label(m.sec)} open`, sub: BUILDING_LINE[m.sec], sound: 'stamp' });
   }
   if (has('star') && s.queue.some(q => q.t === 'star')) banner({ kind: 'star', icon: '<span class="glyph">★</span>', title: 'Star action', sub: 'Mark the top open box of any section', sound: ['star', coinM ? coinM.n * STAGGER.coin / 1000 : 0] });
@@ -626,7 +626,7 @@ function stageMoments(prev, { user = false } = {}) {
 }
 function roundBanner() {
   const r = s.round, last = r === s.rounds;
-  banner({ kind: 'round', title: `Round ${r}`, sub: last ? 'Final round' : r % 2 === 0 ? 'Fishing round — your boats go out after income' : `${s.rounds - r + 1} rounds to go`, sound: 'sheet', ms: 1100 });
+  banner({ kind: 'round', title: `Round ${r}`, sub: last ? 'Final round' : r % 2 === 0 ? 'Fishing round: your boats go out after income' : `${s.rounds - r + 1} rounds to go`, sound: 'sheet', ms: 1100 });
 }
 
 // ---------- acting ----------
@@ -671,7 +671,7 @@ function pump() {
       if (n) { ui.lastHits = e.hits; ui.flash = { hits: e.hits, until: performance.now() + 2600 }; setTimeout(() => { ui.flash = null; renderSheets(); }, 2700); ping(page); }
       say(`<b>${rivalLine(e)}</b><span>${where}</span>`, { show: n && (page !== ui.page || ui.view !== 'you') ? page : null });
     }
-    if (e.k === 'ai') say(`<b>${aiLine(e)}</b><span>${aiDid(e.text)}${e.score != null ? ` — AI now ${e.score}` : ''}</span>`, { see: ui.view !== 'ai' });
+    if (e.k === 'ai') say(`<b>${aiLine(e)}</b><span>${aiDid(e.text)}${e.score != null ? `. AI now ${e.score}` : ''}</span>`, { see: ui.view !== 'ai' });
     if (e.k === 'income') news(`<b>Income</b> +${e.n} coin${e.n > 1 ? 's' : ''}`);
     if (e.k === 'fishing') {
       if (ui.view === 'you' && ui.page !== 'boats' && e.n) showPage('boats');
@@ -743,7 +743,7 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeInfo(
 
 pages.addEventListener('click', ev => {
   if (!ev.target.closest('.panel')) return;
-  if (ui.view === 'ai') { replay(whoEl, 'nudge'); news("You're looking at the AI's sheet — tap <b>You</b> to go back"); return; }
+  if (ui.view === 'ai') { replay(whoEl, 'nudge'); news("You're looking at the AI's sheet. Tap <b>You</b> to go back"); return; }
   const kc = ev.target.closest('[data-kc]'); if (kc) { doAct({ type: 'kc', choice: kc.dataset.kc }); return; }
   const hit = ev.target.closest('[data-sec]');
   if (!hit) { if (E.currentTask(s)?.t === 'star' || ['pick', 'use'].includes(s.step.k)) nudge(); return; }
@@ -792,7 +792,7 @@ function closeSheet() {
   if (!dlg.open) return;
   dlg.classList.remove('in');
   const card = dlg.querySelector('.sheet-card'); if (card) { card.style.transform = ''; card.style.transition = ''; }
-  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; pump(); coachSync(); }, reduced() ? 0 : 280);
+  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; pump(); coachSync(); }, 280);
 }
 dlg.addEventListener('cancel', ev => { ev.preventDefault(); closeSheet(); });
 // swipe down to dismiss
@@ -855,7 +855,7 @@ function openMenu() {
       <a href="../../">All games <small>↗</small></a>
     </div>
     <div class="group">${toggle('sound', 'Sound effects')}${toggle('haptics', 'Haptics')}</div>
-    <div class="bests"><span><small>Solo best</small><b>${b.rival ?? '—'}</b></span><span><small>Vs AI best</small><b>${b.ai ?? '—'}</b></span><span><small>Free play best</small><b>${b.open ?? '—'}</b></span>${b.wins ? `<span><small>Wins vs AI</small><b>${b.wins}</b></span>` : ''}</div>
+    <div class="bests"><span><small>Solo best</small><b>${b.rival ?? 'None'}</b></span><span><small>Vs AI best</small><b>${b.ai ?? 'None'}</b></span><span><small>Free play best</small><b>${b.open ?? 'None'}</b></span>${b.wins ? `<span><small>Wins vs AI</small><b>${b.wins}</b></span>` : ''}</div>
     </div>`);
 }
 function openNew() {
@@ -864,7 +864,7 @@ function openNew() {
     <div class="menu-list modes">
       <button data-m="rival" class="primary"><span><b>Solo</b><small>The Rival grabs dice and strikes boxes on your sheet</small></span><em>8 rounds</em></button>
       <button data-m="ai" class="primary"><span><b>Vs AI player</b><small>Draft the same dice; highest score wins</small></span><em>10 rounds</em></button>
-      <button data-m="open"><span><b>Free play</b><small>No opponent — learn the sheet at your pace</small></span><em>10 rounds</em></button>
+      <button data-m="open"><span><b>Free play</b><small>No opponent. Learn the sheet at your pace</small></span><em>10 rounds</em></button>
     </div>
     <button class="text-btn" data-m="${s.phase === 'over' || ui.title ? 'close' : 'menu'}">${s.phase === 'over' || ui.title ? 'Cancel' : 'Back'}</button>
     </div>`);
@@ -907,7 +907,7 @@ function onOver(force = false) {
       <h2 class="hero"><b data-to="${sc.total}">0</b> points</h2></div>
       <div class="sheet-body">
       <table class="score-table">${rows.map(([k, f]) => `<tr class="row"><td>${k}</td><td data-to="${sc[f]}">0</td></tr>`).join('')}</table>
-      ${solo ? `<div class="rank-badge" hidden><div class="medal"><span>★</span></div><div><small>Your rank</small><b>${E.rank(sc.total)}</b><em>${nr ? `${nr.need} point${nr.need > 1 ? 's' : ''} to ${nr.name}` : 'The top rank — well fished!'}</em></div></div>` : ''}
+      ${solo ? `<div class="rank-badge" hidden><div class="medal"><span>★</span></div><div><small>Your rank</small><b>${E.rank(sc.total)}</b><em>${nr ? `${nr.need} point${nr.need > 1 ? 's' : ''} to ${nr.name}` : 'The top rank. Well fished!'}</em></div></div>` : ''}
       <p class="end-note">${isBest ? '<span class="new-best">New best!</span> ' : ''}Best ${solo ? 'solo' : 'free play'}: ${bestNow ?? sc.total}</p>
       <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="close">View sheets</button></div></div>`;
   }
@@ -953,7 +953,7 @@ function openRules() {
   openSheet(`<div class="sheet-head row"><h2>How to play</h2><button class="done-btn" data-m="close">Done</button></div>
   <div class="sheet-body rules">
   <p class="lead">Launch boats, catch fish, earn licenses and finish wharf buildings. Every round you pick dice and mark boxes on your sheet; highest score wins.</p>
-  <div class="tip-card"><b>Hold anything</b> — a box, a boat, a card or a die — to see what it does and what it's worth right now.</div>
+  <div class="tip-card"><b>Hold anything</b> (a box, a boat, a card or a die) to see what it does and what it's worth right now.</div>
 
   <h3>A round, in four steps</h3>
   <ol class="steps">
@@ -977,7 +977,7 @@ function openRules() {
   <p>Coins fill the track left to right. Landing on a <b>★</b> gives a star action: mark the top open box of any section. The strip under the tabs shows how far the next ★ is.</p>
 
   <h3>The wharf</h3>
-  <div class="fig">${casinoArt}<div><p>A building works once its last box is marked — the Casino rerolls your picked die, the Bait Shop pays 2 coins per traded die, the Salvage Yard turns a die into a star action, and more. Hold one to read it.</p></div></div>
+  <div class="fig">${casinoArt}<div><p>A building works once its last box is marked: the Casino rerolls your picked die, the Bait Shop pays 2 coins per traded die, the Salvage Yard turns a die into a star action, and more. Hold one to read it.</p></div></div>
 
   <h3>Opponents</h3>
   <div class="fig opp"><span class="portrait">${OPPONENT.rival.face}</span><div><p><b>Solo:</b> the Rival takes a die each round and strikes the two lowest open boxes in that section (one for the shared die). Red <b>R</b> pins show where it is aiming. It goes first in even rounds.</p></div></div>
@@ -1000,7 +1000,6 @@ function showTitle() {
 }
 function hideTitle() {
   ui.title = false; document.body.classList.remove('at-title');
-  if (reduced()) { titleEl.hidden = true; return; }
   titleEl.classList.add('out');
   setTimeout(() => { titleEl.hidden = true; titleEl.classList.remove('out'); }, 420);
 }
@@ -1020,12 +1019,12 @@ function coachDone() { try { return localStorage.getItem(COACH) === '1'; } catch
 function coachSteps() {
   const sheetTarget = () => [...pages.children[pageIndex(ui.page)]?.querySelectorAll('.target') || []][0] || actionsEl.querySelector('.act.primary') || actionsEl;
   return [
-    { id: 'dice', wait: true, target: () => diceEl, text: 'These are your dice. <b>Tap one</b> to pick it — tap it again to put it back.' },
-    { id: 'sheet', wait: true, target: sheetTarget, text: () => pages.querySelector('.target') ? 'The <b>gold outline</b> shows where your die can go. <b>Tap it</b> — the top open box is marked for you.' : 'This die has no box to mark here — <b>tap a button</b> to use it instead.' },
-    { id: 'status', target: () => $('#status'), text: () => `Your score, your coins — with how many more until a free <b>★ star action</b> — and the round. Fish pips are Fishing rounds.${vsAI() ? ' Tap <b>AI</b> to see its sheet.' : ''}` },
+    { id: 'dice', wait: true, target: () => diceEl, text: 'These are your dice. <b>Tap one</b> to pick it, and tap it again to put it back.' },
+    { id: 'sheet', wait: true, target: sheetTarget, text: () => pages.querySelector('.target') ? 'The <b>gold outline</b> shows where your die can go. <b>Tap it</b> and the top open box is marked for you.' : 'This die has no box to mark here. <b>tap a button</b> to use it instead.' },
+    { id: 'status', target: () => $('#status'), text: () => `Your score, your coins (with how many more until a free <b>★ star action</b>) and the round. Fish pips are Fishing rounds.${vsAI() ? ' Tap <b>AI</b> to see its sheet.' : ''}` },
     { id: 'tabs', target: () => tabsEl, text: 'Your sheet has three pages. <b>Swipe</b> or tap a tab for the Harbor and the Wharf. A <b>gold dot</b> means your die fits there too.' },
     { id: 'opp', when: () => !!oppKind(), target: () => oppEl.querySelector('.face'), text: () => s.mode === 'rival' ? 'This is the <b>Rival</b>. Each round it grabs a die and strikes boxes on your sheet. Red <b>R</b> pins show where it is aiming.' : 'This is the <b>AI player</b>. It drafts the same dice for its own sheet. Highest score after 10 rounds wins.' },
-    { id: 'hold', target: null, text: '<b>Hold anything</b> — a box, a boat, a card or a die — to see what it does and what it is worth right now. Good luck!' },
+    { id: 'hold', target: null, text: '<b>Hold anything</b> (a box, a boat, a card or a die) to see what it does and what it is worth right now. Good luck!' },
   ].filter(st => !st.when || st.when());
 }
 function startCoach() { ui.coach = 0; ui.coachKey = null; coachSync(); }

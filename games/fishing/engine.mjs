@@ -1,4 +1,4 @@
-// Fishing — rules engine. Pure state + actions; no DOM.
+// Fishing rules engine. Pure state + actions; no DOM.
 
 export const TYPES = ['shrimp', 'cod', 'lobster', 'swordfish', 'oyster'];
 export const HARBOR = ['crab', 'club', 'research', 'barge', 'canoe'];
@@ -47,9 +47,9 @@ const pickFrom = (arr, rng) => arr[Math.floor(rng() * arr.length) % arr.length];
 export const clone = s => JSON.parse(JSON.stringify(s));
 
 // ---------- setup ----------
-// Modes: 'rival' — the solo game against the Rival, which strikes boxes on your sheet (8 rounds);
-//        'ai'    — two players: you and a computer opponent draft from the same dice, each on their own sheet (10 rounds);
-//        'open'  — free play, no opponent (10 rounds).
+// Modes: 'rival': the solo game against the Rival, which strikes boxes on your sheet (8 rounds);
+//        'ai':    two players: you and a computer opponent draft from the same dice, each on their own sheet (10 rounds);
+//        'open':  free play, no opponent (10 rounds).
 export const MODES = {
   rival: { name: 'Solo', long: 'Solo vs the Rival', rounds: 8 },
   ai: { name: 'Vs AI', long: 'Versus AI player', rounds: 10 },
@@ -467,7 +467,7 @@ function rivalTurn(s) {
   if (!st.shared) die.by = 'rival';
   const hits = rivalEffect(s, die.face, st.shared ? 1 : 2);
   const where = hits.length ? (hits[0][0] === 'coin' ? 'a star on your coin track' : label(hits[0][0])) : 'nothing';
-  note(s, `${st.shared ? 'Shared' : 'Took'} ${label(die.face)} — struck ${where}.`, 'rival');
+  note(s, `${st.shared ? 'Shared' : 'Took'} ${label(die.face)} and struck ${where}.`, 'rival');
   s.lastStrike = hits;
   s.step = { k: 'next' };
   return { k: 'rival', die: idx, face: die.face, shared: st.shared, hits };
@@ -593,7 +593,7 @@ function aiTurn(s) {
   } else if (!st.shared && die) die.by = 'ai';
   const sc = score(b).total;
   botDone(b);
-  note(s, `${st.shared ? 'Shared' : 'Took'} ${label(die?.face)} — ${text}.`, 'ai');
+  note(s, `${st.shared ? 'Shared' : 'Took'} ${label(die?.face)}: ${text}.`, 'ai');
   s.step = { k: 'next' };
   return { k: 'ai', die: idx, face: die?.face, shared: st.shared, text, score: sc };
 }

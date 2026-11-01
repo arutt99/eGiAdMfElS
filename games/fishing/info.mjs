@@ -49,9 +49,9 @@ export const LIC_TEXT = {
     'Oyster boats hold 10 fish. Each catches 2 fish, or 1 fish + a ★ star action.'],
 };
 const SECTION_TEXT = {
-  crab: 'Marked with a Harbor die. The 5th box gives the King Crab license (5 VP and a bonus you choose). Boxes 7, 9 and 11 each launch a King Crab boat — 3 VP each, holding 4 fish.',
+  crab: 'Marked with a Harbor die. The 5th box gives the King Crab license (5 VP and a bonus you choose). Boxes 7, 9 and 11 each launch a King Crab boat worth 3 VP that holds 4 fish.',
   club: 'Marked with a Harbor die. Each F box sends you on a private fishing trip: every launched boat catches fish right away. Swordfish license bonuses don\'t apply to these trips.',
-  research: 'Marked with a Harbor die. Boxes 1 and 3 each launch a Research Vessel — 1 VP each. They carry no fish.',
+  research: 'Marked with a Harbor die. Boxes 1 and 3 each launch a Research Vessel, worth 1 VP each. They carry no fish.',
   barge: 'Marked with a Harbor die. The 3rd box launches the Barge. In each Fishing phase it catches 1 fish for every full boat you have (up to 10 fish). No VP for the boat itself, but every fish scores.',
   canoe: 'Marked with a Harbor die. Boxes 1 and 3 each launch a canoe. Canoes hold 4 fish each; no VP for the boat, but every fish scores.',
   casino: 'Wharf building, 2 boxes. When finished: after picking a die you may reroll it once. Worth 2 VP.',
@@ -79,7 +79,7 @@ const stat = (items) => `<div class="stat">${items.filter(Boolean).map(([t, cls 
 const rivalNote = (s, sec) => {
   if (s.mode !== 'rival' || s.phase === 'over') return '';
   const kinds = Object.entries(s.tokens).filter(([, v]) => v === sec);
-  return kinds.length ? '<p><b>R</b> — the Rival is aiming here. If it takes a matching die it strikes the lowest open boxes of this section.</p>' : '';
+  return kinds.length ? '<p><b>R</b>: the Rival is aiming here. If it takes a matching die it strikes the lowest open boxes of this section.</p>' : '';
 };
 
 // ---------- builders ----------
@@ -123,7 +123,7 @@ function licenseInfo(s, type, lvl) {
   body += `<p>Each level replaces the one before it:</p><ul>${items}</ul>`;
   body += '<p>Licenses come from <b>L</b> and <b>?</b> boxes in the column above.</p>';
   body += stat([[have > lvl ? 'Owned ✓' : 'Not yet', have > lvl ? 'good' : ''], [`Your level: ${have}/3`]]);
-  return { kicker: 'License card', title: `${L(type)} license — level ${lvl + 1}`, body };
+  return { kicker: 'License card', title: `${L(type)} license, level ${lvl + 1}`, body };
 }
 
 function shipInfo(s, type, i) {
@@ -134,11 +134,11 @@ function shipInfo(s, type, i) {
   if (type === 'research') body += '<p>Launched from the Research Vessel boxes. Carries no fish; worth 1 VP once launched.</p>';
   else if (type === 'barge') body += '<p>Launched from the 3rd Barge box. In each Fishing phase it catches 1 fish for every full boat you have, up to 10. Each fish scores 1 VP.</p>';
   else {
-    body += `<p>Launched from a <b>B</b> (or <b>?</b>) box. In every even-round Fishing phase — and on Captain's Club trips — it catches ${type === 'oyster' ? '2 fish, or 1 fish plus a bonus' : '1 fish'} until full.</p>`;
+    body += `<p>Launched from a <b>B</b> (or <b>?</b>) box. In every even-round Fishing phase (and on Captain's Club trips) it catches ${type === 'oyster' ? '2 fish, or 1 fish plus a bonus' : '1 fish'} until full.</p>`;
     body += `<p>${spec.vp ? `Worth <b>${spec.vp} VP</b> once launched, plus` : 'No VP for the boat itself, but'} 1 VP per fish.${type === 'oyster' ? ' Capacity grows with the Oyster license (4 → 6 → 8 → 10).' : ''}</p>`;
   }
   const items = [[b.on ? 'Launched ✓' : 'Not launched', b.on ? 'good' : '']];
-  if (cap) items.push([`Fish ${b.fish}/${cap}`, b.on && b.fish >= cap ? 'good' : ''], b.on && b.fish >= cap ? ['Full — counts for Barge & Canning', 'good'] : null);
+  if (cap) items.push([`Fish ${b.fish}/${cap}`, b.on && b.fish >= cap ? 'good' : ''], b.on && b.fish >= cap ? ['Full: counts for Barge & Canning', 'good'] : null);
   if (b.on) items.push([`Scoring ${spec.vp + b.fish} VP`]);
   return { kicker: 'Boat', title: `${name} ${s.ships[type].length > 1 ? i + 1 : ''}`.trim(), body: body + stat(items) };
 }
@@ -158,7 +158,7 @@ export const BUILDING_LINE = {
 
 function kcInfo(s) {
   const raw = kcValues(s), names = KC_NAMES;
-  const li = E.KC_BONUS.map(k => `<li class="${s.kc.bonus === k ? 'on' : ''}">${names[k]} — would be ${Math.min(10, raw[k])} VP now${s.kc.bonus === k ? ' (chosen)' : ''}</li>`).join('');
+  const li = E.KC_BONUS.map(k => `<li class="${s.kc.bonus === k ? 'on' : ''}">${names[k]}: would be ${Math.min(10, raw[k])} VP now${s.kc.bonus === k ? ' (chosen)' : ''}</li>`).join('');
   return {
     kicker: 'Harbor', title: 'King Crab license',
     body: `<p>Earned by marking the 5th King Crab box. Worth <b>5 VP</b>, and you pick one end-game bonus (max 10 VP):</p><ul>${li}</ul>`
@@ -189,7 +189,7 @@ function coinsInfo(s) {
   return {
     kicker: 'Coin track', title: 'Coins',
     body: '<p>Every coin you gain marks the next box, left to right, row by row. Landing on a ★ gives a <b>star action</b>: mark the top open box of any section on either sheet.</p>'
-      + '<p>Coins don\'t score directly — only through the King Crab "per 10 coins" bonus.</p>'
+      + '<p>Coins don\'t score directly, only through the King Crab "per 10 coins" bonus.</p>'
       + (s.mode === 'rival' ? '<p>Rival Market dice strike your next open ★, so it is skipped.</p>' : '')
       + stat([[`${have} coins`], next >= 0 && stars ? [`Next ★ in ${plural(stars, 'coin')}`, 'good'] : null, struck ? [`${struck} struck`, 'warn'] : null]),
   };
@@ -208,10 +208,10 @@ function roundsInfo(s) {
   return {
     kicker: 'Round tracker', title: `Round ${Math.min(s.round, s.rounds)} of ${s.rounds}`,
     body: `<ol style="padding-left:18px;margin:4px 0">
-      <li><b>Boat dice</b> — pick a die and use it; then the leftover shared die.${s.mode === 'rival' ? ' The Rival also takes one.' : ''}</li>
-      <li><b>Income</b> — coins from the formula at the left.</li>
-      <li><b>Fishing</b> — even rounds only (the fish icons). Launched boats catch fish.</li>
-      <li><b>Town dice</b> — Harbor, Wharf and Market, plus one boat die.</li></ol>`
+      <li><b>Boat dice</b>: pick a die and use it; then the leftover shared die.${s.mode === 'rival' ? ' The Rival also takes one.' : ''}</li>
+      <li><b>Income</b>: coins from the formula at the left.</li>
+      <li><b>Fishing</b>: even rounds only (the fish icons). Launched boats catch fish.</li>
+      <li><b>Town dice</b>: Harbor, Wharf and Market, plus one boat die.</li></ol>`
       + (s.mode === 'rival' ? '<p>You choose first in odd rounds; the Rival goes first in even rounds.</p>' : '')
       + stat([[`${Math.max(0, s.rounds - s.round + (s.phase === 'over' ? 0 : 1))} rounds left`], [`${fishLeft} Fishing phases left`]]),
   };
@@ -222,11 +222,11 @@ function scoreInfo(s) {
   return {
     kicker: 'Final score', title: `${plural(sc.total, 'point')} so far`,
     body: `<ul>
-      <li><b>Fish ${sc.fish}</b> — 1 VP per fish on any boat.</li>
-      <li><b>Boats ${sc.boats}</b> — the VP printed under each launched boat.</li>
-      <li><b>Licenses ${sc.licenses}</b> — level 3 licenses score their VP; King Crab license 5 VP.</li>
-      <li><b>Buildings ${sc.buildings}</b> — finished wharf buildings, Bank boxes, Buffet hexes.</li>
-      <li><b>Bonuses ${sc.bonus}</b> — your King Crab bonus (max 10).</li></ul>`
+      <li><b>Fish ${sc.fish}</b>: 1 VP per fish on any boat.</li>
+      <li><b>Boats ${sc.boats}</b>: the VP printed under each launched boat.</li>
+      <li><b>Licenses ${sc.licenses}</b>: level 3 licenses score their VP; King Crab license 5 VP.</li>
+      <li><b>Buildings ${sc.buildings}</b>: finished wharf buildings, Bank boxes, Buffet hexes.</li>
+      <li><b>Bonuses ${sc.bonus}</b>: your King Crab bonus (max 10).</li></ul>`
       + (s.mode === 'rival' ? `<p>Rank now: <b>${E.rank(sc.total)}</b>. ${E.RANKS.slice().reverse().map(([m, n]) => `${n} ${m}+`).slice(1).join(' · ')}</p>` : ''),
   };
 }
