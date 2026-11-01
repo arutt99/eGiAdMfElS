@@ -53,6 +53,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #tabs button span { overflow: hidden; text-overflow: ellipsis; }
 body.vs-ai #tabs button { gap: 3px; }
 body.vs-ai #tabs button img { width: 18px; height: 18px; }
+@media (max-width: 460px) { body.vs-ai #tabs button img { display: none; } }
 
 /* versus-AI: whose sheet is showing */
 .who-btn {
