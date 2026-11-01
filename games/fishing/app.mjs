@@ -1,13 +1,16 @@
 import * as E from './engine.mjs';
-import { regionAt, sheetInfo, dieInfo } from './info.mjs';
+import { regionAt, sheetInfo, dieInfo, LIC_TEXT, kcValues, BUILDING_LINE } from './info.mjs';
 import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX, SALVAGE_STARS, MARKET_ROWS, MARKET_X, coinPos, TRACK, PAGE_SETS, composePage, pageAt } from './layout.mjs';
+import { moments, nextStarIn, nextRank } from './moments.mjs';
+import { prefs, setPref, haptic, play, banner, busyFor, clearBanners, floater, countUp, confetti, reduced } from './fx.mjs';
 
 const KEY = 'fishing.v1', BEST = 'fishing.best';
 const $ = sel => document.querySelector(sel);
 const pages = $('#pages'), stage = $('#stage'), tabsEl = $('#tabs'), promptEl = $('#prompt'), diceEl = $('#dice'), controlsEl = $('#controls'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
+const newsEl = $('#news'), choicesEl = $('#choices'), scoreChip = $('#st-score'), coinChip = $('#st-coins'), roundChip = $('#st-round');
 
 let s = load() || E.newGame('rival');
-let ui = { view: 'you', sel: null, page: 'boats', set: null, toast: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, hl: null };
+let ui = { view: 'you', sel: null, page: 'boats', set: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, hl: null, lastMsg: '', paused: false, holdUntil: 0, hudVals: null, choiceKey: null };
 let layout = [], panels = []; // composed pages of the current set, and every rendered panel
 let history = [], timer = null;
 
@@ -18,11 +21,18 @@ function best() { try { return JSON.parse(localStorage.getItem(BEST)) || {}; } c
 function recordBest(total) { const b = best(); if (!(b[s.mode] >= total)) { b[s.mode] = total; try { localStorage.setItem(BEST, JSON.stringify(b)); } catch { } return true; } return false; }
 
 // ---------- helpers ----------
-const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const xMark = (x, y, r, cls = 'ink', key = '') => {
-  const d = r * .78, fresh = key && !ui.prevMarks.has(key) && !ui.firstPaint ? ' fresh' : '';
+// Fresh marks pop in. Marks in a stagger group (fish caught, coins gained) pop one after another.
+const STAGGER = { fish: 140, coin: 70 };
+const xMark = (x, y, r, cls = 'ink', key = '', group = '') => {
+  const d = r * .78, isFresh = key && !ui.prevMarks.has(key) && !ui.firstPaint;
   if (key) ui.nextMarks.add(key);
-  return `<path class="${cls}${fresh}" d="M${x - d} ${y - d}L${x + d} ${y + d}M${x + d} ${y - d}L${x - d} ${y + d}"/>`;
+  let extra = '';
+  if (isFresh && group) {
+    const ms = ui.stagger[group]++ * STAGGER[group];
+    extra = ` style="animation-delay:${ms}ms"`;
+    if (group === 'fish') extra += `/><circle class="ripple" cx="${x}" cy="${y}" r="${r}" style="animation-delay:${ms}ms"`;
+  }
+  return `<path class="${cls}${isFresh ? ' fresh' : ''}" d="M${x - d} ${y - d}L${x + d} ${y + d}M${x + d} ${y - d}L${x - d} ${y + d}"${extra}/>`;
 };
 const strikeMark = (x, y, r, key) => {
   const fresh = !ui.prevMarks.has(key) && !ui.firstPaint ? ' fresh' : '';
@@ -37,8 +47,9 @@ const vsAI = () => s.mode === 'ai' && !!s.bot;
 function setView(v) {
   v = v === 'ai' && vsAI() ? 'ai' : 'you';
   if (v === ui.view) return;
-  ui.view = v; ui.firstPaint = true; ui.hl = null;
+  ui.view = v; ui.firstPaint = true; ui.hl = null; ui.hudVals = null;
   if (!infoEl.hidden) infoEl.hidden = true;
+  play('sheet');
   render();
   if (v === 'you') focusTargets();
 }
@@ -49,9 +60,7 @@ function syncView() {
   document.body.classList.toggle('viewing-ai', on && ui.view === 'ai');
   if (!on) return;
   const me = E.score(s).total, ai = E.score(s.bot).total;
-  btn.innerHTML = ui.view === 'ai'
-    ? `<span class="who-k">Back to</span><span class="who-v">You ${me}</span>`
-    : `<span class="who-k">AI sheet</span><span class="who-v">${ai}</span>`;
+  btn.innerHTML = ui.view === 'ai' ? `<span class="lbl">You</span><b>${me}</b><i>›</i>` : `<span class="lbl">AI</span><b>${ai}</b><i>›</i>`;
   btn.setAttribute('aria-pressed', String(ui.view === 'ai'));
   btn.setAttribute('aria-label', ui.view === 'ai' ? `Back to your sheet (you ${me})` : `View the AI player's sheet (AI ${ai})`);
   $('#viewing').hidden = ui.view !== 'ai';
@@ -71,7 +80,7 @@ function targets() {
 
 // ---------- sheet rendering ----------
 function renderSheets() {
-  ui.nextMarks = new Set();
+  ui.nextMarks = new Set(); ui.stagger = { fish: 0, coin: 0 };
   const out = { boats: '', harbor: '' };
   const v = viewed(), mine = v === s; // whose sheet is on screen
   const tg = new Set(mine ? targets() : []);
@@ -103,7 +112,7 @@ function renderSheets() {
       if (b.on) out[sh] += xMark(m.x, m.y, 11, 'ink', `boat:${type}:${i}`);
       else out[sh] += rect('dim', spec.box[0], m.y + dy0, spec.box[0] + spec.box[1], m.y + dy1, 16);
       (spec.fish[i] || []).forEach((f, k) => {
-        if (k < b.fish) out[sh] += xMark(f.x, f.y, 10, 'ink sm', `fish:${type}:${i}:${k}`);
+        if (k < b.fish) out[sh] += xMark(f.x, f.y, 10, 'ink sm', `fish:${type}:${i}:${k}`, 'fish');
         else if (k >= cap) out[sh] += `<circle class="lock" cx="${f.x}" cy="${f.y}" r="11"/>`;
       });
     });
@@ -119,12 +128,15 @@ function renderSheets() {
   // market bracket
   const fish = E.totalFish(v), row = MARKET_ROWS.find(([min]) => fish >= min);
   out.harbor += rect('market-row', MARKET_X[0], row[1] - 16, MARKET_X[1], row[1] + 16, 8);
-  // coin track
+  // coin track: new coins fill box by box, and a ★ that was landed on lights up
   const nextCoin = v.coins.indexOf(0);
   v.coins.forEach((c, i) => {
     const { x, y } = coinPos(i);
-    if (c === 1) out.harbor += xMark(x, y, 10, 'ink sm', `coin:${i}`);
-    else if (c === 2) out.harbor += strikeMark(x, y, 10, `coin:${i}:x`);
+    if (c === 1) {
+      const key = `coin:${i}`, fresh = !ui.prevMarks.has(key) && !ui.firstPaint, at = ui.stagger.coin * STAGGER.coin;
+      out.harbor += xMark(x, y, 10, 'ink sm', key, 'coin');
+      if (fresh && E.STAR_BOXES.has(i)) out.harbor += `<circle class="star-glow" cx="${x}" cy="${y}" r="16" style="animation-delay:${at}ms"/>`;
+    } else if (c === 2) out.harbor += strikeMark(x, y, 10, `coin:${i}:x`);
   });
   if (nextCoin >= 0) { const { x, y } = coinPos(nextCoin); out.harbor += `<rect class="coin-next" x="${x - 15}" y="${y - 14}" width="30" height="28" rx="4"/>`; }
   // round tracker
@@ -167,6 +179,32 @@ function renderSheets() {
   ui.prevMarks = ui.nextMarks; ui.firstPaint = false;
 }
 
+// ---------- status strip: score, coins, rounds ----------
+const FISH_PIP = '<svg viewBox="0 0 12 8"><path d="M1 4c2-3 6-3 8 0l2-2v4l-2-2c-2 3-6 3-8 0z"/></svg>';
+function renderStatus(delay = 0) {
+  const v = viewed(), total = E.score(v).total, coins = E.coinCount(v), star = nextStarIn(v);
+  const prev = ui.hudVals;
+  ui.hudVals = { total, coins };
+  const scoreB = scoreChip.querySelector('b'), coinB = coinChip.querySelector('b');
+  if (!prev) { scoreB.textContent = total; coinB.textContent = coins; }
+  else {
+    const go = () => { countUp(scoreB, total, { from: prev.total }); countUp(coinB, coins, { from: prev.coins }); };
+    if (delay && !reduced()) setTimeout(go, delay); else go();
+  }
+  scoreChip.setAttribute('aria-label', `${ui.view === 'ai' ? 'AI score' : 'Score'} ${total}`);
+  coinChip.querySelector('.sub').textContent = star ? `★ in ${star}` : '';
+  coinChip.setAttribute('aria-label', `${coins} coins${star ? `, next star in ${star}` : ''}`);
+  const over = s.phase === 'over';
+  roundChip.querySelector('.lbl').innerHTML = over ? '<b>Final</b>' : `<i>Round </i><b>${s.round}</b>/${s.rounds}`;
+  roundChip.setAttribute('aria-label', over ? 'Game over' : `Round ${s.round} of ${s.rounds}${s.round % 2 === 0 ? ', a fishing round' : ''}`);
+  const pips = Array.from({ length: s.rounds }, (_, i) => {
+    const r = i + 1, cls = over || r < s.round ? 'done' : r === s.round ? 'cur' : '';
+    return `<span class="pip ${cls}${r % 2 === 0 ? ' fish' : ''}">${r % 2 === 0 ? FISH_PIP : ''}</span>`;
+  }).join('');
+  const pipsEl = roundChip.querySelector('.pips');
+  if (pipsEl.innerHTML !== pips) pipsEl.innerHTML = pips;
+}
+
 // ---------- dock rendering ----------
 const faceImg = f => `<img src="assets/dice/${f}.webp" alt="">`;
 function phaseName() {
@@ -178,9 +216,9 @@ function phaseName() {
 function renderDock() {
   const task = E.currentTask(s), st = s.step, o = currentOptions();
   renderDice(task);
-  // prompt + actions
-  const vs = vsAI() ? ` · You ${E.score(s).total} – AI ${E.score(s.bot).total}` : '';
-  const head = (s.phase === 'over' ? 'Game over' : `Round ${s.round}/${s.rounds} · ${phaseName()}`) + vs;
+  renderChoices(task);
+  // the status line stays put; news has its own place above the dock
+  const head = s.phase === 'over' ? `Game over · ${E.modeName(s.mode)}` : `Round ${s.round}/${s.rounds} · ${phaseName()} dice`.replace('Income dice', 'Income').replace('Fishing dice', 'Fishing');
   let msg = '', acts = [];
   const btn = (label, data, cls = '') => acts.push(`<button class="act ${cls}" ${data}>${label}</button>`);
   if (s.phase === 'over') {
@@ -190,27 +228,22 @@ function renderDock() {
     btn('Score', 'data-a="final"', 'ghost'); btn('New game', 'data-a="new"', 'primary');
   } else if (task) {
     if (task.t === 'star') { msg = '★ Star action — tap any highlighted section'; btn('Skip', 'data-a="skip"', 'ghost'); }
-    else if (task.t === 'lb') {
-      msg = `${E.label(task.type)}: license or boat?`;
-      btn(`${faceImg(task.type)} License`, 'data-a="lb" data-v="L"', 'primary'); btn(`${faceImg(task.type)} Boat`, 'data-a="lb" data-v="B"', 'primary');
-    } else if (task.t === 'kc') {
-      msg = 'King Crab license — choose your bonus';
-      [['building', '2 / building'], ['fish', '1 / 6 fish'], ['license', '1 / license'], ['coins', '1 / 10 coins']].forEach(([k, l]) => btn(l, `data-a="kc" data-v="${k}"`));
-    } else if (task.t === 'oyster') {
-      msg = `Oyster boat ${task.boat + 1}: what's the catch?`;
-      btn(`${faceImg('oyster')} 2 fish`, 'data-a="oyster" data-v="fish"', 'primary');
-      btn(`1 fish + ${s.lic.oyster === 3 ? '★' : 'coin'}`, 'data-a="oyster" data-v="bonus"', 'primary');
-    }
+    else if (task.t === 'lb') msg = `${E.label(task.type)}: license or boat?`;
+    else if (task.t === 'kc') msg = 'King Crab license — choose your bonus';
+    else if (task.t === 'oyster') msg = `Oyster boat ${task.boat + 1}: what's the catch?`;
   } else if (st.k === 'pick') {
-    if (!o) msg = 'Pick a die';
-    else msg = useMsg(o);
+    msg = o ? useMsg(o) : 'Pick a die';
   } else if (st.k === 'use') {
     msg = (st.src === 'shared' ? 'Shared die — ' : '') + useMsg(o);
   } else if (st.k === 'rival') {
     msg = `<span class="rival">Rival is choosing…</span>`;
   } else if (st.k === 'ai') {
     msg = `<span class="rival">AI is choosing${st.shared ? ' how to use the shared die' : ' a die'}…</span>`;
-  } else msg = ui.toast || '';
+  } else if (st.k === 'roll') msg = 'Rolling the dice…';
+  else if (st.k === 'income') msg = 'Collecting income…';
+  else if (st.k === 'fishing') msg = 'Boats are out fishing…';
+  else msg = ui.lastMsg;
+  ui.lastMsg = msg;
   if (o) {
     if (o.coins) btn(`${faceImg('coins')} +3 coins`, 'data-a="coins"', 'primary');
     if (o.market) btn(`${faceImg('market')} +${o.market} coins`, 'data-a="market"', 'primary');
@@ -219,8 +252,7 @@ function renderDock() {
     if (o.reroll) btn('Reroll', 'data-a="reroll"');
     if (o.cash) btn(`Take ${o.cash} coin${o.cash > 1 ? 's' : ''}`, 'data-a="cash"', 'ghost');
   }
-  const sub = ui.toast && msg !== ui.toast ? `<small>${ui.toast}</small>` : `<small>${head}</small>`;
-  promptEl.innerHTML = `<b>${msg}</b>${sub}`;
+  promptEl.innerHTML = `<b>${msg}</b><small>${head}</small>`;
   const html = acts.join('');
   if (html !== ui.actsHtml) { actionsEl.innerHTML = html; ui.actsHtml = html; } // keep buttons (and their entrance) stable between renders
   const away = !!task || s.phase === 'over' || !s.pool.length;
@@ -242,6 +274,55 @@ function useMsg(o) {
   return '';
 }
 
+// ---------- decision cards ----------
+// License-or-boat, the King Crab bonus and oyster catches are shown as cards that say what each choice is worth now.
+const card = (data, { icon = '', title, sub = '', text = '', perk = '', best = false }) =>
+  `<button class="choice-card${best ? ' best' : ''}" ${data}>${best ? '<span class="flag">Best now</span>' : ''}${icon ? `<span class="c-icon">${icon}</span>` : ''}<b>${title}</b>${sub ? `<small>${sub}</small>` : ''}${text ? `<span class="c-text">${text}</span>` : ''}${perk ? `<span class="perk">${perk}</span>` : ''}</button>`;
+function renderChoices(task) {
+  const show = task && ['lb', 'kc', 'oyster'].includes(task.t) && ui.view === 'you';
+  const key = show ? JSON.stringify([task, s.lic, E.totalFish(s)]) : null;
+  if (key === ui.choiceKey) return;
+  ui.choiceKey = key;
+  const above = $('#above-dock');
+  if (!show) { choicesEl.hidden = true; choicesEl.innerHTML = ''; above.classList.remove('over-tray'); document.body.classList.remove('choosing'); return; }
+  above.classList.add('over-tray'); document.body.classList.add('choosing');
+  let html = '';
+  if (task.t === 'lb') {
+    const t = task.type, lvl = s.lic[t], n = E.launched(s, t), vp = E.SHIPS[t].vp;
+    html = card('data-a="lb" data-v="L"', {
+      icon: faceImg(t), title: 'License', sub: `${E.label(t)} level ${lvl + 1} of 3`, text: LIC_TEXT[t][lvl],
+      perk: lvl + 1 === 2 ? '+2 coins now' : lvl + 1 === 3 ? `+${E.LICENSE_VP[t]} VP` : 'New ability',
+    }) + card('data-a="lb" data-v="B"', {
+      icon: faceImg(t), title: 'Boat', sub: `${E.label(t)} boat ${n + 1} of 3`,
+      text: `Catches ${t === 'oyster' ? '2 fish (or 1 + a bonus)' : '1 fish'} every Fishing phase.`,
+      perk: `+${vp} VP${s.lic.cod ? ` · +${s.lic.cod} coin${s.lic.cod > 1 ? 's' : ''}` : ''}`,
+    });
+  } else if (task.t === 'kc') {
+    const vals = kcValues(s), top = Math.max(...Object.values(vals).map(v => Math.min(10, v)));
+    const names = { building: ['2 VP', 'per finished building'], fish: ['1 VP', 'per 6 fish'], license: ['1 VP', 'per license level'], coins: ['1 VP', 'per 10 coins'] };
+    html = E.KC_BONUS.map(k => card(`data-a="kc" data-v="${k}"`, { title: names[k][0], sub: names[k][1], perk: `${Math.min(10, vals[k])} VP now`, best: top > 0 && Math.min(10, vals[k]) === top })).join('');
+  } else if (task.t === 'oyster') {
+    const b = s.ships.oyster[task.boat], room = E.capacity(s, 'oyster') - b.fish, star = s.lic.oyster === 3;
+    html = card('data-a="oyster" data-v="fish"', { icon: faceImg('oyster'), title: `${Math.min(2, room)} fish`, sub: `Boat ${task.boat + 1}: ${b.fish}/${E.capacity(s, 'oyster')} fish`, perk: `+${Math.min(2, room)} VP` })
+      + card('data-a="oyster" data-v="bonus"', { icon: star ? '<span class="glyph">★</span>' : faceImg('coins'), title: `1 fish + ${star ? '★' : 'coin'}`, sub: star ? 'and a star action' : 'and a coin on the track', perk: `+1 VP · ${star ? '★ action' : '+1 coin'}` });
+  }
+  const q = task.t === 'lb' ? `${E.label(task.type)}: license or boat?` : task.t === 'kc' ? 'King Crab license — choose your bonus' : `Oyster boat ${task.boat + 1}: what's the catch?`;
+  choicesEl.className = `n${task.t === 'kc' ? 4 : 2}`;
+  choicesEl.setAttribute('aria-label', q);
+  choicesEl.innerHTML = `<p class="choices-q">${q}</p>${html}`;
+  choicesEl.hidden = false;
+}
+
+// ---------- news ----------
+// Short-lived news about what just happened (Rival moves, income, fishing) — the status line never changes for it.
+let newsT = null;
+function news(html, kind = '') {
+  newsEl.innerHTML = html; newsEl.className = kind; newsEl.hidden = false;
+  replay(newsEl, 'in');
+  clearTimeout(newsT); newsT = setTimeout(() => { newsEl.classList.add('out'); newsT = setTimeout(() => { newsEl.hidden = true; newsEl.classList.remove('out'); }, 260); }, 3200);
+}
+function clearNews() { clearTimeout(newsT); newsEl.hidden = true; }
+
 // Dice live in the dock. Elements persist between renders so selection and state changes animate;
 // a fresh roll rebuilds them with a tumble that flickers through faces before settling.
 const FACES = { boat: E.BOAT_FACES, town: ['harbor', 'wharf', 'market'] };
@@ -252,13 +333,13 @@ function renderDice(task) {
   if (rolled) {
     diceEl.innerHTML = s.pool.map((d, i) => `<button class="die ${d.kind}" data-die="${i}"><img src="assets/dice/${d.face}.webp" alt=""></button>`).join('');
     diceEls = [...diceEl.children];
-    if (!ui.firstPaint) diceEls.forEach((el, i) => tumble(el, s.pool[i], i));
+    if (!ui.firstPaint && s.pool.length) { diceEls.forEach((el, i) => tumble(el, s.pool[i], i)); play('rattle', s.pool.length); }
   }
   const usingIdx = st.k === 'use' ? st.die : null;
   const free = s.pool.filter(x => !x.by).length;
   s.pool.forEach((d, i) => {
     const el = diceEls[i];
-    if (!rolled && prevFace[i] !== d.face) tumble(el, d, 0); // casino reroll
+    if (!rolled && prevFace[i] !== d.face) { tumble(el, d, 0); play('rattle', 1); } // casino reroll
     const sharedNow = !d.by && ((st.k === 'use' && st.src === 'shared') || ((st.k === 'rival' || st.k === 'ai') && st.shared) || (free === 1 && st.k !== 'pick'));
     const tag = d.by === 'rival' ? ['rival', 'Rival'] : d.by === 'ai' ? ['rival', 'AI'] : d.by === 'you' && usingIdx !== i ? ['', 'Yours'] : sharedNow ? ['shared', 'Shared'] : null;
     const tagHtml = tag ? `<span class="tag ${tag[0]}">${tag[1]}</span>` : '';
@@ -297,8 +378,8 @@ function tumble(el, die, i) {
 // warm the cache so the tumble never flashes an empty face
 for (const f of new Set([...FACES.boat, ...FACES.town])) new Image().src = `assets/dice/${f}.webp`;
 
-function render() {
-  renderSheets(); renderDock(); syncTabs(); syncView(); save();
+function render(statusDelay = 0) {
+  renderSheets(); renderDock(); syncTabs(); syncView(); renderStatus(statusDelay); save();
 }
 
 // ---------- pages ----------
@@ -308,6 +389,8 @@ const appEl = $('#app'), topEl = $('#top'), dockEl = $('#dock');
 let hud = { top: 52, dock: 120 };
 function measureHud() {
   const t = Math.ceil(topEl.getBoundingClientRect().height), d = Math.ceil(dockEl.getBoundingClientRect().height);
+  const tray = controlsEl.getBoundingClientRect();
+  if (tray.height) appEl.style.setProperty('--tray-bottom', `${Math.round(appEl.getBoundingClientRect().bottom - tray.bottom + 6)}px`);
   if (t === hud.top && d === hud.dock) return false;
   hud = { top: t, dock: d };
   appEl.style.setProperty('--top-h', `${t}px`); appEl.style.setProperty('--dock-h', `${d}px`);
@@ -315,7 +398,7 @@ function measureHud() {
 }
 function pickSet() {
   const r = stage.getBoundingClientRect(), h = r.height - hud.top - hud.dock;
-  return r.width && h > 0 && r.width / h > .78 ? 'wide' : 'phone';
+  return r.width >= 560 && h > 0 && r.width / h > .78 ? 'wide' : 'phone'; // phones in portrait always get the phone pages
 }
 function buildPages() {
   const set = pickSet();
@@ -344,11 +427,18 @@ const pageIndex = id => Math.max(0, layout.findIndex(pg => pg.id === id));
 // The page that shows a sheet area ([x0, y0, x1, y1] on that sheet).
 function pageOf(sheet, [x0, y0, x1, y1]) { return pageAt(layout, sheet, (x0 + x1) / 2, (y0 + y1) / 2)?.id || layout[0].id; }
 const secPage = sec => pageOf(SECTION_SHEET[sec], HIT[sec]);
+// Where a sheet point is on screen, if the current page shows it.
+function toScreen(sheet, x, y) {
+  const p = panels.find(q => q.page === ui.page && q.sheet === sheet && x >= q.crop[0] && x <= q.crop[2] && y >= q.crop[1] && y <= q.crop[3]);
+  if (!p) return null;
+  const r = p.svg.getBoundingClientRect(), k = r.width / (p.crop[2] - p.crop[0]);
+  return { x: r.left + (x - p.crop[0]) * k, y: r.top + (y - p.crop[1]) * k };
+}
 
 function showPage(id, smooth = true) {
   ui.page = id;
   const el = pages.children[pageIndex(id)];
-  if (el) pages.scrollTo({ left: el.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
+  if (el) pages.scrollTo({ left: el.offsetLeft, behavior: smooth && !reduced() ? 'smooth' : 'auto' });
   syncTabs();
 }
 function syncTabs() {
@@ -383,7 +473,7 @@ pages.addEventListener('scroll', () => {
     syncTabs();
   }, 80);
 }, { passive: true });
-tabsEl.addEventListener('click', ev => { const b = ev.target.closest('button[data-page]'); if (b) showPage(b.dataset.page); });
+tabsEl.addEventListener('click', ev => { const b = ev.target.closest('button[data-page]'); if (b) { if (b.dataset.page !== ui.page) { play('tap'); haptic(); } showPage(b.dataset.page); } });
 function relayout() {
   const moved = measureHud();
   if (buildPages()) render();
@@ -392,6 +482,66 @@ function relayout() {
 }
 window.addEventListener('resize', relayout);
 new ResizeObserver(() => { if (measureHud() && buildPages()) { render(); showPage(ui.page, false); } }).observe(dockEl);
+new ResizeObserver(() => { if (measureHud() && buildPages()) { render(); showPage(ui.page, false); } }).observe(topEl);
+
+// ---------- staging what just happened ----------
+// Sound, haptics, banners and "+VP" floaters for the changes between two states of your sheet.
+function momentPoint(m) {
+  const at = (sheet, x, y) => toScreen(sheet, x, y);
+  if (m.k === 'mark') { const c = CELLS[m.sec][m.i]; return at(SECTION_SHEET[m.sec], c.x, c.y); }
+  if (m.k === 'launch') { const b = SHIP[m.type].marks[m.i]; return at(SHIP[m.type].box[2], b.x, b.y); }
+  if (m.k === 'fish') { const f = SHIP[m.type].fish[m.i]?.[m.from + m.n - 1] || SHIP[m.type].marks[m.i]; return at(SHIP[m.type].box[2], f.x, f.y); }
+  if (m.k === 'license') { const [x, y] = LICENSE.circles[m.type][m.lvl - 1]; return at('boats', x, y); }
+  if (m.k === 'kc') return at('harbor', ...KC.circle);
+  if (m.k === 'building') { const c = CELLS[m.sec].at(-1); return at('harbor', c.x, c.y); }
+  if (m.k === 'coins') { const { x, y } = coinPos(m.first); return at('harbor', x, y); }
+  return null;
+}
+function stageMoments(prev, { user = false } = {}) {
+  const list = moments(prev, s);
+  if (!list.length) return 0;
+  const has = k => list.some(m => m.k === k);
+  let hold = 0, floats = 0;
+  // sound
+  if (has('mark')) play('pencil');
+  if (has('strike')) play('strike', .05);
+  if (has('launch')) play('horn', .12);
+  let fishN = 0;
+  for (const m of list.filter(m => m.k === 'fish')) for (let j = 0; j < m.n; j++, fishN++) if (fishN < 16) play('splash', fishN * STAGGER.fish / 1000);
+  if (fishN) hold = Math.max(hold, fishN * STAGGER.fish + 300);
+  const coinM = list.find(m => m.k === 'coins');
+  if (coinM) { for (let i = 0; i < Math.min(coinM.n, 12); i++) play('coin', i, .05 + i * STAGGER.coin / 1000); hold = Math.max(hold, coinM.n * STAGGER.coin + 200); }
+  // haptics (only felt inside a tap on iOS)
+  if (user) haptic(has('building') || has('license') || has('kc') ? 'heavy' : 'medium');
+  // banners for the big moments
+  for (const m of list) {
+    if (m.k === 'license') banner({ kind: 'license', icon: faceImg(m.type), title: `${E.label(m.type)} license ${'I'.repeat(m.lvl)}`, sub: LIC_TEXT[m.type][m.lvl - 1], sound: 'star' });
+    if (m.k === 'kc') banner({ kind: 'license', icon: '<span class="glyph">♛</span>', title: 'King Crab license', sub: '+5 VP — now choose your bonus', sound: 'stamp' });
+    if (m.k === 'building') banner({ kind: 'stamp', title: `${E.label(m.sec)} open`, sub: BUILDING_LINE[m.sec], sound: 'stamp' });
+  }
+  if (has('star') && s.queue.some(q => q.t === 'star')) banner({ kind: 'star', icon: '<span class="glyph">★</span>', title: 'Star action', sub: 'Mark the top open box of any section', sound: ['star', coinM ? coinM.n * STAGGER.coin / 1000 : 0] });
+  const rm = list.find(m => m.k === 'round');
+  if (rm) roundBanner();
+  // score floaters fly into the strip
+  if (ui.view === 'you') {
+    const vpMoments = list.filter(m => m.vp > 0);
+    const shown = vpMoments.slice(0, 6), rest = vpMoments.slice(6).reduce((n, m) => n + m.vp, 0);
+    let fishAt = 0;
+    for (const m of shown) {
+      let delay = 0;
+      if (m.k === 'fish') { delay = fishAt * STAGGER.fish; fishAt += m.n; }
+      floater(`+${m.vp} VP`, momentPoint(m), scoreChip, { delay }); floats++;
+    }
+    if (rest) { floater(`+${rest} VP`, null, scoreChip, { delay: 200 }); floats++; }
+    if (coinM) { floater(`+${coinM.n}`, momentPoint(coinM), coinChip, { kind: 'coin' }); floats++; }
+  }
+  ui.holdUntil = performance.now() + hold;
+  return floats ? 650 : 0;
+}
+function roundBanner() {
+  const r = s.round, last = r === s.rounds;
+  banner({ kind: 'round', title: `Round ${r}`, sub: last ? 'Final round' : r % 2 === 0 ? 'Fishing round — your boats go out after income' : `${s.rounds - r + 1} rounds to go`, sound: 'sheet', ms: 1100 });
+}
 
 // ---------- acting ----------
 function doAct(a) {
@@ -399,14 +549,14 @@ function doAct(a) {
   if (!E.act(s, a)) return false;
   history.push(before); if (history.length > 40) history.shift();
   if (s.rolls !== rolls) history = []; // no undoing past fresh dice
-  ui.toast = null;
   if (s.step.k !== 'pick') ui.sel = null;
-  afterChange();
+  afterChange(JSON.parse(before), { user: true });
   return true;
 }
-function afterChange() {
+function afterChange(prev = null, opts = {}) {
   if (!infoEl.hidden) { infoEl.hidden = true; ui.hl = null; }
-  render();
+  const delay = prev && !ui.firstPaint ? stageMoments(prev, opts) : 0;
+  render(delay);
   focusTargets();
   const t = E.currentTask(s);
   if (t?.t === 'kc') showPage(pageOf('harbor', KC.card));
@@ -416,38 +566,46 @@ function afterChange() {
 }
 function pump() {
   clearTimeout(timer);
-  if (!E.isAuto(s)) return;
+  if (ui.paused || !E.isAuto(s)) return;
   const k = s.step.k;
-  const delay = { rival: 900, ai: 950, roll: 380, income: 450, fishing: 650, end: 450, next: 120 }[k] ?? 300;
+  const base = { rival: 900, ai: 950, roll: 380, income: 450, fishing: 650, end: 450, next: 120 }[k] ?? 300;
+  const wait = Math.max(base, busyFor() + (k === 'roll' ? 150 : 0), ui.holdUntil - performance.now());
   if (k === 'rival' || k === 'ai') renderDock();
   timer = setTimeout(() => {
+    if (ui.paused) return;
+    const before = JSON.parse(JSON.stringify(s));
     const e = E.auto(s);
     if (!e) return;
     if (e.k === 'roll') { history = []; ui.sel = null; }
     if (e.k === 'rival') {
-      const where = e.hits.length ? (e.hits[0][0] === 'coin' ? 'a star on your coin track' : E.label(e.hits[0][0])) : 'nothing';
-      ui.toast = `<span class="rival">Rival ${e.shared ? 'used the shared' : 'took'} ${E.label(e.face)} — struck ${where}</span>`;
-      if (e.hits.length) { const h = e.hits[0][0]; ping(h === 'coin' ? pageOf('harbor', [0, 1200, 1122, 1360]) : secPage(h)); }
+      const n = e.hits.length, h = e.hits[0]?.[0];
+      const where = !n ? 'nothing to strike' : h === 'coin' ? 'a ★ on your coin track' : `${n} box${n > 1 ? 'es' : ''} in ${E.label(h)}`;
+      news(`<b>Rival ${e.shared ? 'used the shared' : 'took'} ${E.label(e.face)}</b> — struck ${where}`, 'rival');
+      if (n) ping(h === 'coin' ? pageOf('harbor', [0, 1200, 1122, 1360]) : secPage(h));
     }
-    if (e.k === 'ai') ui.toast = `<span class="rival">AI ${e.shared ? 'used the shared die' : 'took'}: ${e.text}</span>`;
-    if (e.k === 'income') ui.toast = `Income +${e.n} coin${e.n > 1 ? 's' : ''}`;
-    if (e.k === 'fishing') ui.toast = `Fishing: +${e.n} fish`;
-    afterChange();
-  }, delay);
+    if (e.k === 'ai') news(`<b>AI ${e.shared ? 'used the shared die' : 'took a die'}:</b> ${e.text}`, 'rival');
+    if (e.k === 'income') news(`<b>Income</b> +${e.n} coin${e.n > 1 ? 's' : ''}`);
+    if (e.k === 'fishing') {
+      if (ui.view === 'you' && ui.page !== 'boats' && e.n) showPage('boats');
+      banner({ kind: 'fishing', title: 'Fishing', sub: e.n ? `Your boats caught ${e.n} fish` : 'No boats out to fish yet', ms: 1300 });
+    }
+    afterChange(before);
+  }, wait);
 }
 
 function onDieTap(ev) {
   const b = ev.target.closest('.die'); if (!b) return;
   const i = +b.dataset.die;
-  if (b.getAttribute('aria-disabled') === 'true') { if (s.step.k === 'pick' && !E.currentTask(s)) replay(b, 'wiggle'); return; }
+  if (b.getAttribute('aria-disabled') === 'true') { if (s.step.k === 'pick' && !E.currentTask(s)) { replay(b, 'wiggle'); play('error'); haptic('error'); } return; }
   ui.sel = ui.sel === i ? null : i;
-  if (ui.view === 'ai') { ui.view = 'you'; ui.firstPaint = true; syncView(); }
-  renderSheets(); renderDock(); syncTabs(); focusTargets();
+  play(ui.sel == null ? 'put' : 'pick'); haptic();
+  if (ui.view === 'ai') { ui.view = 'you'; ui.firstPaint = true; ui.hudVals = null; syncView(); }
+  renderSheets(); renderDock(); syncTabs(); renderStatus(); focusTargets();
 }
 diceEl.addEventListener('click', onDieTap);
 // a tap on the sheet that can't be used: point back at what's needed
 function nudge() {
-  replay(promptEl, 'nudge');
+  replay(promptEl, 'nudge'); play('error'); haptic('error');
   if (s.step.k === 'pick' && ui.sel == null && !E.currentTask(s)) diceEls.forEach((el, i) => { if (!s.pool[i]?.by) setTimeout(() => replay(el, 'wiggle'), i * 60); });
 }
 
@@ -485,7 +643,7 @@ function openInfo(t) {
   infoEl.hidden = false;
   if (t.bottom && infoEl.getBoundingClientRect().top < t.bottom) infoEl.classList.add('top'); // don't cover what's being explained
   ui.hl = t.hl || null;
-  if (navigator.vibrate) navigator.vibrate(12);
+  haptic('medium'); play('sheet');
   renderSheets();
 }
 function closeInfo() {
@@ -505,45 +663,101 @@ pages.addEventListener('click', ev => {
   if (E.currentTask(s)?.t === 'star') doAct({ type: 'star', sec });
   else { const o = currentOptions(); if (o) doAct({ type: 'fill', die: o.die, sec }); }
 });
-actionsEl.addEventListener('click', ev => {
+function onAction(ev) {
   const b = ev.target.closest('[data-a]'); if (!b) return;
   const a = b.dataset.a, v = b.dataset.v, o = currentOptions();
-  if (a === 'new') return openNew();
-  if (a === 'final') return onOver(true);
-  if (a === 'skip') return doAct({ type: 'skip' });
+  if (a === 'new') { play('tap'); haptic(); return openNew(); }
+  if (a === 'final') { play('tap'); haptic(); return onOver(true); }
+  if (a === 'skip') { play('put'); haptic(); return doAct({ type: 'skip' }); }
   if (a === 'lb') return doAct({ type: 'lb', choice: v });
   if (a === 'kc') return doAct({ type: 'kc', choice: v });
   if (a === 'oyster') return doAct({ type: 'oyster', choice: v });
   if (o) doAct({ type: a, die: o.die });
-});
+}
+actionsEl.addEventListener('click', onAction);
+choicesEl.addEventListener('click', onAction);
 $('#undo-btn').addEventListener('click', () => {
   if (!history.length) return;
-  clearTimeout(timer);
-  s = JSON.parse(history.pop()); ui.sel = null; ui.toast = null;
+  clearTimeout(timer); clearBanners();
+  s = JSON.parse(history.pop()); ui.sel = null; ui.hudVals = null;
+  play('put'); haptic();
   afterChange();
 });
-$('#menu-btn').addEventListener('click', openMenu);
-$('#who-btn').addEventListener('click', () => setView(ui.view === 'ai' ? 'you' : 'ai'));
+$('#menu-btn').addEventListener('click', () => { play('tap'); haptic(); openMenu(); });
+$('#who-btn').addEventListener('click', () => { haptic(); setView(ui.view === 'ai' ? 'you' : 'ai'); });
 $('#viewing').addEventListener('click', () => setView('you'));
 
-// ---------- dialogs ----------
-function openDlg(html) { dlg.innerHTML = `<div class="dlg">${html}</div>`; if (!dlg.open) dlg.showModal(); }
+// ---------- bottom sheets ----------
+// Menus, rules and the final score slide up from the bottom, close with a swipe down, a tap on the
+// dimmed backdrop or Escape, and pause the automatic turns while they are open.
+let closeT = null;
+function openSheet(html, { tall = false, cls = '' } = {}) {
+  clearTimeout(closeT);
+  dlg.className = [tall ? 'tall' : '', cls, dlg.open ? 'in' : ''].filter(Boolean).join(' ');
+  dlg.innerHTML = `<div class="scrim" data-dismiss></div><div class="sheet-card" tabindex="-1" autofocus><div class="grabber" aria-hidden="true"></div>${html}</div>`;
+  if (!dlg.open) {
+    dlg.showModal(); play('sheet');
+    requestAnimationFrame(() => requestAnimationFrame(() => dlg.classList.add('in')));
+  }
+  ui.paused = true; clearTimeout(timer);
+}
+function closeSheet() {
+  if (!dlg.open) return;
+  dlg.classList.remove('in');
+  const card = dlg.querySelector('.sheet-card'); if (card) { card.style.transform = ''; card.style.transition = ''; }
+  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; ui.paused = false; pump(); }, reduced() ? 0 : 280);
+}
+dlg.addEventListener('cancel', ev => { ev.preventDefault(); closeSheet(); });
+// swipe down to dismiss
+let drag = null, dragged = false;
+dlg.addEventListener('pointerdown', ev => {
+  const card = ev.target.closest('.sheet-card'); if (!card) return;
+  const body = card.querySelector('.sheet-body'), onHead = ev.target.closest('.grabber, .sheet-head');
+  if (!onHead && body && body.scrollTop > 0) return;
+  drag = { card, y0: ev.clientY, t0: performance.now(), dy: 0, on: false }; dragged = false;
+});
+dlg.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  const dy = ev.clientY - drag.y0;
+  if (!drag.on) { if (dy > 8) { drag.on = true; drag.card.style.transition = 'none'; drag.card.setPointerCapture?.(ev.pointerId); } else if (dy < -8) { drag = null; return; } else return; }
+  drag.dy = Math.max(0, dy - 8); drag.card.style.transform = `translateY(${drag.dy}px)`;
+});
+for (const type of ['pointerup', 'pointercancel']) dlg.addEventListener(type, () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.on) return;
+  dragged = true;
+  const v = d.dy / Math.max(1, performance.now() - d.t0);
+  d.card.style.transition = '';
+  if (d.dy > 110 || v > .6) { haptic(); closeSheet(); } else d.card.style.transform = '';
+});
 dlg.addEventListener('click', ev => {
-  if (ev.target === dlg) return dlg.close();
+  if (dragged) { dragged = false; return; }
+  if (ev.target.closest('[data-dismiss]')) return closeSheet();
   const b = ev.target.closest('[data-m]'); if (!b) return;
   const m = b.dataset.m;
-  if (m === 'close') dlg.close();
+  play('tap'); haptic();
+  if (m === 'close') closeSheet();
   if (m === 'rules') openRules();
   if (m === 'new') openNew();
   if (m === 'rival' || m === 'open' || m === 'ai') startNew(m);
-  if (m === 'view-ai') { dlg.close(); setView('ai'); }
-  if (m === 'view-me') { dlg.close(); setView('you'); }
+  if (m === 'view-ai') { closeSheet(); setView('ai'); }
+  if (m === 'view-me') { closeSheet(); setView('you'); }
   if (m === 'menu') openMenu();
 });
+dlg.addEventListener('change', ev => {
+  const p = ev.target.dataset?.pref; if (!p) return;
+  setPref(p, ev.target.checked);
+  if (p === 'sound' && ev.target.checked) play('coin');
+  if (p === 'haptics' && ev.target.checked) haptic('medium');
+});
+
+const toggle = (pref, label) => `<label class="toggle"><span>${label}</span><input type="checkbox" switch data-pref="${pref}"${prefs[pref] ? ' checked' : ''}></label>`;
 function openMenu() {
   const b = best();
-  openDlg(`<h2>Fishing</h2>
-    <p class="muted">Round ${Math.min(s.round, s.rounds)} of ${s.rounds} · ${E.modeName(s.mode)} · You ${E.score(s).total}${vsAI() ? ` · AI ${E.score(s.bot).total}` : ''}</p>
+  openSheet(`<div class="sheet-head"><p class="kicker">Paused</p><h2>Fishing</h2>
+    <p class="muted">Round ${Math.min(s.round, s.rounds)} of ${s.rounds} · ${E.modeName(s.mode)} · You ${E.score(s).total}${vsAI() ? ` · AI ${E.score(s.bot).total}` : ''}</p></div>
+    <div class="sheet-body">
     <div class="menu-list">
       <button data-m="close" class="primary">Resume</button>
       ${vsAI() ? `<button data-m="${ui.view === 'ai' ? 'view-me' : 'view-ai'}">${ui.view === 'ai' ? 'View your sheet' : "View AI player's sheet"} <small>${ui.view === 'ai' ? E.score(s).total : E.score(s.bot).total} pts</small></button>` : ''}
@@ -551,46 +765,88 @@ function openMenu() {
       <button data-m="rules">How to play</button>
       <a href="../../">All games <small>↗</small></a>
     </div>
-    <p class="muted" style="margin-top:12px">Best: Solo ${b.rival ?? '—'} · Vs AI ${b.ai ?? '—'} · Free play ${b.open ?? '—'}${b.wins ? ` · Wins vs AI ${b.wins}` : ''}</p>`);
+    <div class="group">${toggle('sound', 'Sound effects')}${toggle('haptics', 'Haptics')}</div>
+    <div class="bests"><span><small>Solo best</small><b>${b.rival ?? '—'}</b></span><span><small>Vs AI best</small><b>${b.ai ?? '—'}</b></span><span><small>Free play best</small><b>${b.open ?? '—'}</b></span>${b.wins ? `<span><small>Wins vs AI</small><b>${b.wins}</b></span>` : ''}</div>
+    </div>`);
 }
 function openNew() {
-  openDlg(`<h2>New game</h2>
-    <div class="menu-list">
-      <button data-m="rival" class="primary">Solo <small>vs the Rival · 8 rounds</small></button>
-      <button data-m="ai" class="primary">Vs AI player <small>10 rounds</small></button>
-      <button data-m="open">Free play <small>no opponent · 10 rounds</small></button>
-      <button data-m="${s.phase === 'over' ? 'close' : 'menu'}">Back</button>
+  openSheet(`<div class="sheet-head"><h2>New game</h2></div>
+    <div class="sheet-body">
+    <div class="menu-list modes">
+      <button data-m="rival" class="primary"><span><b>Solo</b><small>The Rival grabs dice and strikes boxes on your sheet</small></span><em>8 rounds</em></button>
+      <button data-m="ai" class="primary"><span><b>Vs AI player</b><small>Draft the same dice; highest score wins</small></span><em>10 rounds</em></button>
+      <button data-m="open"><span><b>Free play</b><small>No opponent — learn the sheet at your pace</small></span><em>10 rounds</em></button>
     </div>
-    <p class="muted" style="margin-top:10px"><b>Solo</b> is the solo game: the Rival grabs dice and strikes boxes on your sheet. <b>Vs AI</b>: a computer player drafts from the same dice and fills its own sheet — tap <b>AI sheet</b> at the top any time to watch it. <b>Free play</b> has no opponent.</p>`);
+    <button class="text-btn" data-m="${s.phase === 'over' ? 'close' : 'menu'}">${s.phase === 'over' ? 'Cancel' : 'Back'}</button>
+    </div>`);
 }
 function startNew(mode) {
-  clearTimeout(timer);
-  s = E.newGame(mode); history = []; ui.sel = null; ui.view = 'you'; ui.toast = `Starting bonus: ${E.label(s.start)} license and boat`;
-  ui.firstPaint = true; overShown = false; dlg.close(); showPage('boats', false); afterChange();
+  clearTimeout(timer); clearBanners(); clearNews();
+  s = E.newGame(mode); history = []; ui.sel = null; ui.view = 'you'; ui.hudVals = null;
+  ui.firstPaint = true; overShown = false; showPage('boats', false);
+  closeSheet();
+  roundBanner();
+  setTimeout(() => news(`<b>Starting bonus:</b> ${E.label(s.start)} license and boat`), 900);
+  afterChange();
 }
+
+// ---------- game over ----------
 let overShown = false;
 function onOver(force = false) {
   if (!force && overShown) return;
   overShown = true;
   const sc = E.score(s), rows = [['Fish', 'fish'], ['Boats', 'boats'], ['Licenses', 'licenses'], ['Buildings', 'buildings'], ['Bonuses', 'bonus']];
-  if (vsAI()) {
-    const ai = E.score(s.bot), won = sc.total > ai.total, tie = sc.total === ai.total;
-    const isBest = !force && recordBest(sc.total);
-    if (!force && won) { const b = best(); b.wins = (b.wins || 0) + 1; try { localStorage.setItem(BEST, JSON.stringify(b)); } catch { } }
-    setTimeout(() => openDlg(`<h2>${tie ? "It's a tie!" : won ? 'You win!' : 'The AI wins'}</h2>
-      <p class="muted">${sc.total} – ${ai.total}${isBest ? ' · New best!' : ''}</p>
-      <table class="score-table vs"><tr class="head"><td></td><td>You</td><td>AI</td></tr>${rows.map(([k, f]) => `<tr><td>${k}</td><td>${sc[f]}</td><td>${ai[f]}</td></tr>`).join('')}<tr class="total"><td>Total</td><td>${sc.total}</td><td>${ai.total}</td></tr></table>
-      <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="view-ai">View AI player's sheet</button><button data-m="view-me">View your sheet</button></div>`), force ? 0 : 700);
-    return;
+  const ai = vsAI() ? E.score(s.bot) : null;
+  const won = ai && sc.total > ai.total, tie = ai && sc.total === ai.total;
+  const isBest = !force && recordBest(sc.total);
+  if (!force && won) { const b = best(); b.wins = (b.wins || 0) + 1; try { localStorage.setItem(BEST, JSON.stringify(b)); } catch { } }
+  const bestNow = best()[s.mode];
+  let html;
+  if (ai) {
+    html = `<div class="sheet-head end ${won ? 'win' : tie ? 'tie' : 'lose'}"><p class="kicker">Vs AI · Game over</p>
+      <h2 class="hero">${tie ? "It's a tie" : won ? 'You win!' : 'The AI wins'}</h2>
+      <div class="versus"><span><small>You</small><b data-to="${sc.total}">0</b></span><i>–</i><span><small>AI</small><b data-to="${ai.total}">0</b></span></div></div>
+      <div class="sheet-body">
+      <table class="score-table vs"><tr class="head"><td></td><td>You</td><td>AI</td></tr>${rows.map(([k, f]) => `<tr class="row"><td>${k}</td><td data-to="${sc[f]}">0</td><td data-to="${ai[f]}">0</td></tr>`).join('')}</table>
+      <p class="end-note">${isBest ? '<span class="new-best">New best!</span> ' : ''}Best vs AI: ${bestNow ?? sc.total}</p>
+      <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="view-ai">View AI player's sheet</button><button data-m="view-me">View your sheet</button></div></div>`;
+  } else {
+    const nr = nextRank(sc.total), solo = s.mode === 'rival';
+    html = `<div class="sheet-head end"><p class="kicker">${solo ? 'Solo' : 'Free play'} · Game over</p>
+      <h2 class="hero"><b data-to="${sc.total}">0</b> points</h2></div>
+      <div class="sheet-body">
+      <table class="score-table">${rows.map(([k, f]) => `<tr class="row"><td>${k}</td><td data-to="${sc[f]}">0</td></tr>`).join('')}</table>
+      ${solo ? `<div class="rank-badge" hidden><div class="medal"><span>★</span></div><div><small>Your rank</small><b>${E.rank(sc.total)}</b><em>${nr ? `${nr.need} point${nr.need > 1 ? 's' : ''} to ${nr.name}` : 'The top rank — well fished!'}</em></div></div>` : ''}
+      <p class="end-note">${isBest ? '<span class="new-best">New best!</span> ' : ''}Best ${solo ? 'solo' : 'free play'}: ${bestNow ?? sc.total}</p>
+      <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="close">View sheets</button></div></div>`;
   }
-  const isBest = recordBest(sc.total) && !force;
-  setTimeout(() => openDlg(`<h2>${sc.total} points</h2>
-    <p class="muted">${s.mode === 'rival' ? `Solo · ${E.rank(sc.total)}` : 'Free play'}${isBest ? ' · New best!' : ''}</p>
-    <table class="score-table">${rows.map(([k, f]) => `<tr><td>${k}</td><td>${sc[f]}</td></tr>`).join('')}<tr class="total"><td>Total</td><td>${sc.total}</td></tr></table>
-    <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="close">View sheets</button></div>`), force ? 0 : 700);
+  setTimeout(() => {
+    openSheet(html, { cls: 'end-sheet' });
+    revealScore({ quick: force, celebrate: !force && (ai ? won : isBest), lost: !force && ai && !won && !tie });
+  }, force ? 0 : 700);
 }
+async function revealScore({ quick, celebrate, lost }) {
+  const card = dlg.querySelector('.sheet-card'); if (!card) return;
+  const alive = () => card.isConnected;
+  await new Promise(r => setTimeout(r, quick ? 120 : 380));
+  for (const row of card.querySelectorAll('tr.row')) {
+    if (!alive()) return;
+    row.classList.add('show');
+    await Promise.all([...row.querySelectorAll('[data-to]')].map(td => countUp(td, +td.dataset.to, { from: 0, ms: quick ? 180 : 360, tick: !quick })));
+  }
+  if (!alive()) return;
+  const totals = [...card.querySelectorAll('.sheet-head [data-to]')];
+  await Promise.all(totals.map(el => countUp(el, +el.dataset.to, { from: 0, ms: quick ? 250 : 700, tick: !quick })));
+  card.querySelector('.sheet-head')?.classList.add('done');
+  const badge = card.querySelector('.rank-badge');
+  if (badge) { badge.hidden = false; play('stamp'); }
+  card.querySelector('.new-best')?.classList.add('show');
+  if (celebrate) { play('win'); confetti(dlg); } else if (lost) play('lose');
+}
+
 function openRules() {
-  openDlg(`<h2>How to play</h2>
+  openSheet(`<div class="sheet-head row"><h2>How to play</h2><button class="done-btn" data-m="close">Done</button></div>
+  <div class="sheet-body">
   <p>Score the most points by launching boats, catching fish, earning licenses and finishing wharf buildings. Swipe the sheet (or use the tabs at the top) to flip between your boats, the harbor and the wharf.</p>
   <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. Your dice sit at the bottom of the screen: tap one to pick it (tap again to put it back) and the sheet jumps to where it can go. A gold dot on a sheet tab means there's somewhere to tap on that page too.</p>
   <h3>Each round</h3>
@@ -607,16 +863,16 @@ function openRules() {
     <li>Instead of using a die normally you may take 1 coin for it.</li>
   </ul>
   <h3>Coins &amp; stars</h3>
-  <p>Coins fill the track on the harbor sheet. Landing on a ★ gives a star action: mark the top open box of any section.</p>
+  <p>Coins fill the track on the harbor sheet. Landing on a ★ gives a star action: mark the top open box of any section. The strip under the tabs shows your coins and how far the next ★ is.</p>
   <h3>Wharf</h3>
   <p>A building works once its last box is marked: Casino rerolls your chosen die, Bait Shop pays 2 coins per traded die, Salvage Yard turns a die into a star action (3×), Smokehouse adds 2 at the market, Canning Co. adds income per full boat, Seafood Buffet lets a boat die mark a matching hex.</p>
   <h3>The Rival (Solo)</h3>
   <p>The red <b>R</b> pins show where the Rival is heading. Each round it takes one die and strikes the two lowest open boxes in that section (one for the shared die). Market dice strike your next coin-track star. Struck boxes are lost to you. The Rival goes first in even rounds.</p>
   <h3>Versus the AI player</h3>
-  <p>The AI drafts from the same dice: it takes one die and you take one (you pick first in odd rounds, the AI in even rounds), then you both use the leftover shared die on your own sheets. It never touches your sheet. Tap <b>AI sheet</b> at the top to look at its sheet and live score at any time; tap it again to come back. Highest total after 10 rounds wins.</p>
+  <p>The AI drafts from the same dice: it takes one die and you take one (you pick first in odd rounds, the AI in even rounds), then you both use the leftover shared die on your own sheets. It never touches your sheet. Tap the <b>AI</b> score in the strip under the tabs to look at its sheet at any time; tap it again to come back. Highest total after 10 rounds wins.</p>
   <h3>Final score</h3>
-  <p>Fish (1 each), launched boats, licenses, buildings, and your King Crab bonus (max 10). The sheet keeps a live total in the corner.</p>
-  <div class="close-row"><button class="act primary" data-m="close">Got it</button></div>`);
+  <p>Fish (1 each), launched boats, licenses, buildings, and your King Crab bonus (max 10). The sheet keeps a live total in the corner, and the strip under the tabs shows it too.</p>
+  </div>`, { tall: true });
 }
 
 // ---------- boot ----------

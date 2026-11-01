@@ -38,7 +38,7 @@ const ACT_WORD = {
   0: 'a plain box', L: 'a license', B: 'a boat launch', '?': 'your choice of license or boat',
   K: 'the King Crab license', F: 'a private fishing trip',
 };
-const LIC_TEXT = {
+export const LIC_TEXT = {
   shrimp: ['When you pick a Shrimp die it can be used as any boat face (any column) or as 3 coins.',
     'As level 1, plus a ★ star action after using the picked Shrimp die.',
     'Use the picked Shrimp die twice, then take a ★ star action.'],
@@ -143,10 +143,21 @@ function shipInfo(s, type, i) {
   return { kicker: 'Boat', title: `${name} ${s.ships[type].length > 1 ? i + 1 : ''}`.trim(), body: body + stat(items) };
 }
 
-function kcInfo(s) {
+// What each King Crab bonus would score right now (before the 10 VP cap).
+export function kcValues(s) {
   const fish = E.totalFish(s);
-  const raw = { building: 2 * E.buildingsDone(s), fish: Math.floor(fish / 6), license: E.licenseCount(s), coins: Math.floor(E.coinCount(s) / 10) };
-  const names = { building: '2 VP per finished building', fish: '1 VP per 6 fish', license: '1 VP per license level', coins: '1 VP per 10 coins' };
+  return { building: 2 * E.buildingsDone(s), fish: Math.floor(fish / 6), license: E.licenseCount(s), coins: Math.floor(E.coinCount(s) / 10) };
+}
+export const KC_NAMES = { building: '2 VP per finished building', fish: '1 VP per 6 fish', license: '1 VP per license level', coins: '1 VP per 10 coins' };
+// One line for what a finished wharf building does, for the "building open" banner.
+export const BUILDING_LINE = {
+  casino: 'Reroll your picked die once', bank: 'All three boxes scored', salvage: 'Turn a die into a ★ star action (3×)',
+  bait: 'Trading a die now pays 2 coins', canning: 'Income +1 coin per full boat', smoke: 'Market dice pay 2 extra coins',
+  pub: '10 VP', buffet: 'Boat dice can mark fish hexes',
+};
+
+function kcInfo(s) {
+  const raw = kcValues(s), names = KC_NAMES;
   const li = E.KC_BONUS.map(k => `<li class="${s.kc.bonus === k ? 'on' : ''}">${names[k]} — would be ${Math.min(10, raw[k])} VP now${s.kc.bonus === k ? ' (chosen)' : ''}</li>`).join('');
   return {
     kicker: 'Harbor', title: 'King Crab license',
