@@ -91,19 +91,16 @@ export const TRACK = {
 
 // ---------- screen pages ----------
 // A page is a stack of crops from the two sheet images, each scaled to the page width.
-// Phones get four pages, each cut to roughly the shape of the space between the header and the
-// dice dock, so every page fills the screen edge to edge without scrolling. The harbor column of
-// the second sheet is too tall for one screen, so it is split at y≈460 (a clean line between the
-// King Crab/Captain's Club boxes and the King Crab license card); the market table rides along
-// with the top half. Wider screens get the two whole sheets.
+// Phones get three tall pages (Boats, Harbor, Wharf) that each fit whole on screen; the big
+// title signs above the harbor and market are trimmed so the pages can be drawn larger.
+// Wider screens get the two whole sheets.
 const PAGE_GAP = 18;
 export const PAGE_SETS = {
   phone: [
     { id: 'boats', label: 'Boats', icon: 'cod', panels: [{ sheet: 'boats', crop: [0, 0, 1100, 1378] }, { sheet: 'harbor', crop: [0, 1146, 1122, 1368] }] },
-    { id: 'club', label: 'Club', icon: 'market', panels: [{ sheet: 'harbor', crop: [0, 107, 548, 458], cover: [300, 449, 548, 458, '#2fbdf8'] }, { sheet: 'harbor', crop: [556, 108, 1112, 352] }] },
     // the cover hides the top edge of the Coins sign, which sits on the coin-track panel instead
-    { id: 'harbor', label: 'Harbor', icon: 'harbor', panels: [{ sheet: 'harbor', crop: [0, 464, 548, 1158], cover: [392, 1145, 548, 1158, '#f2d98c'] }] },
-    { id: 'wharf', label: 'Wharf', icon: 'wharf', panels: [{ sheet: 'harbor', crop: [552, 446, 1110, 1146] }] },
+    { id: 'harbor', label: 'Harbor', icon: 'harbor', panels: [{ sheet: 'harbor', crop: [0, 106, 557, 1156], cover: [392, 1145, 557, 1156, '#f2d98c'] }] },
+    { id: 'wharf', label: 'Wharf', icon: 'wharf', panels: [{ sheet: 'harbor', crop: [548, 109, 1122, 1148] }] },
   ],
   wide: [
     { id: 'boats', label: 'Boats', icon: 'cod', panels: [{ sheet: 'boats', crop: [0, 0, 1100, 1429] }] },
