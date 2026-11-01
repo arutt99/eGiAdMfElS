@@ -2,119 +2,495 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#091815">
-    <meta name="description" content="A pocket-sized shelf of quick, phone-friendly card games.">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#08130f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pocket Table">
+    <meta name="description" content="A pocket-sized shelf of quick, phone-friendly card and dice games.">
     <title>Pocket Table · Mobile card games</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23f3c75d'/%3E%3Crect x='17' y='13' width='24' height='34' rx='4' fill='%2308130f' transform='rotate(-10 29 30)'/%3E%3Crect x='25' y='17' width='24' height='34' rx='4' fill='%23fff7e3' stroke='%2308130f' stroke-width='3' transform='rotate(8 37 34)'/%3E%3C/svg%3E">
     <style>
         :root {
             color-scheme: dark;
-            --bg: #071310;
-            --panel: rgba(16, 34, 28, .74);
-            --ink: #f8f0dc;
-            --muted: #adc0b6;
+            --bg: #08130f;
+            --bg-raised: #0f201a;
+            --surface: rgba(255, 255, 255, .045);
+            --surface-hover: rgba(255, 255, 255, .075);
+            --ink: #f7f1e3;
+            --muted: #9fb2a9;
+            --faint: #6b7f76;
             --gold: #f3c75d;
-            --line: rgba(248, 240, 220, .14);
+            --gold-deep: #c99a2e;
+            --line: rgba(255, 255, 255, .08);
+            --line-strong: rgba(255, 255, 255, .14);
+            --radius-lg: 24px;
+            --radius-md: 18px;
+            --sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --display: "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
 
         * { box-sizing: border-box; }
-        html { min-height: 100%; background: var(--bg); }
+        html { min-height: 100%; background: var(--bg); -webkit-text-size-adjust: 100%; }
         body {
             min-width: 320px;
             min-height: 100vh;
             margin: 0;
             color: var(--ink);
-            font-family: Georgia, "Times New Roman", serif;
+            font-family: var(--sans);
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
             background:
-                radial-gradient(circle at 12% 0%, rgba(52, 145, 104, .2), transparent 30rem),
-                linear-gradient(145deg, #0d261e, var(--bg) 62%);
+                radial-gradient(60rem 30rem at 85% -10%, rgba(243, 199, 93, .08), transparent 60%),
+                radial-gradient(50rem 32rem at -10% 0%, rgba(46, 140, 100, .16), transparent 60%),
+                var(--bg);
+        }
+        a { color: inherit; text-decoration: none; }
+        :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+        /* ---------- App bar ---------- */
+        .app-bar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding-top: var(--safe-top);
+            background: rgba(8, 19, 15, .72);
+            border-bottom: 1px solid transparent;
+            backdrop-filter: saturate(160%) blur(18px);
+            -webkit-backdrop-filter: saturate(160%) blur(18px);
+            transition: border-color .2s ease;
+        }
+        .app-bar.scrolled { border-bottom-color: var(--line); }
+        .app-bar-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+        .brand { display: flex; align-items: center; gap: 11px; }
+        .brand-mark { width: 34px; height: 34px; flex: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(243, 199, 93, .25); }
+        .brand-name { font: 700 1.06rem/1 var(--display); letter-spacing: -.02em; }
+        .brand-tag { display: block; margin-top: 3px; color: var(--muted); font: 500 .72rem/1 var(--sans); letter-spacing: .01em; }
+        .chip-count {
+            padding: 7px 11px;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            color: var(--muted);
+            font: 600 .74rem/1 var(--sans);
+            white-space: nowrap;
         }
 
-        a { color: inherit; }
-        .site-shell { width: min(100% - 32px, 900px); margin: 0 auto; padding: 22px 0 34px; }
-        .site-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .wordmark { display: inline-flex; align-items: center; gap: 10px; font: 900 .78rem/1 Arial, sans-serif; letter-spacing: .18em; text-transform: uppercase; }
-        .wordmark-mark { width: 31px; height: 31px; display: grid; place-items: center; border: 2px solid var(--gold); border-radius: 9px; color: var(--bg); background: var(--gold); font: 900 1rem/1 Arial, sans-serif; transform: rotate(-7deg); }
-        .header-note { color: var(--muted); font: 700 .72rem/1.2 Arial, sans-serif; text-align: right; }
-        .hero { max-width: 640px; padding: clamp(68px, 14vw, 132px) 0 54px; }
-        .eyebrow { margin: 0 0 14px; color: var(--gold); font: 900 .68rem/1 Arial, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
-        h1 { max-width: 600px; margin: 0; font-size: clamp(3rem, 9vw, 5.8rem); line-height: .92; letter-spacing: -.055em; text-wrap: balance; }
-        .hero-copy { max-width: 430px; margin: 22px 0 0; color: var(--muted); font: 1rem/1.55 Arial, sans-serif; }
-        .section-label { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; color: var(--muted); font: 900 .68rem/1 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
-        .section-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
-        .game-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 12px; }
-        .game-card { position: relative; min-height: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); transition: border-color .18s ease, background .18s ease, transform .18s ease; }
-        .game-card:hover, .game-card:focus-within { border-color: rgba(243, 199, 93, .7); background: rgba(29, 53, 43, .9); transform: translateY(-2px); }
-        .game-card a { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; padding: 18px 20px; color: var(--ink); font-size: clamp(1.35rem, 3vw, 1.85rem); line-height: 1; letter-spacing: -.035em; text-decoration: none; }
-        .game-card a::after { content: "↗"; color: var(--gold); font: 900 1.15rem/1 Arial, sans-serif; transition: transform .18s ease; }
-        .game-card a:hover::after, .game-card a:focus-visible::after { transform: translate(2px, -2px); }
-        .game-card a:focus-visible { outline: 2px solid var(--gold); outline-offset: -5px; border-radius: 13px; }
-        .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 52px; color: var(--muted); font: .78rem/1.5 Arial, sans-serif; }
-        .site-footer p { margin: 0; }
-        .phone-hint { color: var(--gold); text-align: right; }
+        .shell { width: min(100% - 32px, 1040px); margin: 0 auto; }
+        main.shell { padding: 18px 0 calc(40px + var(--safe-bottom)); }
 
-        @media (max-width: 680px) {
-            .site-shell { width: min(100% - 24px, 560px); padding-top: 16px; }
-            .header-note { max-width: 120px; }
-            .hero { padding: 78px 0 42px; }
-            .hero-copy { font-size: 1rem; }
-            .game-grid { grid-template-columns: 1fr; }
-            .game-card a { min-height: 68px; padding: 16px 18px; }
-            .site-footer { align-items: flex-start; flex-direction: column; padding-top: 40px; }
-            .phone-hint { text-align: left; }
+        /* ---------- Greeting ---------- */
+        .greeting { margin: 10px 0 20px; }
+        .greeting-kicker { margin: 0 0 6px; color: var(--muted); font: 600 .82rem/1.2 var(--sans); }
+        .greeting h1 { margin: 0; font: 800 clamp(2rem, 6vw, 2.75rem)/1.05 var(--display); letter-spacing: -.035em; }
+
+        /* ---------- Featured ---------- */
+        .featured {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: clamp(220px, 46vw, 340px);
+            padding: clamp(20px, 4vw, 34px);
+            overflow: hidden;
+            border: 1px solid var(--line-strong);
+            border-radius: var(--radius-lg);
+            isolation: isolate;
+            background: #1a120b url("games/pirates/assets/pirate-table.webp") 78% 30% / cover no-repeat;
+            box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .8);
+            transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s ease;
+        }
+        .featured::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background:
+                linear-gradient(90deg, rgba(14, 9, 5, .94) 0%, rgba(14, 9, 5, .7) 45%, rgba(14, 9, 5, .1) 100%),
+                linear-gradient(0deg, rgba(14, 9, 5, .85) 0%, transparent 60%);
+        }
+        .featured:hover { transform: translateY(-2px); box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .9); }
+        .featured:active { transform: scale(.985); }
+        .featured-label {
+            align-self: flex-start;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: auto;
+            padding: 6px 10px;
+            border-radius: 999px;
+            color: #2a1c05;
+            background: var(--gold);
+            font: 800 .66rem/1 var(--sans);
+            letter-spacing: .1em;
+            text-transform: uppercase;
+        }
+        .featured h2 { margin: 18px 0 6px; font: 800 clamp(2rem, 6vw, 3.1rem)/1 var(--display); letter-spacing: -.035em; }
+        .featured p { max-width: 380px; margin: 0; color: #d9cdb6; font: 400 .95rem/1.45 var(--sans); }
+        .featured-actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+        .featured-meta { color: #bfae8f; font: 600 .78rem/1.2 var(--sans); }
+
+        .btn-play {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-width: 76px;
+            height: 34px;
+            padding: 0 16px;
+            border-radius: 999px;
+            color: #241805;
+            background: linear-gradient(180deg, #ffd978, var(--gold));
+            box-shadow: inset 0 1px rgba(255, 255, 255, .5), 0 4px 12px -4px rgba(243, 199, 93, .55);
+            font: 800 .82rem/1 var(--sans);
+            letter-spacing: .02em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .btn-play svg { width: 11px; height: 11px; fill: currentColor; }
+        .btn-play.lg { height: 42px; padding: 0 22px; font-size: .88rem; }
+
+        /* ---------- Sections ---------- */
+        .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 34px 2px 14px; }
+        .section-head h2 { margin: 0; font: 700 1.25rem/1 var(--display); letter-spacing: -.02em; }
+        .section-head span { color: var(--faint); font: 600 .78rem/1 var(--sans); }
+
+        /* ---------- Game list ---------- */
+        .game-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+        .game {
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 16px 14px 14px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            transition: background .18s ease, border-color .18s ease, transform .18s cubic-bezier(.2, .8, .2, 1);
+        }
+        .game:hover { background: var(--surface-hover); border-color: var(--line-strong); }
+        .game:active { transform: scale(.98); }
+        .game-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, .1) inset, 0 8px 20px -8px rgba(0, 0, 0, .7);
+        }
+        .game-icon svg { display: block; width: 100%; height: 100%; }
+        .game-body { min-width: 0; }
+        .game-title { margin: 0; font: 700 1.08rem/1.2 var(--display); letter-spacing: -.015em; }
+        .game-genre { margin: 2px 0 6px; color: var(--muted); font: 500 .8rem/1.3 var(--sans); }
+        .game-desc {
+            display: -webkit-box;
+            margin: 0;
+            overflow: hidden;
+            color: var(--faint);
+            font: 400 .8rem/1.4 var(--sans);
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .game-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 7px;
+            color: var(--muted);
+            background: rgba(255, 255, 255, .06);
+            font: 600 .68rem/1 var(--sans);
+            white-space: nowrap;
+        }
+        .tag svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+        .game .btn-play {
+            color: var(--gold);
+            background: rgba(243, 199, 93, .12);
+            box-shadow: none;
+            transition: background .18s ease, color .18s ease;
+        }
+        .game:hover .btn-play { color: #241805; background: var(--gold); }
+        .recent-badge { display: none; margin-left: 6px; color: var(--gold); font: 700 .64rem/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; vertical-align: 2px; }
+        .game.is-recent .recent-badge { display: inline; }
+
+        /* ---------- Footer ---------- */
+        .footer { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 34px; }
+        .perk { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+        .perk svg { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--gold); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .perk strong { display: block; font: 700 .84rem/1.2 var(--sans); }
+        .perk span { display: block; margin-top: 2px; color: var(--faint); font: 500 .74rem/1.3 var(--sans); }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 760px) {
+            .game-list { grid-template-columns: 1fr; gap: 10px; }
+            .footer { grid-template-columns: 1fr; gap: 8px; }
+        }
+        @media (max-width: 480px) {
+            .shell { width: calc(100% - 28px); }
+            .chip-count { display: none; }
+            .greeting { margin: 6px 0 16px; }
+            .featured { min-height: 300px; background-position: 82% 20%; }
+            .featured::before {
+                background: linear-gradient(0deg, rgba(14, 9, 5, .97) 0%, rgba(14, 9, 5, .82) 42%, rgba(14, 9, 5, .15) 80%);
+            }
+            .game { grid-template-columns: 60px minmax(0, 1fr) auto; gap: 13px; padding: 12px 12px 12px 12px; }
+            .game-icon { width: 60px; height: 60px; border-radius: 15px; }
+            .game-desc { display: none; }
+            .game .btn-play { min-width: 0; height: 30px; padding: 0 13px; font-size: .74rem; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; }
+            *, *::before, *::after { transition-duration: .001ms !important; }
         }
     </style>
 </head>
 <body>
-    <main class="site-shell">
-        <header class="site-header">
-            <div class="wordmark"><span class="wordmark-mark" aria-hidden="true">+</span> Pocket Table</div>
-            <div class="header-note">Quick games<br>for small screens</div>
-        </header>
-
-        <section class="hero" aria-labelledby="page-title">
-            <p class="eyebrow">A tiny shelf of games</p>
-            <h1 id="page-title">Pick a game.</h1>
-        <p class="hero-copy">Six quick games for your pocket. Pick one and start playing in your browser.</p>
-        </section>
-
-        <section aria-labelledby="games-title">
-            <p class="section-label" id="games-title">Choose a game</p>
-            <div class="game-grid">
-                <article class="game-card">
-                    <a href="games/slap/">Slap!</a>
-                </article>
-
-                <article class="game-card">
-                    <a href="games/shady-tricks/">Shady Tricks</a>
-                </article>
-
-                <article class="game-card">
-                    <a href="games/tidebound/">Tidebound</a>
-                </article>
-
-                <article class="game-card">
-                    <a href="games/spies/">Spies</a>
-                </article>
-
-                <article class="game-card">
-                    <a href="games/pirates/">Pirates</a>
-                </article>
-
-                <article class="game-card">
-                    <a href="games/fishing/">Fishing</a>
-                </article>
+    <header class="app-bar" id="app-bar">
+        <div class="shell app-bar-inner">
+            <div class="brand">
+                <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs><linearGradient id="bm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd978"/><stop offset="1" stop-color="#e2ad3b"/></linearGradient></defs>
+                    <rect width="64" height="64" rx="16" fill="url(#bm)"/>
+                    <rect x="16" y="13" width="24" height="34" rx="4" fill="#08130f" transform="rotate(-10 28 30)"/>
+                    <rect x="25" y="17" width="24" height="34" rx="4" fill="#fff7e3" stroke="#08130f" stroke-width="3" transform="rotate(8 37 34)"/>
+                    <path d="M37 28l2.2 4.5 4.8.7-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8-3.5-3.4 4.8-.7z" fill="#d8413c" transform="rotate(8 37 34)"/>
+                </svg>
+                <div>
+                    <div class="brand-name">Pocket Table</div>
+                    <span class="brand-tag">Card &amp; dice games</span>
+                </div>
             </div>
+            <span class="chip-count">6 games · Free</span>
+        </div>
+    </header>
+
+    <main class="shell">
+        <section class="greeting" aria-labelledby="page-title">
+            <p class="greeting-kicker" id="greeting-kicker">Welcome back</p>
+            <h1 id="page-title">What are we playing?</h1>
         </section>
 
-        <footer class="site-footer">
-            <p>Works in a browser · No account · No install</p>
-            <p class="phone-hint">Tip: add this page to your home screen for a pocket-sized shortcut.</p>
+        <a class="featured" href="games/pirates/" data-game="pirates" aria-label="Featured: Pirates. Play now">
+            <span class="featured-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.5l7.1-.6z"/></svg>
+                Featured
+            </span>
+            <h2>Pirates</h2>
+            <p>Draw from the deck, push your luck and outwit Captain Rook. One bad draw and the whole haul sinks.</p>
+            <div class="featured-actions">
+                <span class="btn-play lg"><svg viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0l10 6-10 6z"/></svg>Play now</span>
+                <span class="featured-meta">Card game · vs Captain Rook</span>
+            </div>
+        </a>
+
+        <div class="section-head">
+            <h2 id="games-title">All games</h2>
+            <span>6 titles</span>
+        </div>
+
+        <ul class="game-list" aria-labelledby="games-title">
+            <li>
+                <a class="game" href="games/slap/" data-game="slap">
+                    <span class="game-icon" aria-hidden="true">
+                        <svg viewBox="0 0 72 72">
+                            <defs><linearGradient id="g-slap" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6533c"/><stop offset="1" stop-color="#8e1f22"/></linearGradient></defs>
+                            <rect width="72" height="72" fill="url(#g-slap)"/>
+                            <path d="M36 9l5 12 12-6-4 13 13 3-11 7 8 10-13-1 1 13-10-8-9 9-2-13-13 3 8-10-11-7 13-3-4-13 12 6z" fill="#ffcf5a" opacity=".95"/>
+                            <rect x="24" y="22" width="22" height="30" rx="4" fill="#fff8e8" stroke="#5c1414" stroke-width="2.5" transform="rotate(-12 35 37)"/>
+                            <text x="35" y="44" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="17" fill="#b0262a" transform="rotate(-12 35 37)">10</text>
+                        </svg>
+                    </span>
+                    <span class="game-body">
+                        <h3 class="game-title">Slap!<span class="recent-badge">· Last played</span></h3>
+                        <p class="game-genre">Push-your-luck</p>
+                        <p class="game-desc">Build the richest loot pile — but draw a duplicate and you bust.</p>
+                        <span class="game-tags">
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.4 3.4 0 010 6.4M18 14.7c2 .7 3.2 2.5 3.5 5.3"/></svg>5 players</span>
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>10 min</span>
+                        </span>
+                    </span>
+                    <span class="btn-play">Play</span>
+                </a>
+            </li>
+
+            <li>
+                <a class="game" href="games/shady-tricks/" data-game="shady-tricks">
+                    <span class="game-icon" aria-hidden="true">
+                        <svg viewBox="0 0 72 72">
+                            <defs><linearGradient id="g-shady" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b4596"/><stop offset="1" stop-color="#241238"/></linearGradient></defs>
+                            <rect width="72" height="72" fill="url(#g-shady)"/>
+                            <g stroke="#1b0d2b" stroke-width="2">
+                                <rect x="13" y="20" width="22" height="31" rx="4" fill="#d8413c" transform="rotate(-18 24 36)"/>
+                                <rect x="25" y="16" width="22" height="31" rx="4" fill="#348bc6"/>
+                                <rect x="37" y="20" width="22" height="31" rx="4" fill="#4a9b63" transform="rotate(18 48 36)"/>
+                            </g>
+                            <circle cx="36" cy="44" r="12" fill="#f3c75d" stroke="#1b0d2b" stroke-width="2"/>
+                            <path d="M30 41.5h3M39 41.5h3M30.5 47c3 3 8 3 11 0" stroke="#1b0d2b" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+                        </svg>
+                    </span>
+                    <span class="game-body">
+                        <h3 class="game-title">Shady Tricks<span class="recent-badge">· Last played</span></h3>
+                        <p class="game-genre">Trick-taking</p>
+                        <p class="game-desc">A wicked trick-taker with negative cards and two meddling jesters.</p>
+                        <span class="game-tags">
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.4 3.4 0 010 6.4M18 14.7c2 .7 3.2 2.5 3.5 5.3"/></svg>4 players</span>
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>15 min</span>
+                        </span>
+                    </span>
+                    <span class="btn-play">Play</span>
+                </a>
+            </li>
+
+            <li>
+                <a class="game" href="games/tidebound/" data-game="tidebound">
+                    <span class="game-icon" aria-hidden="true">
+                        <svg viewBox="0 0 72 72">
+                            <defs><linearGradient id="g-tide" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c7a93"/><stop offset="1" stop-color="#05384a"/></linearGradient></defs>
+                            <rect width="72" height="72" fill="url(#g-tide)"/>
+                            <circle cx="50" cy="20" r="7" fill="#ffe7a6"/>
+                            <path d="M36 14v28M36 16l-14 22h14zM38 20l11 18H38z" fill="#fff8e8" stroke="#05384a" stroke-width="1.5" stroke-linejoin="round"/>
+                            <path d="M19 42h34l-6 8H25z" fill="#9a5b2e" stroke="#3c200c" stroke-width="1.5" stroke-linejoin="round"/>
+                            <path d="M0 52c6-4 12-4 18 0s12 4 18 0 12-4 18 0 12 4 18 0v20H0z" fill="#2fb3c8"/>
+                            <path d="M0 60c6-4 12-4 18 0s12 4 18 0 12-4 18 0 12 4 18 0v12H0z" fill="#1588a3"/>
+                        </svg>
+                    </span>
+                    <span class="game-body">
+                        <h3 class="game-title">Tidebound<span class="recent-badge">· Last played</span></h3>
+                        <p class="game-genre">Trick-taking voyage</p>
+                        <p class="game-desc">Sail with computer captains and take the fewest tricks to make it home.</p>
+                        <span class="game-tags">
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.4 3.4 0 010 6.4M18 14.7c2 .7 3.2 2.5 3.5 5.3"/></svg>3–6 players</span>
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>15 min</span>
+                        </span>
+                    </span>
+                    <span class="btn-play">Play</span>
+                </a>
+            </li>
+
+            <li>
+                <a class="game" href="games/spies/" data-game="spies">
+                    <span class="game-icon" aria-hidden="true">
+                        <svg viewBox="0 0 72 72">
+                            <defs><linearGradient id="g-spies" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f4d48"/><stop offset="1" stop-color="#0a1c1a"/></linearGradient></defs>
+                            <rect width="72" height="72" fill="url(#g-spies)"/>
+                            <path d="M18 32c1-9 4-15 18-15s17 6 18 15z" fill="#141414"/>
+                            <path d="M10 33c8-3 44-3 52 0-8 3-44 3-52 0z" fill="#141414"/>
+                            <rect x="26" y="25" width="20" height="3" fill="#d8413c"/>
+                            <path d="M14 46c6-8 38-8 44 0-6 8-38 8-44 0z" fill="#f2ecd9"/>
+                            <circle cx="36" cy="46" r="6.5" fill="#0a1c1a"/>
+                            <circle cx="38" cy="44" r="2" fill="#f2ecd9"/>
+                        </svg>
+                    </span>
+                    <span class="game-body">
+                        <h3 class="game-title">Spies<span class="recent-badge">· Last played</span></h3>
+                        <p class="game-genre">Bluffing duel</p>
+                        <p class="game-desc">Offer one agent in plain sight, hide another, and make your rival choose.</p>
+                        <span class="game-tags">
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.4 3.4 0 010 6.4M18 14.7c2 .7 3.2 2.5 3.5 5.3"/></svg>2 players</span>
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>10 min</span>
+                        </span>
+                    </span>
+                    <span class="btn-play">Play</span>
+                </a>
+            </li>
+
+            <li>
+                <a class="game" href="games/pirates/" data-game="pirates">
+                    <span class="game-icon" aria-hidden="true">
+                        <svg viewBox="0 0 72 72">
+                            <defs><linearGradient id="g-pirates" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a2614"/><stop offset="1" stop-color="#140c06"/></linearGradient></defs>
+                            <rect width="72" height="72" fill="url(#g-pirates)"/>
+                            <g fill="none" stroke="#eac67a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(4 4) scale(.5)">
+                                <path d="M20 86h88L88 105H39zM64 18v68M56 25C39 44 34 62 29 74h27zM73 32v42h30C94 54 85 41 73 32zM64 19h26l-9 9H64"/>
+                            </g>
+                            <g fill="#eac67a" stroke="#6b4a17" stroke-width="1.2">
+                                <circle cx="52" cy="56" r="7"/><circle cx="60" cy="50" r="6"/>
+                            </g>
+                        </svg>
+                    </span>
+                    <span class="game-body">
+                        <h3 class="game-title">Pirates<span class="recent-badge">· Last played</span></h3>
+                        <p class="game-genre">Press-your-luck cards</p>
+                        <p class="game-desc">Draw different suits, trigger abilities and bank your plunder before Rook does.</p>
+                        <span class="game-tags">
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/></svg>Solo vs AI</span>
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>15 min</span>
+                        </span>
+                    </span>
+                    <span class="btn-play">Play</span>
+                </a>
+            </li>
+
+            <li>
+                <a class="game" href="games/fishing/" data-game="fishing">
+                    <span class="game-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64">
+                            <defs><linearGradient id="g-fish" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#174d73"/><stop offset="1" stop-color="#0b2030"/></linearGradient></defs>
+                            <rect width="64" height="64" fill="url(#g-fish)"/>
+                            <rect x="40" y="9" width="14" height="14" rx="3.5" fill="#fff8e8" transform="rotate(12 47 16)"/>
+                            <g fill="#0b2030" transform="rotate(12 47 16)"><circle cx="44" cy="13" r="1.4"/><circle cx="47" cy="16" r="1.4"/><circle cx="50" cy="19" r="1.4"/></g>
+                            <path d="M0 46c8-4 13-4 21 0s13 4 21 0 14-4 22 0v18H0z" fill="#1f7fb8"/>
+                            <path d="M10 33c6-9 18-12 28-6l8-6-2 10 2 10-8-6c-10 6-22 3-28-2z" fill="#f2c94c" stroke="#0b2030" stroke-width="2.5" stroke-linejoin="round"/>
+                            <circle cx="18" cy="31" r="2.2" fill="#0b2030"/>
+                        </svg>
+                    </span>
+                    <span class="game-body">
+                        <h3 class="game-title">Fishing<span class="recent-badge">· Last played</span></h3>
+                        <p class="game-genre">Roll-and-write dice</p>
+                        <p class="game-desc">Launch boats, haul fish and build up the wharf, one die at a time.</p>
+                        <span class="game-tags">
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/></svg>Solo or vs AI</span>
+                            <span class="tag"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>20 min</span>
+                        </span>
+                    </span>
+                    <span class="btn-play">Play</span>
+                </a>
+            </li>
+        </ul>
+
+        <footer class="footer">
+            <div class="perk">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+                <div><strong>Instant play</strong><span>Runs right in your browser</span></div>
+            </div>
+            <div class="perk">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+                <div><strong>No account</strong><span>Nothing to sign up for</span></div>
+            </div>
+            <div class="perk">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+                <div><strong>Made for phones</strong><span>Add to your home screen</span></div>
+            </div>
         </footer>
     </main>
+
+    <script>
+        (function () {
+            var KEY = 'pocket-table:last-played';
+            var bar = document.getElementById('app-bar');
+            var onScroll = function () { bar.classList.toggle('scrolled', window.scrollY > 4); };
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+
+            var h = new Date().getHours();
+            var kicker = document.getElementById('greeting-kicker');
+            kicker.textContent = h < 5 ? 'Up late?' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+
+            try {
+                var last = localStorage.getItem(KEY);
+                if (last) {
+                    var card = document.querySelector('.game[data-game="' + last + '"]');
+                    if (card) card.classList.add('is-recent');
+                }
+                document.querySelectorAll('[data-game]').forEach(function (link) {
+                    link.addEventListener('click', function () {
+                        try { localStorage.setItem(KEY, link.dataset.game); } catch (e) {}
+                    });
+                });
+            } catch (e) {}
+        })();
+    </script>
 </body>
 </html>
