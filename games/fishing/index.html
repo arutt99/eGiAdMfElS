@@ -17,13 +17,15 @@
 </head>
 <body>
   <main id="app">
-    <header id="top">
+    <header id="top" class="hud">
       <button id="menu-btn" class="icon-btn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div id="tabs" role="tablist" aria-label="Sheets"></div>
+      <button id="who-btn" class="who-btn" aria-pressed="false" hidden></button>
       <button id="undo-btn" class="icon-btn" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
     </header>
     <div id="stage"><div id="pages"></div></div>
-    <footer id="dock">
+    <button id="viewing" hidden>Viewing the <b>AI player's</b> sheet · tap to return</button>
+    <footer id="dock" class="hud">
       <div id="prompt" aria-live="polite"></div>
       <div id="controls">
         <div id="dice" role="group" aria-label="Dice"></div>
