@@ -519,9 +519,9 @@ const fishingLeft = b => {
 };
 // Weights of the projected value, tuned by self-play.
 export const AI_W = {
-  mark: 3, lic: 2, coin: 0, time: .5, fish: .85, barge: .6, bld: .6, hex: .5,
-  lobster: .25, cod: .4, sword: .5, look: 1, star: 0, deny: 0,
-  ability: { casino: .3, bait: .5, salvage: 1.2, smoke: .6, canning: .5, buffet: .8 },
+  mark: 4.5, lic: 2, coin: 0, time: .5, fish: .85, barge: .6, bld: .9, hex: .5,
+  lobster: .25, cod: .4, sword: .5, look: .3, star: 0, deny: 0,
+  ability: { casino: .3, bait: .3, salvage: 0, smoke: .6, canning: .5, buffet: .8 },
 };
 export function botValue(b, W = AI_W) {
   let v = score(b).total;
