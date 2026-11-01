@@ -99,7 +99,13 @@ export const sfx = {
     tone(110, at, .55, { type: 'sawtooth', gain: .1, attack: .06, lp: 650 });
     tone(165, at, .55, { type: 'sawtooth', gain: .07, attack: .06, lp: 650 });
   },
-  splash(at = 0) { noise(at, .32, { gain: .22, type: 'lowpass', f: 2400, to: 300, q: .7, attack: .01 }); tone(700, at, .12, { gain: .04, to: 300 }); },
+  // a fish landing in the hold: a soft rising water 'bloop', stepping up a pentatonic scale fish by fish
+  plop(i = 0, at = 0) {
+    const f = [392, 440, 523, 587, 659, 784, 880][i % 7];
+    tone(f * .6, at, .16, { gain: .1, to: f, attack: .015 });
+    tone(f / 2, at + .01, .18, { type: 'triangle', gain: .025, lp: 900, attack: .02 });
+    noise(at, .1, { gain: .02, type: 'lowpass', f: 700, q: .5, attack: .02 });
+  },
   strike(at = 0) {
     tone(170, at, .2, { type: 'square', gain: .08, to: 55, lp: 900 });
     noise(at, .12, { gain: .2, f: 1800, to: 900, q: 2 });

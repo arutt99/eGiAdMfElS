@@ -195,10 +195,16 @@ g.fresh .strike { animation: slash .35s ease-out both; stroke-dasharray: 60; }
   box-shadow: 0 -4px 12px rgba(0, 0, 0, .45);
 }
 #dock::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--rope); box-shadow: 0 1px 2px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .25); }
-#prompt { min-height: 34px; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+/* The prompt keeps one fixed height: if it grew with a long message the dock would grow too and the sheet
+   above it would shrink. Long messages step down in size instead (see fitPrompt in app.mjs). */
+#prompt { flex: none; height: 38px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; text-align: center; }
 #prompt b { display: block; font: 800 18px/1.15 var(--display); letter-spacing: .005em; text-wrap: balance; color: #fff4dc; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
 #prompt small { display: block; margin-top: 2px; color: var(--muted); font-weight: 600; font-size: 12px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #prompt .rival { color: #ffab9f; }
+#prompt.fit-1 b { font-size: 15.5px; }
+#prompt.fit-2 b, #prompt.fit-3 b { font-size: 15px; line-height: 1.1; }
+#prompt.fit-3 b { font-size: 13px; }
+#prompt.fit-2 small, #prompt.fit-3 small { display: none; }
 #prompt.nudge b { animation: nudge .42s ease; }
 @keyframes nudge { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 

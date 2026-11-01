@@ -224,6 +224,16 @@ function renderStatus(delay = 0) {
 }
 
 // ---------- dock rendering ----------
+// The prompt has a fixed height so the dock, and the sheet sized around it, never change size with the
+// message. Step the text down until it fits: a smaller line, then two lines without the status line.
+function fitPrompt() {
+  const b = promptEl.firstElementChild; if (!b) return;
+  for (let i = 0; i < 4; i++) {
+    promptEl.className = promptEl.className.replace(/\s*fit-\d/g, '') + (i ? ` fit-${i}` : '');
+    const used = [...promptEl.children].reduce((h, el) => h + (el.offsetHeight ? el.offsetHeight + (el === b ? 0 : 2) : 0), 0);
+    if (used <= promptEl.clientHeight + 1 || !promptEl.clientHeight) break;
+  }
+}
 const faceImg = f => `<img src="assets/dice/${f}.webp" alt="">`;
 function phaseName() {
   if (s.phase === 'over') return 'Final';
@@ -272,6 +282,7 @@ function renderDock() {
     if (o.cash) btn(`Take ${o.cash} coin${o.cash > 1 ? 's' : ''}`, 'data-a="cash"', 'ghost');
   }
   promptEl.innerHTML = `<b>${msg}</b><small>${head}</small>`;
+  fitPrompt();
   const html = acts.join('');
   if (html !== ui.actsHtml) { actionsEl.innerHTML = html; ui.actsHtml = html; } // keep buttons (and their entrance) stable between renders
   const away = !!task || s.phase === 'over' || !s.pool.length;
@@ -561,6 +572,7 @@ pages.addEventListener('scroll', () => {
 }, { passive: true });
 tabsEl.addEventListener('click', ev => { const b = ev.target.closest('button[data-page]'); if (b) { if (b.dataset.page !== ui.page) { play('tap'); haptic(); } showPage(b.dataset.page); } });
 function relayout() {
+  fitPrompt();
   const moved = measureHud();
   if (buildPages()) render();
   else if (!moved) return;
@@ -593,7 +605,7 @@ function stageMoments(prev, { user = false } = {}) {
   if (has('strike')) play('strike', .05);
   if (has('launch')) play('horn', .12);
   let fishN = 0;
-  for (const m of list.filter(m => m.k === 'fish')) for (let j = 0; j < m.n; j++, fishN++) if (fishN < 16) play('splash', fishN * STAGGER.fish / 1000);
+  for (const m of list.filter(m => m.k === 'fish')) for (let j = 0; j < m.n; j++, fishN++) if (fishN < 16) play('plop', fishN, fishN * STAGGER.fish / 1000);
   if (fishN) hold = Math.max(hold, fishN * STAGGER.fish + 300);
   const coinM = list.find(m => m.k === 'coins');
   if (coinM) { for (let i = 0; i < Math.min(coinM.n, 12); i++) play('coin', i, .05 + i * STAGGER.coin / 1000); hold = Math.max(hold, coinM.n * STAGGER.coin + 200); }

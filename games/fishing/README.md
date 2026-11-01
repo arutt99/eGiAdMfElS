@@ -7,7 +7,7 @@ A roll-and-write dice game for a phone held in portrait: solo, or against a comp
 The bars are dark varnished wood with brass trim, the dice sit on a felt tray, and menus are parchment bottom sheets (swipe down, tap outside or press Escape to close; automatic turns pause while one is open). Headings use Alegreya (SIL Open Font License), bundled in `assets/fonts/`.
 
 - **Status strip** under the tabs: score, coins with the distance to the next ★, round pips (fish mark the Fishing rounds) and, against the AI, its score (tap it to flip to the AI's sheet).
-- **Sound and haptics**: synthesized with Web Audio (dice rattle, pencil, coins, horn, splash, strike, fanfare); haptics use `navigator.vibrate` on Android and the switch-checkbox tick on iOS 18+, felt only on your own taps. Both can be turned off in the pause menu (`fishing.prefs`).
+- **Sound and haptics**: synthesized with Web Audio (dice rattle, pencil, coins, horn, a soft water plop for each fish, strike, fanfare); haptics use `navigator.vibrate` on Android and the switch-checkbox tick on iOS 18+, felt only on your own taps. Both can be turned off in the pause menu (`fishing.prefs`).
 - **Big moments**: a banner for each new round, Fishing, a ★ reached on the coin track, a license level, the King Crab license and a wharf building opening; fish and coins fill one by one; "+VP" floaters fly into the strip.
 - **Decisions** (license or boat, King Crab bonus, oyster catch) appear as cards over the dice tray, each saying what it is worth right now.
 - **Game over**: categories count up, then the solo rank badge (and how far the next rank is), "New best!" and confetti on a best score or a win against the AI.
