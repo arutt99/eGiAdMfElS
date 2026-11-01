@@ -4,7 +4,7 @@ import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX,
 
 const KEY = 'fishing.v1', BEST = 'fishing.best';
 const $ = sel => document.querySelector(sel);
-const pages = $('#pages'), promptEl = $('#prompt'), diceEl = $('#dice'), miniEl = $('#mini'), trayEl = $('#tray'), toggleEl = $('#dice-toggle'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
+const pages = $('#pages'), promptEl = $('#prompt'), diceEl = $('#dice'), miniEl = $('#mini'), trayEl = $('#tray'), toggleEl = $('#dice-toggle'), pillEl = $('#pill'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
 const svgs = { boats: $('.page[data-sheet="boats"] svg'), harbor: $('.page[data-sheet="harbor"] svg') };
 
 let s = load() || E.newGame('rival');
@@ -228,14 +228,19 @@ function useMsg(o) {
 }
 
 function syncTray(needPick) {
-  const open = ui.tray && s.pool.length > 0 && s.phase !== 'over';
+  const has = s.pool.length > 0 && s.phase !== 'over';
+  const open = ui.tray && has;
+  const sheet = pages.querySelector(`.page[data-sheet="${ui.sheet}"] .sheet`), stage = $('#stage').getBoundingClientRect(), sr = sheet.getBoundingClientRect();
+  if (sr.height) trayEl.style.top = `${sr.top - stage.top + sr.height * .55}px`; // centre the card over the sheet itself
   trayEl.classList.toggle('closed', !open);
   trayEl.inert = !open;
-  miniEl.classList.toggle('hidden', open);
+  pillEl.classList.toggle('hidden', open || !has);
+  pillEl.inert = open || !has;
+  pillEl.classList.toggle('attn', needPick);
   toggleEl.setAttribute('aria-expanded', String(open));
-  toggleEl.disabled = !s.pool.length || s.phase === 'over';
-  toggleEl.querySelector('span').textContent = open ? 'Hide' : needPick ? 'Pick a die' : 'Dice';
-  toggleEl.classList.toggle('attn', !open && needPick);
+  const st = s.step;
+  $('#tray-title').textContent = st.k === 'rival' ? 'Rival is choosing…' : needPick ? `${s.phase === 'town' ? 'Town' : 'Boat'} dice — pick one`
+    : st.k === 'use' && st.src === 'shared' ? 'Use the shared die' : `${s.phase === 'town' ? 'Town' : 'Boat'} dice`;
 }
 
 function render() {
@@ -322,17 +327,49 @@ function onDieTap(ev) {
   const i = +b.dataset.die;
   if (s.step.k !== 'pick' || E.currentTask(s)) return;
   ui.sel = ui.sel === i ? null : i;
-  if (ui.sel != null && trayCoversSheet()) ui.tray = false; // tuck the tray away so the highlighted sections show
+  if (ui.sel != null) ui.tray = false; // shrink to the chip so the highlighted sections show
   renderSheets(); renderDock(); focusTargets();
-}
-function trayCoversSheet() {
-  const sheet = pages.querySelector(`.page[data-sheet="${ui.sheet}"] .sheet`);
-  return trayEl.getBoundingClientRect().top < sheet.getBoundingClientRect().bottom - 6;
 }
 diceEl.addEventListener('click', onDieTap);
 miniEl.addEventListener('click', onDieTap);
-toggleEl.addEventListener('click', () => { ui.tray = !ui.tray; renderDock(); });
-$('#dicebar').addEventListener('click', ev => { if (ev.target.id === 'mini' || ev.target.id === 'dicebar') { ui.tray = true; renderDock(); } });
+toggleEl.addEventListener('click', () => { ui.tray = true; renderDock(); });
+$('#tray-min').addEventListener('click', () => { ui.tray = false; renderDock(); });
+
+// the minimized chip can be dragged anywhere over the sheet; its spot is remembered
+const PILL = 'fishing.pill';
+function placePill() {
+  let p; try { p = JSON.parse(localStorage.getItem(PILL)); } catch { }
+  if (!p) { pillEl.style.left = ''; pillEl.style.top = ''; pillEl.style.bottom = ''; return; }
+  const st = $('#stage'), maxX = st.clientWidth - pillEl.offsetWidth - 4, maxY = st.clientHeight - pillEl.offsetHeight - 4;
+  pillEl.style.left = `${Math.max(4, Math.min(maxX, p.x * st.clientWidth))}px`;
+  pillEl.style.top = `${Math.max(4, Math.min(maxY, p.y * st.clientHeight))}px`;
+  pillEl.style.bottom = 'auto';
+}
+let drag = null;
+pillEl.addEventListener('pointerdown', ev => {
+  if (!ev.isPrimary) return;
+  const r = pillEl.getBoundingClientRect();
+  drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, dx: ev.clientX - r.left, dy: ev.clientY - r.top, moved: false };
+});
+window.addEventListener('pointermove', ev => {
+  if (!drag || ev.pointerId !== drag.id) return;
+  if (!drag.moved && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 8) return;
+  drag.moved = true;
+  const st = $('#stage').getBoundingClientRect();
+  const x = Math.max(4, Math.min(st.width - pillEl.offsetWidth - 4, ev.clientX - st.left - drag.dx));
+  const y = Math.max(4, Math.min(st.height - pillEl.offsetHeight - 4, ev.clientY - st.top - drag.dy));
+  Object.assign(pillEl.style, { left: `${x}px`, top: `${y}px`, bottom: 'auto' });
+});
+for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, ev => {
+  if (!drag || ev.pointerId !== drag.id) return;
+  if (drag.moved) {
+    suppressClick = type === 'pointerup';
+    const st = $('#stage');
+    try { localStorage.setItem(PILL, JSON.stringify({ x: pillEl.offsetLeft / st.clientWidth, y: pillEl.offsetTop / st.clientHeight })); } catch { }
+  }
+  drag = null;
+});
+window.addEventListener('resize', placePill);
 
 // ---------- long-press info ----------
 let pressT = null, pressAt = null, suppressClick = false;
@@ -457,7 +494,7 @@ function onOver(force = false) {
 function openRules() {
   openDlg(`<h2>How to play</h2>
   <p>Score the most points by launching boats, catching fish, earning licenses and finishing wharf buildings. Swipe the sheet (or use the two tabs) to flip between your boats and the harbor &amp; wharf.</p>
-  <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. The dice tray hides with the <b>Hide</b> button and comes back with <b>Dice</b>.</p>
+  <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. The dice card shrinks to a small chip once you pick (or tap –); drag the chip anywhere and tap ⌃ to bring the dice back.</p>
   <h3>Each round</h3>
   <ul>
     <li><b>Boat dice</b> — pick a die and tap its column; the top open box is marked for you. Then everyone uses the last die left over.</li>
@@ -487,4 +524,5 @@ requestAnimationFrame(() => {
   showSheet('boats', false);
   if (s.phase === 'over') overShown = true;
   afterChange();
+  placePill();
 });

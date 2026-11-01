@@ -21,8 +21,13 @@
         <section class="page" data-sheet="boats" aria-label="Boat sheet"><div class="sheet" style="--ar: 1100 / 1429"><img src="assets/sheet-boats.webp" alt="" draggable="false"><svg viewBox="0 0 1100 1429" aria-hidden="true"></svg></div></section>
         <section class="page" data-sheet="harbor" aria-label="Harbor and wharf sheet"><div class="sheet" style="--ar: 1122 / 1402"><img src="assets/sheet-harbor.webp" alt="" draggable="false"><svg viewBox="0 0 1122 1402" aria-hidden="true"></svg></div></section>
       </div>
-      <div id="tray" aria-label="Dice tray">
+      <div id="tray" role="group" aria-label="Dice">
+        <div class="tray-head"><span id="tray-title"></span><button id="tray-min" aria-label="Minimize dice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button></div>
         <div id="dice"></div>
+      </div>
+      <div id="pill" role="group" aria-label="Dice (minimized)">
+        <div id="mini"></div>
+        <button id="dice-toggle" aria-controls="tray" aria-expanded="false" aria-label="Show dice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
       </div>
     </div>
     <div id="dock">
@@ -34,10 +39,6 @@
           <button role="tab" data-sheet="boats" aria-label="Boat sheet"><img src="assets/dice/cod.webp" alt=""></button>
           <button role="tab" data-sheet="harbor" aria-label="Harbor and wharf sheet"><img src="assets/dice/harbor.webp" alt=""></button>
         </div>
-      </div>
-      <div id="dicebar">
-        <div id="mini"></div>
-        <button id="dice-toggle" aria-controls="tray" aria-expanded="true"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
       </div>
       <div id="actions"></div>
     </div>

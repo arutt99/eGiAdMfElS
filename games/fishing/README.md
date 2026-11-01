@@ -1,6 +1,6 @@
 # Fishing
 
-A roll-and-write dice game for one player, built for a phone held in portrait. Each sheet fills the screen; swipe sideways (or tap the two tabs beside the prompt) to flip between the **boat sheet** and the **harbor & wharf sheet**. The dice tray slides up over the space under the sheet whenever new dice are rolled; it tucks into a slim row of mini dice (tap **Dice** to bring it back) when it would cover the sheet. **Hold any area** of either sheet, or any die, for a card explaining what it does and what it's worth for you right now. Served as static files at `games/fishing/`; no build step, account or server.
+A roll-and-write dice game for one player, built for a phone held in portrait. Each sheet fills the screen; swipe sideways (or tap the two tabs beside the prompt) to flip between the **boat sheet** and the **harbor & wharf sheet**. Dice float over the sheet: a card pops up when they're rolled, and picking a die (or tapping –) shrinks it to a small chip you can drag anywhere and tap ⌃ to reopen. **Hold any area** of either sheet, or any die, for a card explaining what it does and what it's worth for you right now. Served as static files at `games/fishing/`; no build step, account or server.
 
 ## Play
 
