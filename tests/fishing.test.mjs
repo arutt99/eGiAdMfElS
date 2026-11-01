@@ -197,3 +197,38 @@ test('the AI takes one die a round and uses the shared die too', () => {
   E.auto(s, r);
   assert.equal(s.step.k, 'use'); assert.equal(s.step.src, 'shared');
 });
+
+// ---------- moments: what the UI stages after each change ----------
+import { moments, nextStarIn, nextRank } from '../games/fishing/moments.mjs';
+
+test('moments report marks, launches, licenses, coins and stars between two states', () => {
+  const a = E.newGame('open', rng(3)), b = E.clone(a);
+  const t = E.TYPES.find(x => x !== a.start);
+  b.marks[t][0] = 1; b.ships[t][0].on = true; b.lic[t] = 1;
+  for (let i = 0; i < 3; i++) b.coins[i] = 1; // box 2 is a ★
+  const m = moments(a, b), kinds = m.map(x => x.k);
+  assert.ok(kinds.includes('mark') && kinds.includes('launch') && kinds.includes('license') && kinds.includes('coins'));
+  assert.equal(m.find(x => x.k === 'coins').n, 3);
+  assert.deepEqual(m.filter(x => x.k === 'star').map(x => x.i), [2]);
+  assert.equal(m.find(x => x.k === 'launch').vp, E.SHIPS[t].vp);
+});
+
+test('moments report fish, strikes, buildings and new rounds; nothing for equal states', () => {
+  const a = E.newGame('rival', rng(4)), b = E.clone(a);
+  assert.deepEqual(moments(a, E.clone(a)), []);
+  b.ships[a.start][0].fish = 2; b.marks.cod[11] = 2; b.marks.salvage[0] = 1; b.done.salvage = true; b.round = 2;
+  const m = moments(a, b);
+  assert.deepEqual(m.find(x => x.k === 'fish'), { k: 'fish', type: a.start, i: 0, n: 2, from: 0, vp: 2 });
+  assert.ok(m.some(x => x.k === 'strike' && x.sec === 'cod' && x.i === 11));
+  assert.equal(m.find(x => x.k === 'building').vp, E.BUILDING_VP.salvage);
+  assert.equal(m.find(x => x.k === 'round').round, 2);
+});
+
+test('next star and next rank helpers', () => {
+  const s = E.newGame('rival', rng(5));
+  assert.equal(nextStarIn(s), 3); // boxes 0,1 then the ★ at 2
+  s.coins[0] = 1; s.coins[1] = 1; s.coins[2] = 2; // that ★ struck
+  assert.equal(nextStarIn(s), 3); // next ★ at 5
+  assert.deepEqual(nextRank(30), { name: 'Deckhand', need: 20 });
+  assert.equal(nextRank(90), null);
+});
