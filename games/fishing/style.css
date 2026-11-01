@@ -617,6 +617,8 @@ body.vs-ai #status { gap: 5px; }
 .noscript { padding: 20px; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
+  /* one near-instant pass, never a loop: an infinite animation squeezed to .001ms reads as frantic shaking */
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .t-dice img, #opp .face, #opp .think i, .target, .choice, .flash, .die.selected { animation: none !important; }
   .banner { animation: none !important; } /* shown still, then removed */
 }
