@@ -132,7 +132,7 @@ function renderSheets() {
   }
   // king crab license & bonus
   if (v.kc.on) out.harbor += xMark(KC.circle[0], KC.circle[1], 11, 'ink', 'kc');
-  else out.harbor += rect('dim', ...KC.card, 12);
+  else out.harbor += `<polygon class="dim" points="${KC.outline}"/>`;
   if (v.kc.bonus) { const [x, y] = KC.bonus[v.kc.bonus]; out.harbor += xMark(x, y, 13, 'ink', 'kcb'); }
   if (task?.t === 'kc') for (const [k, [x, y]] of Object.entries(KC.bonus)) out.harbor += `<circle class="choice" data-kc="${k}" cx="${x}" cy="${y}" r="20"/>`;
   // buffet hexes, salvage stars
