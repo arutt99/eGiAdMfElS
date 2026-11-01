@@ -166,3 +166,34 @@ test('every section, the coin track and the King Crab card are on a page in each
     assert.ok(pageAt(pages, 'harbor', (KC.card[0] + KC.card[2]) / 2, (KC.card[1] + KC.card[3]) / 2), `${name}: KC card`);
   }
 });
+
+test('versus-AI games finish, the AI plays its own sheet and never touches yours', () => {
+  for (let seed = 1; seed <= 12; seed++) {
+    const s = play('ai', seed);
+    assert.equal(s.rounds, 10);
+    assert.ok(s.bot && E.validSave(s));
+    for (const list of Object.values(s.marks)) assert.ok(!list.includes(2), 'no struck boxes on your sheet');
+    assert.ok(!s.coins.includes(2));
+    const ai = E.score(s.bot);
+    assert.ok(ai.total > 40 && ai.total < 400, `AI score ${ai.total}`);
+    for (const [t, list] of Object.entries(s.bot.ships)) for (const b of list) assert.ok(b.fish <= (t === 'oyster' ? E.capacity(s.bot, t) : E.SHIPS[t].cap));
+    assert.ok(!('pool' in s.bot) && s.bot.queue.length === 0);
+  }
+});
+
+test('the AI takes one die a round and uses the shared die too', () => {
+  const r = rng(11), s = E.newGame('ai', r);
+  run(s, r);
+  assert.equal(s.step.k, 'pick'); // you pick first in round 1
+  assert.equal(s.pool.length, 3);
+  const free = s.pool.findIndex(d => !d.by);
+  assert.ok(E.act(s, { type: 'cash', die: free }));
+  const before = JSON.stringify(s.bot.marks) + E.coinCount(s.bot);
+  E.auto(s, r); // next
+  const e = E.auto(s, r);
+  assert.equal(e.k, 'ai');
+  assert.equal(s.pool.filter(d => d.by === 'ai').length, 1);
+  assert.notEqual(JSON.stringify(s.bot.marks) + E.coinCount(s.bot), before);
+  E.auto(s, r);
+  assert.equal(s.step.k, 'use'); assert.equal(s.step.src, 'shared');
+});
