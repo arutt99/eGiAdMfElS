@@ -149,3 +149,20 @@ test('long-press help covers every section and builds for any game state', async
     s.pool.forEach((_, i) => { const inf = I.dieInfo(s, i); assert.ok(inf && !/undefined|NaN/.test(inf.title + inf.body)); });
   }
 });
+
+test('every section, the coin track and the King Crab card are on a page in each screen layout', async () => {
+  const { HIT, SECTION_SHEET, PAGE_SETS, composePage, pageAt, KC, coinPos } = await import('../games/fishing/layout.mjs');
+  for (const [name, set] of Object.entries(PAGE_SETS)) {
+    const pages = set.map(composePage);
+    for (const pg of pages) assert.ok(pg.w > 0 && pg.h > 0 && pg.panels.every(p => p.top + p.height <= pg.h + .01), `${name}/${pg.id} geometry`);
+    for (const sec of E.allSections()) {
+      const [x0, y0, x1, y1] = HIT[sec];
+      const pg = pageAt(pages, SECTION_SHEET[sec], (x0 + x1) / 2, (y0 + y1) / 2);
+      assert.ok(pg, `${name}: ${sec} is on no page`);
+      // the whole tap area fits in one panel of that page
+      assert.ok(pg.panels.some(p => p.sheet === SECTION_SHEET[sec] && x0 >= p.crop[0] - 12 && x1 <= p.crop[2] + 12 && y0 >= p.crop[1] - 12 && y1 <= p.crop[3] + 12), `${name}: ${sec} is cut off`);
+    }
+    for (let i = 0; i < E.COIN_BOXES; i++) { const { x, y } = coinPos(i); assert.ok(pageAt(pages, 'harbor', x, y), `${name}: coin ${i}`); }
+    assert.ok(pageAt(pages, 'harbor', (KC.card[0] + KC.card[2]) / 2, (KC.card[1] + KC.card[3]) / 2), `${name}: KC card`);
+  }
+});

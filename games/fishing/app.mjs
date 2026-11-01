@@ -1,14 +1,14 @@
 import * as E from './engine.mjs';
 import { regionAt, sheetInfo, dieInfo } from './info.mjs';
-import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX, SALVAGE_STARS, MARKET_ROWS, MARKET_X, coinPos, TRACK } from './layout.mjs';
+import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX, SALVAGE_STARS, MARKET_ROWS, MARKET_X, coinPos, TRACK, PAGE_SETS, composePage, pageAt } from './layout.mjs';
 
 const KEY = 'fishing.v1', BEST = 'fishing.best';
 const $ = sel => document.querySelector(sel);
-const pages = $('#pages'), promptEl = $('#prompt'), diceEl = $('#dice'), miniEl = $('#mini'), trayEl = $('#tray'), toggleEl = $('#dice-toggle'), pillEl = $('#pill'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
-const svgs = { boats: $('.page[data-sheet="boats"] svg'), harbor: $('.page[data-sheet="harbor"] svg') };
+const pages = $('#pages'), stage = $('#stage'), tabsEl = $('#tabs'), promptEl = $('#prompt'), diceEl = $('#dice'), controlsEl = $('#controls'), infoEl = $('#info'), actionsEl = $('#actions'), dlg = $('#dlg');
 
 let s = load() || E.newGame('rival');
-let ui = { sel: null, sheet: 'boats', toast: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, tray: true, hl: null };
+let ui = { sel: null, page: 'boats', set: null, toast: null, prevMarks: new Set(), firstPaint: true, lastRolls: -1, hl: null };
+let layout = [], panels = []; // composed pages of the current set, and every rendered panel
 let history = [], timer = null;
 
 // ---------- persistence ----------
@@ -137,8 +137,7 @@ function renderSheets() {
   for (const sec of tg) { const [x0, y0, x1, y1] = HIT[sec]; out[SECTION_SHEET[sec]] += rect('hit', x0, y0, x1, y1, 16, `data-sec="${sec}"`); }
 
   if (ui.hl) { const [x0, y0, x1, y1] = ui.hl.rect; out[ui.hl.sheet] += rect('info-hl', x0, y0, x1, y1, 14); }
-  svgs.boats.innerHTML = out.boats;
-  svgs.harbor.innerHTML = out.harbor;
+  for (const p of panels) p.marks.innerHTML = out[p.sheet];
   ui.prevMarks = ui.nextMarks; ui.firstPaint = false;
 }
 
@@ -152,25 +151,7 @@ function phaseName() {
 }
 function renderDock() {
   const task = E.currentTask(s), st = s.step, o = currentOptions();
-  const rolled = s.rolls !== ui.lastRolls; ui.lastRolls = s.rolls;
-  // dice
-  if (rolled && s.pool.length) ui.tray = true; // fresh dice: show them up front
-  const usingIdx = st.k === 'use' ? st.die : null;
-  const dieHtml = (mini) => s.pool.map((d, i) => {
-    const sharedNow = !d.by && (st.k === 'use' && st.src === 'shared' || (st.k === 'rival' && st.shared));
-    let tag = '';
-    if (d.by === 'rival') tag = '<span class="tag rival">Rival</span>';
-    else if (d.by === 'you' && usingIdx !== i) tag = '<span class="tag">Yours</span>';
-    else if (sharedNow || (!d.by && s.pool.filter(x => !x.by).length === 1 && st.k !== 'pick')) tag = '<span class="tag shared">Shared</span>';
-    const sel = (st.k === 'pick' && ui.sel === i) || usingIdx === i;
-    const taken = d.by && usingIdx !== i;
-    const can = st.k === 'pick' && !d.by && !task;
-    return `<button class="die ${d.kind}${mini ? ' mini' : ''}${sel ? ' selected' : ''}${taken ? ' taken' : ''}${d.by === 'you' ? ' mine' : ''}${rolled ? ' rolling' : ''}" data-die="${i}" aria-disabled="${!can}" aria-label="${E.label(d.face)} die${d.by ? `, ${d.by === 'rival' ? 'taken by Rival' : 'yours'}` : ''}" style="animation-delay:${i * 70}ms">${faceImg(d.face)}${tag}</button>`;
-  }).join('');
-  diceEl.innerHTML = dieHtml(false);
-  miniEl.innerHTML = dieHtml(true);
-  syncTray(st.k === 'pick' && !task && ui.sel == null);
-
+  renderDice(task);
   // prompt + actions
   const head = s.phase === 'over' ? 'Game over' : `Round ${s.round}/${s.rounds} · ${phaseName()}`;
   let msg = '', acts = [];
@@ -209,8 +190,12 @@ function renderDock() {
     if (o.cash) btn(`Take ${o.cash} coin${o.cash > 1 ? 's' : ''}`, 'data-a="cash"', 'ghost');
   }
   const sub = ui.toast && msg !== ui.toast ? `<small>${ui.toast}</small>` : `<small>${head}</small>`;
-  promptEl.innerHTML = `${msg}${sub}`;
-  actionsEl.innerHTML = acts.join('');
+  promptEl.innerHTML = `<b>${msg}</b>${sub}`;
+  const html = acts.join('');
+  if (html !== ui.actsHtml) { actionsEl.innerHTML = html; ui.actsHtml = html; } // keep buttons (and their entrance) stable between renders
+  const away = !!task || s.phase === 'over' || !s.pool.length;
+  diceEl.classList.toggle('away', away);
+  controlsEl.classList.toggle('has-dice', !away);
   $('#undo-btn').disabled = !history.length;
 }
 function useMsg(o) {
@@ -227,57 +212,141 @@ function useMsg(o) {
   return '';
 }
 
-function syncTray(needPick) {
-  const has = s.pool.length > 0 && s.phase !== 'over';
-  const open = ui.tray && has;
-  const sheet = pages.querySelector(`.page[data-sheet="${ui.sheet}"] .sheet`), stage = $('#stage').getBoundingClientRect(), sr = sheet.getBoundingClientRect();
-  if (sr.height) trayEl.style.top = `${sr.top - stage.top + sr.height * .55}px`; // centre the card over the sheet itself
-  trayEl.classList.toggle('closed', !open);
-  trayEl.inert = !open;
-  pillEl.classList.toggle('hidden', open || !has);
-  pillEl.inert = open || !has;
-  pillEl.classList.toggle('attn', needPick);
-  toggleEl.setAttribute('aria-expanded', String(open));
-  const st = s.step;
-  $('#tray-title').textContent = st.k === 'rival' ? 'Rival is choosing…' : needPick ? `${s.phase === 'town' ? 'Town' : 'Boat'} dice — pick one`
-    : st.k === 'use' && st.src === 'shared' ? 'Use the shared die' : `${s.phase === 'town' ? 'Town' : 'Boat'} dice`;
+// Dice live in the dock. Elements persist between renders so selection and state changes animate;
+// a fresh roll rebuilds them with a tumble that flickers through faces before settling.
+const FACES = { boat: E.BOAT_FACES, town: ['harbor', 'wharf', 'market'] };
+let diceEls = [], prevBy = [], prevFace = [];
+function renderDice(task) {
+  const st = s.step, rolled = s.rolls !== ui.lastRolls || diceEls.length !== s.pool.length;
+  ui.lastRolls = s.rolls;
+  if (rolled) {
+    diceEl.innerHTML = s.pool.map((d, i) => `<button class="die ${d.kind}" data-die="${i}"><img src="assets/dice/${d.face}.webp" alt=""></button>`).join('');
+    diceEls = [...diceEl.children];
+    if (!ui.firstPaint) diceEls.forEach((el, i) => tumble(el, s.pool[i], i));
+  }
+  const usingIdx = st.k === 'use' ? st.die : null;
+  const free = s.pool.filter(x => !x.by).length;
+  s.pool.forEach((d, i) => {
+    const el = diceEls[i];
+    if (!rolled && prevFace[i] !== d.face) tumble(el, d, 0); // casino reroll
+    const sharedNow = !d.by && ((st.k === 'use' && st.src === 'shared') || (st.k === 'rival' && st.shared) || (free === 1 && st.k !== 'pick'));
+    const tag = d.by === 'rival' ? ['rival', 'Rival'] : d.by === 'you' && usingIdx !== i ? ['', 'Yours'] : sharedNow ? ['shared', 'Shared'] : null;
+    const tagHtml = tag ? `<span class="tag ${tag[0]}">${tag[1]}</span>` : '';
+    const old = el.querySelector('.tag');
+    if ((old?.outerHTML || '') !== tagHtml) { old?.remove(); if (tagHtml) el.insertAdjacentHTML('beforeend', tagHtml); }
+    const can = st.k === 'pick' && !d.by && !task;
+    const sel = (st.k === 'pick' && ui.sel === i) || usingIdx === i;
+    el.classList.toggle('selected', sel);
+    el.classList.toggle('pickable', can && ui.sel == null);
+    el.classList.toggle('muted', can && ui.sel != null && !sel);
+    el.classList.toggle('taken', !!d.by && usingIdx !== i);
+    el.classList.toggle('mine', d.by === 'you');
+    el.setAttribute('aria-disabled', String(!can));
+    el.setAttribute('aria-pressed', String(sel));
+    el.setAttribute('aria-label', `${E.label(d.face)} die${d.by ? `, ${d.by === 'rival' ? 'taken by Rival' : 'yours'}` : ''}`);
+    if (!rolled && d.by === 'rival' && prevBy[i] !== 'rival') replay(el, 'grabbed');
+  });
+  prevBy = s.pool.map(d => d.by); prevFace = s.pool.map(d => d.face);
 }
+function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); el.addEventListener('animationend', () => el.classList.remove(cls), { once: true }); }
+function tumble(el, die, i) {
+  const img = el.querySelector('img'), faces = FACES[die.kind];
+  el.style.animationDelay = `${i * 90}ms`;
+  el.classList.add('rolling');
+  let n = 0;
+  const spin = setInterval(() => {
+    if (!el.isConnected) return clearInterval(spin);
+    img.src = `assets/dice/${faces[(i * 3 + n++) % faces.length]}.webp`;
+  }, 75);
+  setTimeout(() => {
+    clearInterval(spin);
+    img.src = `assets/dice/${s.pool[i]?.face || die.face}.webp`;
+  }, 420 + i * 90);
+  el.addEventListener('animationend', () => { el.classList.remove('rolling'); el.style.animationDelay = ''; }, { once: true });
+}
+// warm the cache so the tumble never flashes an empty face
+for (const f of new Set([...FACES.boat, ...FACES.town])) new Image().src = `assets/dice/${f}.webp`;
 
 function render() {
   renderSheets(); renderDock(); syncTabs(); save();
 }
 
-// ---------- sheet switching ----------
-function showSheet(name, smooth = true) {
-  ui.sheet = name;
-  const page = pages.querySelector(`.page[data-sheet="${name}"]`);
-  pages.scrollTo({ left: page.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
+// ---------- pages ----------
+// Phones in portrait get three tall pages (boats, harbor, wharf); wider screens get the two whole sheets.
+function pickSet() {
+  const r = stage.getBoundingClientRect();
+  return r.width && r.height && r.width / r.height > .78 ? 'wide' : 'phone';
+}
+function buildPages() {
+  const set = pickSet();
+  if (set === ui.set) return false;
+  const prev = ui.set; ui.set = set;
+  layout = PAGE_SETS[set].map(composePage);
+  pages.innerHTML = layout.map(pg => `<section class="page" data-page="${pg.id}" aria-label="${pg.label}"><div class="sheet" style="--ar: ${pg.w} / ${pg.h.toFixed(1)}">${pg.panels.map((p, j) => {
+    const [x0, y0, x1, y1] = p.crop, sh = SHEETS[p.sheet];
+    return `<div class="panel" style="top:${(p.top / pg.h * 100).toFixed(3)}%;height:${(p.height / pg.h * 100).toFixed(3)}%"><svg viewBox="${x0} ${y0} ${x1 - x0} ${y1 - y0}" data-j="${j}" aria-hidden="true"><image href="${sh.src}" width="${sh.w}" height="${sh.h}" preserveAspectRatio="none"/>${p.cover ? `<rect x="${p.cover[0]}" y="${p.cover[1]}" width="${p.cover[2] - p.cover[0]}" height="${p.cover[3] - p.cover[1]}" fill="${p.cover[4]}"/>` : ''}<g class="marks"></g></svg></div>`;
+  }).join('')}</div></section>`).join('');
+  panels = [];
+  pages.querySelectorAll('.page').forEach((el, i) => el.querySelectorAll('svg').forEach((svg, j) => {
+    const p = layout[i].panels[j];
+    panels.push({ ...p, page: layout[i].id, svg, marks: svg.querySelector('.marks') });
+  }));
+  tabsEl.style.setProperty('--n', layout.length);
+  tabsEl.innerHTML = '<span class="thumb" aria-hidden="true"></span>' + layout.map(pg => `<button role="tab" data-page="${pg.id}" aria-label="${pg.label}"><img src="assets/dice/${pg.icon}.webp" alt=""><span>${pg.label}</span></button>`).join('');
+  if (prev) { // carry the view across a rotation
+    if (!layout.some(pg => pg.id === ui.page)) ui.page = ui.page === 'wharf' ? 'harbor' : 'boats';
+    ui.firstPaint = true;
+  }
+  return true;
+}
+const pageIndex = id => Math.max(0, layout.findIndex(pg => pg.id === id));
+// The page that shows a sheet area ([x0, y0, x1, y1] on that sheet).
+function pageOf(sheet, [x0, y0, x1, y1]) { return pageAt(layout, sheet, (x0 + x1) / 2, (y0 + y1) / 2)?.id || layout[0].id; }
+const secPage = sec => pageOf(SECTION_SHEET[sec], HIT[sec]);
+
+function showPage(id, smooth = true) {
+  ui.page = id;
+  const el = pages.children[pageIndex(id)];
+  if (el) pages.scrollTo({ left: el.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
   syncTabs();
 }
 function syncTabs() {
-  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sheet === ui.sheet)));
+  const tg = new Set(targets().map(secPage));
+  tabsEl.querySelectorAll('button').forEach(b => {
+    b.setAttribute('aria-selected', String(b.dataset.page === ui.page));
+    b.classList.toggle('has-target', tg.has(b.dataset.page) && b.dataset.page !== ui.page);
+  });
+  if (!scrolling) tabsEl.style.setProperty('--pos', pageIndex(ui.page));
 }
 function focusTargets() {
   const t = targets(); if (!t.length) return;
-  const sheets = new Set(t.map(k => SECTION_SHEET[k]));
-  if (sheets.size === 1) { const only = [...sheets][0]; if (only !== ui.sheet) showSheet(only); }
+  const ids = new Set(t.map(secPage));
+  if (ids.size === 1) { const only = [...ids][0]; if (only !== ui.page) showPage(only); }
 }
-function ping(sheet) {
-  if (sheet === ui.sheet) return;
-  const b = document.querySelector(`#tabs button[data-sheet="${sheet}"]`);
+function ping(id) {
+  if (id === ui.page) return;
+  const b = tabsEl.querySelector(`button[data-page="${id}"]`); if (!b) return;
   b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping');
 }
-let scrollT;
+// the switcher's thumb follows the finger while swiping
+let scrollT, scrolling = false, raf = 0;
 pages.addEventListener('scroll', () => {
+  scrolling = true;
+  if (!raf) raf = requestAnimationFrame(() => { raf = 0; tabsEl.style.setProperty('--pos', (pages.scrollLeft / (pages.clientWidth || 1)).toFixed(3)); });
   clearTimeout(scrollT);
   scrollT = setTimeout(() => {
-    const i = Math.round(pages.scrollLeft / pages.clientWidth);
-    const name = ['boats', 'harbor'][i] || 'boats';
-    if (name !== ui.sheet) { ui.sheet = name; syncTabs(); }
-  }, 60);
+    scrolling = false;
+    const i = Math.round(pages.scrollLeft / (pages.clientWidth || 1));
+    const id = layout[i]?.id || layout[0].id;
+    if (id !== ui.page) ui.page = id;
+    syncTabs();
+  }, 80);
 }, { passive: true });
-document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => showSheet(b.dataset.sheet)));
-window.addEventListener('resize', () => showSheet(ui.sheet, false));
+tabsEl.addEventListener('click', ev => { const b = ev.target.closest('button[data-page]'); if (b) showPage(b.dataset.page); });
+window.addEventListener('resize', () => {
+  if (buildPages()) render();
+  showPage(ui.page, false);
+});
 
 // ---------- acting ----------
 function doAct(a) {
@@ -295,8 +364,8 @@ function afterChange() {
   render();
   focusTargets();
   const t = E.currentTask(s);
-  if (t?.t === 'kc') showSheet('harbor');
-  if (t?.t === 'lb' || t?.t === 'oyster') showSheet('boats');
+  if (t?.t === 'kc') showPage(pageOf('harbor', KC.card));
+  if (t?.t === 'lb' || t?.t === 'oyster') showPage('boats');
   if (s.phase === 'over') onOver();
   pump();
 }
@@ -313,8 +382,7 @@ function pump() {
     if (e.k === 'rival') {
       const where = e.hits.length ? (e.hits[0][0] === 'coin' ? 'a star on your coin track' : E.label(e.hits[0][0])) : 'nothing';
       ui.toast = `<span class="rival">Rival ${e.shared ? 'used the shared' : 'took'} ${E.label(e.face)} — struck ${where}</span>`;
-      const sheet = e.hits.length ? (e.hits[0][0] === 'coin' ? 'harbor' : SECTION_SHEET[e.hits[0][0]]) : null;
-      if (sheet) ping(sheet);
+      if (e.hits.length) { const h = e.hits[0][0]; ping(h === 'coin' ? pageOf('harbor', [0, 1200, 1122, 1360]) : secPage(h)); }
     }
     if (e.k === 'income') ui.toast = `Income +${e.n} coin${e.n > 1 ? 's' : ''}`;
     if (e.k === 'fishing') ui.toast = `Fishing: +${e.n} fish`;
@@ -323,64 +391,30 @@ function pump() {
 }
 
 function onDieTap(ev) {
-  const b = ev.target.closest('.die'); if (!b || b.getAttribute('aria-disabled') === 'true') return;
+  const b = ev.target.closest('.die'); if (!b) return;
   const i = +b.dataset.die;
-  if (s.step.k !== 'pick' || E.currentTask(s)) return;
+  if (b.getAttribute('aria-disabled') === 'true') { if (s.step.k === 'pick' && !E.currentTask(s)) replay(b, 'wiggle'); return; }
   ui.sel = ui.sel === i ? null : i;
-  if (ui.sel != null) ui.tray = false; // shrink to the chip so the highlighted sections show
-  renderSheets(); renderDock(); focusTargets();
+  renderSheets(); renderDock(); syncTabs(); focusTargets();
 }
 diceEl.addEventListener('click', onDieTap);
-miniEl.addEventListener('click', onDieTap);
-toggleEl.addEventListener('click', () => { ui.tray = true; renderDock(); });
-$('#tray-min').addEventListener('click', () => { ui.tray = false; renderDock(); });
-
-// the minimized chip can be dragged anywhere over the sheet; its spot is remembered
-const PILL = 'fishing.pill';
-function placePill() {
-  let p; try { p = JSON.parse(localStorage.getItem(PILL)); } catch { }
-  if (!p) { pillEl.style.left = ''; pillEl.style.top = ''; pillEl.style.bottom = ''; return; }
-  const st = $('#stage'), maxX = st.clientWidth - pillEl.offsetWidth - 4, maxY = st.clientHeight - pillEl.offsetHeight - 4;
-  pillEl.style.left = `${Math.max(4, Math.min(maxX, p.x * st.clientWidth))}px`;
-  pillEl.style.top = `${Math.max(4, Math.min(maxY, p.y * st.clientHeight))}px`;
-  pillEl.style.bottom = 'auto';
+// a tap on the sheet that can't be used: point back at what's needed
+function nudge() {
+  replay(promptEl, 'nudge');
+  if (s.step.k === 'pick' && ui.sel == null && !E.currentTask(s)) diceEls.forEach((el, i) => { if (!s.pool[i]?.by) setTimeout(() => replay(el, 'wiggle'), i * 60); });
 }
-let drag = null;
-pillEl.addEventListener('pointerdown', ev => {
-  if (!ev.isPrimary) return;
-  const r = pillEl.getBoundingClientRect();
-  drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, dx: ev.clientX - r.left, dy: ev.clientY - r.top, moved: false };
-});
-window.addEventListener('pointermove', ev => {
-  if (!drag || ev.pointerId !== drag.id) return;
-  if (!drag.moved && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 8) return;
-  drag.moved = true;
-  const st = $('#stage').getBoundingClientRect();
-  const x = Math.max(4, Math.min(st.width - pillEl.offsetWidth - 4, ev.clientX - st.left - drag.dx));
-  const y = Math.max(4, Math.min(st.height - pillEl.offsetHeight - 4, ev.clientY - st.top - drag.dy));
-  Object.assign(pillEl.style, { left: `${x}px`, top: `${y}px`, bottom: 'auto' });
-});
-for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, ev => {
-  if (!drag || ev.pointerId !== drag.id) return;
-  if (drag.moved) {
-    suppressClick = type === 'pointerup';
-    const st = $('#stage');
-    try { localStorage.setItem(PILL, JSON.stringify({ x: pillEl.offsetLeft / st.clientWidth, y: pillEl.offsetTop / st.clientHeight })); } catch { }
-  }
-  drag = null;
-});
-window.addEventListener('resize', placePill);
 
 // ---------- long-press info ----------
 let pressT = null, pressAt = null, suppressClick = false;
 function pressTarget(ev) {
   const die = ev.target.closest?.('.die');
   if (die) return { info: () => dieInfo(s, +die.dataset.die) };
-  const svg = ev.target.closest?.('.sheet svg'); if (!svg) return null;
-  const sheet = svg.closest('.page').dataset.sheet, r = svg.getBoundingClientRect(), dims = SHEETS[sheet];
-  const x = (ev.clientX - r.left) * dims.w / r.width, y = (ev.clientY - r.top) * dims.h / r.height;
-  const reg = regionAt(sheet, x, y); if (!reg) return null;
-  return { info: () => sheetInfo(s, reg.ref), hl: { sheet, rect: reg.rect }, bottom: r.top + reg.rect[3] * r.height / dims.h };
+  const svg = ev.target.closest?.('.panel svg'); if (!svg) return null;
+  const p = panels.find(q => q.svg === svg); if (!p) return null;
+  const [cx0, cy0, cx1, cy1] = p.crop, r = svg.getBoundingClientRect(), k = r.width / (cx1 - cx0);
+  const x = cx0 + (ev.clientX - r.left) / k, y = cy0 + (ev.clientY - r.top) / k;
+  const reg = regionAt(p.sheet, x, y); if (!reg) return null;
+  return { info: () => sheetInfo(s, reg.ref), hl: { sheet: p.sheet, rect: reg.rect }, bottom: r.top + (Math.min(reg.rect[3], cy1) - cy0) * k };
 }
 document.addEventListener('pointerdown', ev => {
   clearTimeout(pressT); suppressClick = false;
@@ -396,7 +430,7 @@ document.addEventListener('pointermove', ev => {
 for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => { clearTimeout(pressT); pressT = null; }, true);
 pages.addEventListener('scroll', () => { clearTimeout(pressT); pressT = null; }, { passive: true });
 document.addEventListener('click', ev => { if (suppressClick) { suppressClick = false; ev.stopPropagation(); ev.preventDefault(); } }, true);
-document.addEventListener('contextmenu', ev => { if (ev.target.closest('.sheet, .die')) ev.preventDefault(); });
+document.addEventListener('contextmenu', ev => { if (ev.target.closest('.panel, .die')) ev.preventDefault(); });
 function openInfo(t) {
   const info = t.info(); if (!info) return;
   infoEl.innerHTML = `<button class="x" data-close aria-label="Close">×</button><p class="kicker">${info.kicker}</p><h2 id="info-title">${info.title}</h2>${info.body}<p class="hint">Tap anywhere to close · hold any area for help</p>`;
@@ -414,15 +448,15 @@ function closeInfo() {
 infoEl.addEventListener('click', ev => { if (ev.target.closest('[data-close]')) closeInfo(); });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeInfo(); });
 
-for (const svg of Object.values(svgs)) {
-  svg.addEventListener('click', ev => {
-    const kc = ev.target.closest('[data-kc]'); if (kc) { doAct({ type: 'kc', choice: kc.dataset.kc }); return; }
-    const hit = ev.target.closest('[data-sec]'); if (!hit) return;
-    const sec = hit.dataset.sec;
-    if (E.currentTask(s)?.t === 'star') doAct({ type: 'star', sec });
-    else { const o = currentOptions(); if (o) doAct({ type: 'fill', die: o.die, sec }); }
-  });
-}
+pages.addEventListener('click', ev => {
+  if (!ev.target.closest('.panel')) return;
+  const kc = ev.target.closest('[data-kc]'); if (kc) { doAct({ type: 'kc', choice: kc.dataset.kc }); return; }
+  const hit = ev.target.closest('[data-sec]');
+  if (!hit) { if (E.currentTask(s)?.t === 'star' || ['pick', 'use'].includes(s.step.k)) nudge(); return; }
+  const sec = hit.dataset.sec;
+  if (E.currentTask(s)?.t === 'star') doAct({ type: 'star', sec });
+  else { const o = currentOptions(); if (o) doAct({ type: 'fill', die: o.die, sec }); }
+});
 actionsEl.addEventListener('click', ev => {
   const b = ev.target.closest('[data-a]'); if (!b) return;
   const a = b.dataset.a, v = b.dataset.v, o = currentOptions();
@@ -478,7 +512,7 @@ function openNew() {
 function startNew(mode) {
   clearTimeout(timer);
   s = E.newGame(mode); history = []; ui.sel = null; ui.toast = `Starting bonus: ${E.label(s.start)} license and boat`;
-  ui.firstPaint = true; overShown = false; dlg.close(); showSheet('boats', false); afterChange();
+  ui.firstPaint = true; overShown = false; dlg.close(); showPage('boats', false); afterChange();
 }
 let overShown = false;
 function onOver(force = false) {
@@ -493,8 +527,8 @@ function onOver(force = false) {
 }
 function openRules() {
   openDlg(`<h2>How to play</h2>
-  <p>Score the most points by launching boats, catching fish, earning licenses and finishing wharf buildings. Swipe the sheet (or use the two tabs) to flip between your boats and the harbor &amp; wharf.</p>
-  <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. The dice card shrinks to a small chip once you pick (or tap –); drag the chip anywhere and tap ⌃ to bring the dice back.</p>
+  <p>Score the most points by launching boats, catching fish, earning licenses and finishing wharf buildings. Swipe the sheet (or use the tabs at the top) to flip between your boats, the harbor and the wharf.</p>
+  <p><b>Hold any area</b> of a sheet, or any die, to see what it does and what it's worth right now. Your dice sit at the bottom of the screen: tap one to pick it (tap again to put it back) and the sheet jumps to where it can go. A gold dot on a sheet tab means there's somewhere to tap on that page too.</p>
   <h3>Each round</h3>
   <ul>
     <li><b>Boat dice</b> — pick a die and tap its column; the top open box is marked for you. Then everyone uses the last die left over.</li>
@@ -521,8 +555,8 @@ function openRules() {
 
 // ---------- boot ----------
 requestAnimationFrame(() => {
-  showSheet('boats', false);
+  buildPages();
+  showPage('boats', false);
   if (s.phase === 'over') overShown = true;
   afterChange();
-  placePill();
 });

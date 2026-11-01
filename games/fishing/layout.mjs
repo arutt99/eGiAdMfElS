@@ -88,3 +88,39 @@ export const TRACK = {
   round: 1148, boat: 1180, income: 1213, fishing: 1243.5, town: 1275,
   score: { x: 1024, ys: [1145, 1181, 1216, 1252, 1290, 1330] },
 };
+
+// ---------- screen pages ----------
+// A page is a stack of crops from the two sheet images, each scaled to the page width.
+// Phones get three tall pages that fill a portrait screen; wider screens get the two whole sheets.
+const PAGE_GAP = 18;
+export const PAGE_SETS = {
+  phone: [
+    { id: 'boats', label: 'Boats', icon: 'cod', panels: [{ sheet: 'boats', crop: [0, 0, 1100, 1378] }, { sheet: 'harbor', crop: [0, 1146, 1122, 1368] }] },
+    // the cover hides the top edge of the Coins sign, which sits on the coin-track panel instead
+    { id: 'harbor', label: 'Harbor', icon: 'harbor', panels: [{ sheet: 'harbor', crop: [0, 0, 557, 1160], cover: [392, 1145, 557, 1160, '#f2d98c'] }] },
+    { id: 'wharf', label: 'Wharf', icon: 'wharf', panels: [{ sheet: 'harbor', crop: [548, 0, 1122, 1148] }] },
+  ],
+  wide: [
+    { id: 'boats', label: 'Boats', icon: 'cod', panels: [{ sheet: 'boats', crop: [0, 0, 1100, 1429] }] },
+    { id: 'harbor', label: 'Harbor', icon: 'harbor', panels: [{ sheet: 'harbor', crop: [0, 0, 1122, 1402] }] },
+  ],
+};
+
+// Page size in page units, and where each panel sits in it.
+export function composePage(page) {
+  const w = page.panels[0].crop[2] - page.panels[0].crop[0];
+  let y = 0;
+  const panels = page.panels.map((p, i) => {
+    const [x0, y0, x1, y1] = p.crop, k = w / (x1 - x0), h = (y1 - y0) * k;
+    if (i) y += PAGE_GAP;
+    const out = { ...p, k, top: y, height: h };
+    y += h;
+    return out;
+  });
+  return { ...page, w, h: y, panels };
+}
+
+// The page of a set that shows a given point of a sheet (first match wins).
+export function pageAt(set, sheet, x, y) {
+  return set.find(pg => pg.panels.some(p => p.sheet === sheet && x >= p.crop[0] && x <= p.crop[2] && y >= p.crop[1] && y <= p.crop[3])) || null;
+}

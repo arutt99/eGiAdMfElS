@@ -1,6 +1,6 @@
 # Fishing
 
-A roll-and-write dice game for one player, built for a phone held in portrait. Each sheet fills the screen; swipe sideways (or tap the two tabs beside the prompt) to flip between the **boat sheet** and the **harbor & wharf sheet**. Dice float over the sheet: a card pops up when they're rolled, and picking a die (or tapping –) shrinks it to a small chip you can drag anywhere and tap ⌃ to reopen. **Hold any area** of either sheet, or any die, for a card explaining what it does and what it's worth for you right now. Served as static files at `games/fishing/`; no build step, account or server.
+A roll-and-write dice game for one player, built for a phone held in portrait. On a phone the two sheets are cut into three tall pages that fill the screen: **Boats** (the boat sheet plus the coin track), **Harbor** and **Wharf** (with the market). Swipe sideways or use the switcher at the top; wider screens such as tablets, landscape phones and small phones get the two whole sheets instead. Your dice sit in a bar at the bottom: tap one to pick it and the sheet jumps to where it can go. A gold dot on a tab means that page has somewhere to tap too. **Hold any area** of a sheet, or any die, for a card explaining what it does and what it's worth for you right now. Served as static files at `games/fishing/`; no build step, account or server.
 
 ## Play
 
@@ -21,9 +21,9 @@ Any die can be traded for a coin instead. Coins fill the track on the harbor she
 ## Files
 
 - `engine.mjs` – rules, dice flow, Rival behaviour, scoring, save validation (no DOM).
-- `layout.mjs` – pixel positions of every box, fish slot and tap area on the two sheet images.
+- `layout.mjs` – pixel positions of every box, fish slot and tap area on the two sheet images, and the crops that make up each screen page.
 - `info.mjs` – long-press help: the area under a point and its explanation for the current game.
-- `app.mjs` – rendering of marks over the sheets, dice tray, prompts, menu, saves, undo.
+- `app.mjs` – page building, rendering of marks over the sheets, dice bar, prompts, menu, saves, undo.
 - `style.css`, `index.html`, `manifest.webmanifest`, `icon.svg`.
 - `assets/sheet-*.webp`, `assets/dice/*.webp` – sheet art and transparent dice faces.
 
