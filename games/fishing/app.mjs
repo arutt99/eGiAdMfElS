@@ -335,7 +335,7 @@ function buildPages() {
   tabsEl.style.setProperty('--n', layout.length);
   tabsEl.innerHTML = '<span class="thumb" aria-hidden="true"></span>' + layout.map(pg => `<button role="tab" data-page="${pg.id}" aria-label="${pg.label}"><img src="assets/dice/${pg.icon}.webp" alt=""><span>${pg.label}</span></button>`).join('');
   if (prev) { // carry the view across a rotation
-    if (!layout.some(pg => pg.id === ui.page)) ui.page = ui.page === 'wharf' ? 'harbor' : 'boats';
+    if (!layout.some(pg => pg.id === ui.page)) ui.page = ui.page === 'boats' ? 'boats' : 'harbor';
     ui.firstPaint = true;
   }
   return true;
@@ -363,19 +363,6 @@ function focusTargets() {
   const t = targets(); if (!t.length || ui.view !== 'you') return;
   const ids = new Set(t.map(secPage));
   if (ids.size === 1) { const only = [...ids][0]; if (only !== ui.page) showPage(only); }
-  reveal(ids.has(ui.page) ? ui.page : [...ids][0]);
-}
-// Scroll a page vertically so its highlighted areas sit in the open space between the bars.
-function reveal(id) {
-  const el = pages.children[pageIndex(id)];
-  if (!el || el.scrollHeight <= el.clientHeight + 2) return;
-  const rs = [...el.querySelectorAll('rect.target, circle.choice')].map(r => r.getBoundingClientRect());
-  if (!rs.length) return;
-  const top = Math.min(...rs.map(r => r.top)), bot = Math.max(...rs.map(r => r.bottom));
-  const vTop = hud.top + 6, vBot = window.innerHeight - hud.dock - 6;
-  if (top >= vTop && bot <= vBot) return;
-  const d = bot - top > vBot - vTop ? top - vTop : (top + bot) / 2 - (vTop + vBot) / 2;
-  el.scrollBy({ top: d, behavior: 'smooth' });
 }
 function ping(id) {
   if (id === ui.page) return;
@@ -422,7 +409,7 @@ function afterChange() {
   render();
   focusTargets();
   const t = E.currentTask(s);
-  if (t?.t === 'kc') { const id = pageOf('harbor', KC.card); showPage(id); reveal(id); }
+  if (t?.t === 'kc') showPage(pageOf('harbor', KC.card));
   if (t?.t === 'lb' || t?.t === 'oyster') showPage('boats');
   if (s.phase === 'over') onOver();
   pump();
@@ -488,7 +475,7 @@ document.addEventListener('pointermove', ev => {
   if (pressT && pressAt && Math.hypot(ev.clientX - pressAt[0], ev.clientY - pressAt[1]) > 10) { clearTimeout(pressT); pressT = null; }
 }, true);
 for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => { clearTimeout(pressT); pressT = null; }, true);
-pages.addEventListener('scroll', () => { clearTimeout(pressT); pressT = null; }, { passive: true, capture: true }); // pages scroll both ways
+pages.addEventListener('scroll', () => { clearTimeout(pressT); pressT = null; }, { passive: true });
 document.addEventListener('click', ev => { if (suppressClick) { suppressClick = false; ev.stopPropagation(); ev.preventDefault(); } }, true);
 document.addEventListener('contextmenu', ev => { if (ev.target.closest('.panel, .die')) ev.preventDefault(); });
 function openInfo(t) {
