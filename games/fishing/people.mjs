@@ -30,6 +30,13 @@ export const OPPONENT = {
   rival: { name: 'Rival', face: RIVAL },
   ai: { name: 'AI', face: AI },
 };
+// With several AI players each gets its own colour: the portrait's backdrop and its name tag.
+export const BOT_COLORS = [
+  { tag: '#2a6f9a', rim: '#163f5a', bg: '#1f5577' },
+  { tag: '#2f7d4a', rim: '#17432a', bg: '#23603a' },
+  { tag: '#7a4fb0', rim: '#3b2459', bg: '#58377f' },
+];
+export const botFace = i => { const c = BOT_COLORS[i] || BOT_COLORS[0]; return AI.replace('#163f5a', c.rim).replace('#1f5577', c.bg); };
 
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const RIVAL_TAKE = ['Ha! That {die} is mine.', "I'll have the {die}, thanks.", 'Mine! The {die}.', 'Too slow! {die} for me.', 'The {die}? Don\'t mind if I do.'];

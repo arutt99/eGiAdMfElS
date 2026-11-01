@@ -27,8 +27,8 @@ function randomMove(s, r) {
   return E.act(s, pick(moves), r);
 }
 
-function play(mode, seed) {
-  const r = rng(seed), s = E.newGame(mode, r);
+function play(mode, seed, opts) {
+  const r = rng(seed), s = E.newGame(mode, r, opts);
   let guard = 0;
   run(s, r);
   while (s.step.k !== 'over' && guard++ < 2000) {
@@ -171,13 +171,13 @@ test('versus-AI games finish, the AI plays its own sheet and never touches yours
   for (let seed = 1; seed <= 12; seed++) {
     const s = play('ai', seed);
     assert.equal(s.rounds, 10);
-    assert.ok(s.bot && E.validSave(s));
+    assert.ok(s.bots?.length === 1 && E.validSave(s));
     for (const list of Object.values(s.marks)) assert.ok(!list.includes(2), 'no struck boxes on your sheet');
     assert.ok(!s.coins.includes(2));
-    const ai = E.score(s.bot);
+    const bot = s.bots[0], ai = E.score(bot);
     assert.ok(ai.total > 40 && ai.total < 400, `AI score ${ai.total}`);
-    for (const [t, list] of Object.entries(s.bot.ships)) for (const b of list) assert.ok(b.fish <= (t === 'oyster' ? E.capacity(s.bot, t) : E.SHIPS[t].cap));
-    assert.ok(!('pool' in s.bot) && s.bot.queue.length === 0);
+    for (const [t, list] of Object.entries(bot.ships)) for (const b of list) assert.ok(b.fish <= (t === 'oyster' ? E.capacity(bot, t) : E.SHIPS[t].cap));
+    assert.ok(!('pool' in bot) && bot.queue.length === 0);
   }
 });
 
@@ -188,12 +188,12 @@ test('the AI takes one die a round and uses the shared die too', () => {
   assert.equal(s.pool.length, 3);
   const free = s.pool.findIndex(d => !d.by);
   assert.ok(E.act(s, { type: 'cash', die: free }));
-  const before = JSON.stringify(s.bot.marks) + E.coinCount(s.bot);
+  const bot = s.bots[0], before = JSON.stringify(bot.marks) + E.coinCount(bot);
   E.auto(s, r); // next
   const e = E.auto(s, r);
   assert.equal(e.k, 'ai');
   assert.equal(s.pool.filter(d => d.by === 'ai').length, 1);
-  assert.notEqual(JSON.stringify(s.bot.marks) + E.coinCount(s.bot), before);
+  assert.notEqual(JSON.stringify(bot.marks) + E.coinCount(bot), before);
   E.auto(s, r);
   assert.equal(s.step.k, 'use'); assert.equal(s.step.src, 'shared');
 });
@@ -231,4 +231,68 @@ test('next star and next rank helpers', () => {
   assert.equal(nextStarIn(s), 3); // next ★ at 5
   assert.deepEqual(nextRank(30), { name: 'Deckhand', need: 20 });
   assert.equal(nextRank(90), null);
+});
+
+test('games against 2 or 3 AI players roll one die more than players and rotate the first pick', () => {
+  for (const n of [2, 3]) {
+    const r = rng(20 + n), s = E.newGame('ai', r, { bots: n });
+    assert.equal(s.bots.length, n);
+    assert.deepEqual(E.seats(s), ['you', ...s.bots.map((_, i) => `ai:${i}`)]);
+    for (let round = 1; round <= n + 1; round++) {
+      s.round = round; s.step = { k: 'roll' }; s.phase = 'boat';
+      E.auto(s, r);
+      assert.equal(s.pool.length, n + 2);
+      assert.equal(s.seq.length, 2 * (n + 1));
+      assert.equal(s.seq[0], E.seats(s)[(round - 1) % (n + 1)]);
+      assert.ok(s.seq.slice(n + 1).every(a => a.endsWith('+')));
+    }
+    // town phase: one town die per player plus one boat die
+    s.phase = 'town'; s.step = { k: 'roll' }; E.auto(s, r);
+    assert.equal(s.pool.filter(d => d.kind === 'town').length, n + 1);
+    assert.equal(s.pool.filter(d => d.kind === 'boat').length, 1);
+  }
+});
+
+test('versus 2 and 3 AI games finish; each AI takes one die per phase and plays its own sheet', () => {
+  for (const n of [2, 3]) for (let seed = 1; seed <= 4; seed++) {
+    const r = rng(seed * 7 + n), s = E.newGame('ai', r, { bots: n });
+    let guard = 0, picks = 0;
+    run(s, r);
+    while (s.step.k !== 'over' && guard++ < 3000) {
+      if (s.step.k === 'pick' && !E.currentTask(s)) {
+        // every AI that went before you took exactly one die
+        const k = s.seq.indexOf('you');
+        assert.equal(s.pool.filter(d => d.by === 'ai').length, k);
+        assert.deepEqual(new Set(s.pool.filter(d => d.by === 'ai').map(d => d.bi)).size, k);
+        picks++;
+      }
+      assert.ok(randomMove(s, r));
+      run(s, r);
+    }
+    assert.equal(s.step.k, 'over');
+    assert.equal(picks, s.rounds * 2);
+    assert.ok(E.validSave(s));
+    for (const b of s.bots) { const t = E.score(b).total; assert.ok(t > 40 && t < 400, `AI score ${t}`); assert.ok(!('pool' in b)); }
+  }
+});
+
+test('old saves with one AI in s.bot load as s.bots', () => {
+  const s = E.newGame('ai', rng(9)), old = E.clone(s);
+  old.bot = old.bots[0]; delete old.bots;
+  assert.equal(E.validSave(old), false);
+  const m = E.migrate(old);
+  assert.ok(E.validSave(m) && m.bots.length === 1 && !('bot' in m));
+});
+
+test('a finished Seafood Buffet lets a boat die mark its hex', () => {
+  const r = rng(13), s = E.newGame('open', r);
+  s.done.buffet = true; s.marks.buffet = [1, 1, 1];
+  run(s, r);
+  assert.equal(s.step.k, 'pick');
+  s.pool[0].face = 'lobster';
+  const o = E.options(s, 0);
+  assert.equal(o.hex, 'lobster');
+  assert.ok(E.act(s, { type: 'hex', die: 0 }));
+  assert.ok(s.hexes.lobster);
+  assert.equal(E.score(s).buildings, E.BUFFET_VP[1]);
 });

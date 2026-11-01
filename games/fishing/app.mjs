@@ -3,7 +3,7 @@ import { regionAt, sheetInfo, dieInfo, LIC_TEXT, kcValues, BUILDING_LINE } from 
 import { SHEETS, CELLS, SECTION_SHEET, HIT, PIN, LICENSE, SHIP, SHIP_H, KC, HEX, SALVAGE_STARS, MARKET_ROWS, MARKET_X, coinPos, TRACK, PAGE_SETS, composePage, pageAt } from './layout.mjs';
 import { moments, nextStarIn, nextRank } from './moments.mjs';
 import { prefs, setPref, haptic, play, banner, busyFor, clearBanners, floater, countUp, confetti, reduced } from './fx.mjs';
-import { OPPONENT, rivalLine, aiLine } from './people.mjs';
+import { OPPONENT, BOT_COLORS, botFace, rivalLine, aiLine } from './people.mjs';
 
 const KEY = 'fishing.v1', BEST = 'fishing.best';
 const $ = sel => document.querySelector(sel);
@@ -18,7 +18,7 @@ let layout = [], panels = []; // composed pages of the current set, and every re
 let history = [], timer = null;
 
 // ---------- persistence ----------
-function load() { try { const v = JSON.parse(localStorage.getItem(KEY)); return E.validSave(v) ? v : null; } catch { return null; } }
+function load() { try { const v = E.migrate(JSON.parse(localStorage.getItem(KEY))); return E.validSave(v) ? v : null; } catch { return null; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ } }
 function best() { try { return JSON.parse(localStorage.getItem(BEST)) || {}; } catch { return {}; } }
 function recordBest(total) { const b = best(); if (!(b[s.mode] >= total)) { b[s.mode] = total; try { localStorage.setItem(BEST, JSON.stringify(b)); } catch { } return true; } return false; }
@@ -44,11 +44,26 @@ const strikeMark = (x, y, r, key) => {
 };
 const rect = (cls, x0, y0, x1, y1, rx = 10, extra = '') => `<rect class="${cls}" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="${rx}" ${extra}/>`;
 
-// Whose sheet is on screen: yours, or the AI player's in a game against it.
-const viewed = () => ui.view === 'ai' && s.bot ? s.bot : s;
-const vsAI = () => s.mode === 'ai' && !!s.bot;
+// Whose sheet is on screen: yours ('you'), or one of the AI players' ('ai0', 'ai1', 'ai2').
+const vsAI = () => s.mode === 'ai' && !!s.bots?.length;
+const nBots = () => vsAI() ? s.bots.length : 0;
+const viewBot = (v = ui.view) => /^ai\d$/.test(v) && +v[2] < nBots() ? +v[2] : -1;
+const viewed = () => viewBot() >= 0 ? s.bots[viewBot()] : s;
+const onAI = () => viewBot() >= 0;
+const botName = i => E.botName(s, i);
+const botColor = i => (BOT_COLORS[i] || BOT_COLORS[0]).tag;
+// "the AI" against one, "Cog" against several
+const theBot = i => nBots() > 1 ? botName(i) : 'the AI';
+const viewLabel = i => nBots() > 1 ? `View ${botName(i)}'s sheet` : "View AI player's sheet";
+const lastBots = () => Math.max(1, Math.min(E.MAX_BOTS, prefs.bots | 0 || 1));
+const modeLabel = () => s.mode === 'ai' && nBots() > 1 ? `Vs ${nBots()} AIs` : E.modeName(s.mode);
+// Everyone's totals, best first (you before an AI on a tie).
+function standings() {
+  const all = [{ you: true, name: 'You', total: E.score(s).total, i: -1 }, ...(s.bots || []).map((b, i) => ({ you: false, name: nBots() > 1 ? botName(i) : 'AI', total: E.score(b).total, i }))];
+  return all.sort((a, b) => b.total - a.total || (b.you - a.you));
+}
 function setView(v) {
-  v = v === 'ai' && vsAI() ? 'ai' : 'you';
+  v = viewBot(v) >= 0 ? v : 'you';
   if (v === ui.view) return;
   if (!infoEl.hidden) { infoEl.hidden = true; ui.hl = null; }
   play('sheet');
@@ -59,21 +74,35 @@ function setView(v) {
   setTimeout(() => { swap(); stage.classList.remove('flip-out'); void stage.offsetWidth; stage.classList.add('flip-in'); setTimeout(() => stage.classList.remove('flip-in'), 260); }, 170);
 }
 function syncSeg(v = ui.view) {
-  whoEl.classList.toggle('on-ai', v === 'ai');
+  const k = Math.max(0, viewBot(v) + 1);
+  whoEl.classList.toggle('on-ai', k > 0);
+  whoEl.style.setProperty('--k', k);
   whoEl.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+}
+// The You | AI toggle has a button per AI player; with several they show a coloured dot instead of a name.
+function buildSeg() {
+  const n = nBots(), key = `${n}`;
+  if (whoEl.dataset.n === key) return;
+  whoEl.dataset.n = key;
+  whoEl.style.setProperty('--n', n + 1);
+  whoEl.classList.toggle('many', n > 1);
+  document.body.classList.toggle('many-ai', n > 1);
+  whoEl.innerHTML = '<span class="seg-thumb" aria-hidden="true"></span><button data-view="you" aria-pressed="true"><span class="lbl">You</span><b>0</b></button>'
+    + Array.from({ length: n }, (_, i) => `<button data-view="ai${i}" aria-pressed="false">${n > 1 ? `<i class="dot" style="background:${botColor(i)}"></i>` : '<span class="lbl">AI</span>'}<b>0</b></button>`).join('');
 }
 function syncView() {
   const on = vsAI();
   whoEl.hidden = !on;
   document.body.classList.toggle('vs-ai', on);
-  document.body.classList.toggle('viewing-ai', on && ui.view === 'ai');
-  if (!on) return;
-  const me = E.score(s).total, ai = E.score(s.bot).total;
-  const [youB, aiB] = whoEl.querySelectorAll('b');
-  if (+youB.textContent !== me) { if (ui.hudVals) countUp(youB, me, { from: +youB.textContent }); else youB.textContent = me; }
-  if (+aiB.textContent !== ai) { if (ui.hudVals) countUp(aiB, ai, { from: +aiB.textContent }); else aiB.textContent = ai; }
-  whoEl.querySelector('[data-view="you"]').setAttribute('aria-label', `Your sheet, ${me} points`);
-  whoEl.querySelector('[data-view="ai"]').setAttribute('aria-label', `AI player's sheet, ${ai} points`);
+  document.body.classList.toggle('viewing-ai', on && onAI());
+  if (!on) { document.body.classList.remove('many-ai'); whoEl.dataset.n = ''; return; }
+  buildSeg();
+  const vals = [E.score(s).total, ...s.bots.map(b => E.score(b).total)];
+  whoEl.querySelectorAll('button').forEach((btn, i) => {
+    const el = btn.querySelector('b'), v = vals[i];
+    if (+el.textContent !== v) { if (ui.hudVals) countUp(el, v, { from: +el.textContent }); else el.textContent = v; }
+    btn.setAttribute('aria-label', i ? `${nBots() > 1 ? `${botName(i - 1)}'s` : "AI player's"} sheet, ${v} points` : `Your sheet, ${v} points`);
+  });
   syncSeg();
 }
 // Where "+VP" floaters land: your score chip, or your half of the You | AI toggle.
@@ -186,6 +215,12 @@ function renderSheets() {
     const i = E.openIdx(v, sec); if (i >= 0) { const c = CELLS[sec][i]; out[sh] += `<circle class="next" cx="${c.x}" cy="${c.y}" r="${c.r + 7}"/>`; }
   }
   for (const sec of tg) { const [x0, y0, x1, y1] = HIT[sec]; out[SECTION_SHEET[sec]] += rect('hit', x0, y0, x1, y1, 16, `data-sec="${sec}"`); }
+  // a finished Seafood Buffet: a boat die can mark its fish's hex instead, so that hex glows and the building is tappable
+  const hexNow = mine ? currentOptions()?.hex : null;
+  if (hexNow) {
+    const [x0, y0, x1, y1] = HIT.buffet, y = HEX.ys[E.HEXES.indexOf(hexNow)];
+    out.harbor += rect('target', x0, y0, x1, y1, 16) + `<circle class="next" cx="${HEX.x}" cy="${y}" r="21"/>` + rect('hit', x0, y0, x1, y1, 16, 'data-hex="1"');
+  }
 
   // boxes the Rival just struck pulse for a moment
   if (ui.flash && mine && performance.now() < ui.flash.until) for (const [sec, i] of ui.flash.hits) {
@@ -209,7 +244,7 @@ function renderStatus(delay = 0) {
     const go = () => { countUp(scoreB, total, { from: prev.total }); countUp(coinB, coins, { from: prev.coins }); };
     if (delay) setTimeout(go, delay); else go();
   }
-  scoreChip.setAttribute('aria-label', `${ui.view === 'ai' ? 'AI score' : 'Score'} ${total}`);
+  scoreChip.setAttribute('aria-label', `${onAI() ? `${botName(viewBot())} score` : 'Score'} ${total}`);
   coinChip.querySelector('.sub').textContent = star ? `★ in ${star}` : '';
   coinChip.setAttribute('aria-label', `${coins} coins${star ? `, next star in ${star}` : ''}`);
   const over = s.phase === 'over';
@@ -247,12 +282,12 @@ function renderDock() {
   renderChoices(task);
   renderOpp();
   // the status line stays put; news has its own place above the dock
-  const head = s.phase === 'over' ? `Game over · ${E.modeName(s.mode)}` : `Round ${s.round}/${s.rounds} · ${phaseName()} dice`.replace('Income dice', 'Income').replace('Fishing dice', 'Fishing');
+  const head = s.phase === 'over' ? `Game over · ${modeLabel()}` : `Round ${s.round}/${s.rounds} · ${phaseName()} dice`.replace('Income dice', 'Income').replace('Fishing dice', 'Fishing');
   let msg = '', acts = [];
   const btn = (label, data, cls = '') => acts.push(`<button class="act ${cls}" ${data}>${label}</button>`);
   if (s.phase === 'over') {
     const sc = E.score(s);
-    if (vsAI()) { const ai = E.score(s.bot).total; msg = sc.total > ai ? `You win ${sc.total}–${ai}!` : sc.total < ai ? `AI wins ${ai}–${sc.total}` : `Tie at ${sc.total}`; }
+    if (vsAI()) { const st = standings(), top = st[0]; msg = top.you && st[1]?.total < top.total ? `You win with ${top.total}!` : top.total === sc.total ? `Tie at ${sc.total}` : `${nBots() > 1 ? top.name : 'AI'} wins ${top.total}–${sc.total}`; }
     else msg = `Final score ${sc.total}${s.mode === 'rival' ? ` · ${E.rank(sc.total)}` : ''}`;
     btn('Score', 'data-a="final"', 'ghost'); btn('New game', 'data-a="new"', 'primary');
   } else if (task) {
@@ -267,7 +302,7 @@ function renderDock() {
   } else if (st.k === 'rival') {
     msg = `<span class="rival">Rival is choosing…</span>`;
   } else if (st.k === 'ai') {
-    msg = `<span class="rival">AI is choosing${st.shared ? ' how to use the shared die' : ' a die'}…</span>`;
+    msg = `<span class="rival">${nBots() > 1 ? botName(st.bot ?? 0) : 'AI'} is choosing${st.shared ? ' how to use the shared die' : ' a die'}…</span>`;
   } else if (st.k === 'roll') msg = 'Rolling the dice…';
   else if (st.k === 'income') msg = 'Collecting income…';
   else if (st.k === 'fishing') msg = 'Boats are out fishing…';
@@ -276,7 +311,7 @@ function renderDock() {
   if (o) {
     if (o.coins) btn(`${faceImg('coins')} +3 coins`, 'data-a="coins"', 'primary');
     if (o.market) btn(`${faceImg('market')} +${o.market} coins`, 'data-a="market"', 'primary');
-    if (o.hex) btn(`Buffet: ${E.label(o.hex)}`, 'data-a="hex"');
+    if (o.hex) btn(`${faceImg(o.hex)} Buffet hex`, 'data-a="hex"', 'primary');
     if (o.salvage) btn('Salvage ★', 'data-a="salvage"');
     if (o.reroll) btn('Reroll', 'data-a="reroll"');
     if (o.cash) btn(`Take ${o.cash} coin${o.cash > 1 ? 's' : ''}`, 'data-a="cash"', 'ghost');
@@ -295,6 +330,7 @@ function useMsg(o) {
   if (o.left === 2 || (s.step.k === 'use' && s.step.used && o.left > 0)) return `Shrimp license: ${s.step.used ? 'second' : 'first'} of two boat faces`;
   if (E.TYPES.includes(f)) {
     if (o.targets.length > 1) return 'Shrimp license: tap any boat column';
+    if (o.hex) return o.targets.length ? `Tap the ${E.label(f)} column or its Buffet hex` : `Tap the ${E.label(f)} hex at the Buffet`;
     return o.targets.length ? `Tap the ${E.label(f)} column` : `${E.label(f)} column is full`;
   }
   if (f === 'coins') return 'Take three coins';
@@ -357,22 +393,27 @@ function clearNews() { clearTimeout(newsT); newsEl.hidden = true; }
 // The Rival or the AI sits at the left of the dock: it fidgets while choosing, dice fly to it, and it
 // says what it did in a speech bubble, with a button to see the boxes it struck on another page.
 const oppKind = () => s.mode === 'rival' ? 'rival' : vsAI() ? 'ai' : null;
+// Against several AI players the seat shows whichever of them is moving (or moved last).
 function renderOpp() {
   const who = oppKind();
   oppEl.hidden = !who; document.body.classList.toggle('has-opp', !!who);
   if (!who) { bubbleEl.hidden = true; return; }
-  if (oppEl.dataset.who !== who) {
-    oppEl.dataset.who = who;
-    oppEl.querySelector('.face').innerHTML = OPPONENT[who].face;
-    oppEl.querySelector('.name').textContent = OPPONENT[who].name;
+  if (s.step.k === 'ai') ui.oppBot = s.step.bot ?? 0;
+  const bi = who === 'ai' ? Math.min(ui.oppBot || 0, nBots() - 1) : -1;
+  const name = who === 'ai' ? (nBots() > 1 ? botName(bi) : 'AI') : OPPONENT[who].name, key = `${who}:${bi}:${name}`;
+  if (oppEl.dataset.key !== key) {
+    oppEl.dataset.key = key; oppEl.dataset.who = who;
+    oppEl.querySelector('.face').innerHTML = who === 'ai' ? botFace(bi) : OPPONENT[who].face;
+    const tag = oppEl.querySelector('.name');
+    tag.textContent = name; tag.style.background = who === 'ai' ? botColor(bi) : '';
   }
   const thinking = (s.step.k === 'rival' || s.step.k === 'ai') && s.phase !== 'over';
   oppEl.classList.toggle('thinking', thinking);
-  oppEl.setAttribute('aria-label', `${OPPONENT[who].name}${thinking ? ', choosing' : ''}`);
+  oppEl.setAttribute('aria-label', `${name}${thinking ? ', choosing' : ''}`);
 }
 let sayT = null;
-function say(html, { show = null, see = false } = {}) {
-  const btn = show ? `<button class="say-btn" data-show="${show}">Show me</button>` : see ? '<button class="say-btn" data-see>See its sheet</button>' : '';
+function say(html, { show = null, see = null } = {}) {
+  const btn = show ? `<button class="say-btn" data-show="${show}">Show me</button>` : see != null ? `<button class="say-btn" data-see="${see}">See its sheet</button>` : '';
   bubbleEl.innerHTML = `<div class="say-text">${html}</div>${btn}`;
   bubbleEl.className = oppKind() || ''; bubbleEl.hidden = false;
   replay(bubbleEl, 'in');
@@ -389,7 +430,7 @@ bubbleEl.addEventListener('click', ev => {
     if (ui.lastHits) { ui.flash = { hits: ui.lastHits, until: performance.now() + 2600 }; renderSheets(); setTimeout(() => { ui.flash = null; renderSheets(); }, 2700); }
     show.remove();
   }
-  if (see) { haptic(); setView('ai'); see.remove(); }
+  if (see) { haptic(); setView(`ai${see.dataset.see || 0}`); see.remove(); }
 });
 // The engine's short move text ("Cod → King Crab") as a sentence.
 function aiDid(t) {
@@ -427,6 +468,7 @@ function renderDice(task) {
   if (rolled) {
     diceEl.innerHTML = s.pool.map((d, i) => `<button class="die ${d.kind}" data-die="${i}"><img src="assets/dice/${d.face}.webp" alt=""></button>`).join('');
     diceEls = [...diceEl.children];
+    diceEl.dataset.n = s.pool.length; // 4 or 5 dice against several AI players: smaller dice
     if (!ui.firstPaint && s.pool.length) { diceEls.forEach((el, i) => tumble(el, s.pool[i], i)); play('rattle', s.pool.length); }
   }
   const usingIdx = st.k === 'use' ? st.die : null;
@@ -435,8 +477,8 @@ function renderDice(task) {
     const el = diceEls[i];
     if (!rolled && prevFace[i] !== d.face) { tumble(el, d, 0); play('rattle', 1); } // casino reroll
     const sharedNow = !d.by && ((st.k === 'use' && st.src === 'shared') || ((st.k === 'rival' || st.k === 'ai') && st.shared) || (free === 1 && st.k !== 'pick'));
-    const tag = d.by === 'rival' ? ['rival', 'Rival'] : d.by === 'ai' ? ['rival', 'AI'] : d.by === 'you' && usingIdx !== i ? ['', 'Yours'] : sharedNow ? ['shared', 'Shared'] : null;
-    const tagHtml = tag ? `<span class="tag ${tag[0]}">${tag[1]}</span>` : '';
+    const tag = d.by === 'rival' ? ['rival', 'Rival'] : d.by === 'ai' ? ['rival', nBots() > 1 ? botName(d.bi ?? 0) : 'AI'] : d.by === 'you' && usingIdx !== i ? ['', 'Yours'] : sharedNow ? ['shared', 'Shared'] : null;
+    const tagHtml = tag ? `<span class="tag ${tag[0]}"${d.by === 'ai' && nBots() > 1 ? ` style="background:${botColor(d.bi ?? 0)}"` : ''}>${tag[1]}</span>` : '';
     const old = el.querySelector('.tag');
     if ((old?.outerHTML || '') !== tagHtml) { old?.remove(); if (tagHtml) el.insertAdjacentHTML('beforeend', tagHtml); }
     const can = st.k === 'pick' && !d.by && !task;
@@ -448,7 +490,7 @@ function renderDice(task) {
     el.classList.toggle('mine', d.by === 'you');
     el.setAttribute('aria-disabled', String(!can));
     el.setAttribute('aria-pressed', String(sel));
-    el.setAttribute('aria-label', `${E.label(d.face)} die${d.by ? `, ${d.by === 'rival' ? 'taken by Rival' : d.by === 'ai' ? 'taken by the AI' : 'yours'}` : ''}`);
+    el.setAttribute('aria-label', `${E.label(d.face)} die${d.by ? `, ${d.by === 'rival' ? 'taken by Rival' : d.by === 'ai' ? `taken by ${theBot(d.bi ?? 0)}` : 'yours'}` : ''}`);
     if (!rolled && (d.by === 'rival' || d.by === 'ai') && prevBy[i] !== d.by) replay(el, 'grabbed');
   });
   prevBy = s.pool.map(d => d.by); prevFace = s.pool.map(d => d.face);
@@ -539,6 +581,7 @@ function showPage(id, smooth = true) {
 }
 function syncTabs() {
   const tg = new Set(targets().map(secPage));
+  if (ui.view === 'you' && currentOptions()?.hex) tg.add(secPage('buffet'));
   tabsEl.querySelectorAll('button').forEach(b => {
     b.setAttribute('aria-selected', String(b.dataset.page === ui.page));
     b.classList.toggle('has-target', tg.has(b.dataset.page) && b.dataset.page !== ui.page);
@@ -547,8 +590,10 @@ function syncTabs() {
   if (ui.view === 'you') bubbleEl.querySelector(`[data-show="${ui.page}"]`)?.remove(); // already looking at it
 }
 function focusTargets() {
-  const t = targets(); if (!t.length || ui.view !== 'you') return;
+  const t = targets(); if (ui.view !== 'you') return;
   const ids = new Set(t.map(secPage));
+  if (!t.length && currentOptions()?.hex) ids.add(secPage('buffet')); // only the Buffet hex is left for this die
+  if (!ids.size) return;
   if (ids.size === 1) { const only = [...ids][0]; if (only !== ui.page) showPage(only); }
 }
 function ping(id) {
@@ -683,7 +728,7 @@ function pump() {
       if (n) { ui.lastHits = e.hits; ui.flash = { hits: e.hits, until: performance.now() + 2600 }; setTimeout(() => { ui.flash = null; renderSheets(); }, 2700); ping(page); }
       say(`<b>${rivalLine(e)}</b><span>${where}</span>`, { show: n && (page !== ui.page || ui.view !== 'you') ? page : null });
     }
-    if (e.k === 'ai') say(`<b>${aiLine(e)}</b><span>${aiDid(e.text)}${e.score != null ? `. AI now ${e.score}` : ''}</span>`, { see: ui.view !== 'ai' });
+    if (e.k === 'ai') { ui.oppBot = e.bot ?? 0; renderOpp(); say(`<b>${nBots() > 1 ? `${botName(e.bot)}: ` : ''}${aiLine(e)}</b><span>${aiDid(e.text)}${e.score != null ? `. ${nBots() > 1 ? botName(e.bot) : 'AI'} now ${e.score}` : ''}</span>`, { see: ui.view !== `ai${e.bot ?? 0}` ? e.bot ?? 0 : null }); }
     if (e.k === 'income') news(`<b>Income</b> +${e.n} coin${e.n > 1 ? 's' : ''}`);
     if (e.k === 'fishing') {
       if (ui.view === 'you' && ui.page !== 'boats' && e.n) showPage('boats');
@@ -699,7 +744,7 @@ function onDieTap(ev) {
   if (b.getAttribute('aria-disabled') === 'true') { if (s.step.k === 'pick' && !E.currentTask(s)) { replay(b, 'wiggle'); play('error'); haptic('error'); } return; }
   ui.sel = ui.sel === i ? null : i;
   play(ui.sel == null ? 'put' : 'pick'); haptic();
-  if (ui.view === 'ai') { ui.view = 'you'; ui.firstPaint = true; ui.hudVals = null; syncView(); }
+  if (onAI()) { ui.view = 'you'; ui.firstPaint = true; ui.hudVals = null; syncView(); }
   renderSheets(); renderDock(); syncTabs(); renderStatus(); focusTargets(); coachSync();
 }
 diceEl.addEventListener('click', onDieTap);
@@ -719,7 +764,7 @@ function pressTarget(ev) {
   const [cx0, cy0, cx1, cy1] = p.crop, r = svg.getBoundingClientRect(), k = r.width / (cx1 - cx0);
   const x = cx0 + (ev.clientX - r.left) / k, y = cy0 + (ev.clientY - r.top) / k;
   const reg = regionAt(p.sheet, x, y); if (!reg) return null;
-  return { info: () => sheetInfo(viewed() === s ? s : { ...s.bot, round: s.round, phase: s.phase, rounds: s.rounds, fishingDone: s.fishingDone }, reg.ref), hl: { sheet: p.sheet, rect: reg.rect }, bottom: r.top + (Math.min(reg.rect[3], cy1) - cy0) * k };
+  return { info: () => sheetInfo(viewed() === s ? s : { ...viewed(), round: s.round, phase: s.phase, rounds: s.rounds, fishingDone: s.fishingDone }, reg.ref), hl: { sheet: p.sheet, rect: reg.rect }, bottom: r.top + (Math.min(reg.rect[3], cy1) - cy0) * k };
 }
 document.addEventListener('pointerdown', ev => {
   clearTimeout(pressT); suppressClick = false;
@@ -755,8 +800,9 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeInfo(
 
 pages.addEventListener('click', ev => {
   if (!ev.target.closest('.panel')) return;
-  if (ui.view === 'ai') { replay(whoEl, 'nudge'); news("You're looking at the AI's sheet. Tap <b>You</b> to go back"); return; }
+  if (onAI()) { replay(whoEl, 'nudge'); news(`You're looking at ${nBots() > 1 ? `${botName(viewBot())}'s` : "the AI's"} sheet. Tap <b>You</b> to go back`); return; }
   const kc = ev.target.closest('[data-kc]'); if (kc) { doAct({ type: 'kc', choice: kc.dataset.kc }); return; }
+  if (ev.target.closest('[data-hex]')) { const o = currentOptions(); if (o?.hex) doAct({ type: 'hex', die: o.die }); return; }
   const hit = ev.target.closest('[data-sec]');
   if (!hit) { if (E.currentTask(s)?.t === 'star' || ['pick', 'use'].includes(s.step.k)) nudge(); return; }
   const sec = hit.dataset.sec;
@@ -839,8 +885,9 @@ dlg.addEventListener('click', ev => {
   if (m === 'close') closeSheet();
   if (m === 'rules') openRules();
   if (m === 'new') openNew();
-  if (m === 'rival' || m === 'open' || m === 'ai') startNew(m);
-  if (m === 'view-ai') { closeSheet(); setView('ai'); }
+  if (m === 'rival' || m === 'open') startNew(m);
+  if (/^ai[123]$/.test(m)) startNew('ai', +m[2]);
+  if (/^view-ai\d$/.test(m)) { closeSheet(); setView(m.slice(5)); }
   if (m === 'view-me') { closeSheet(); setView('you'); }
   if (m === 'menu') openMenu();
   if (m === 'tour') { closeSheet(); setView('you'); startCoach(); }
@@ -856,11 +903,12 @@ const toggle = (pref, label) => `<label class="toggle"><span>${label}</span><inp
 function openMenu() {
   const b = best();
   openSheet(`<div class="sheet-head"><p class="kicker">Paused</p><h2>Fishing</h2>
-    <p class="muted">Round ${Math.min(s.round, s.rounds)} of ${s.rounds} · ${E.modeName(s.mode)} · You ${E.score(s).total}${vsAI() ? ` · AI ${E.score(s.bot).total}` : ''}</p></div>
+    <p class="muted">Round ${Math.min(s.round, s.rounds)} of ${s.rounds} · ${modeLabel()} · You ${E.score(s).total}${vsAI() ? s.bots.map((b, i) => ` · ${nBots() > 1 ? botName(i) : 'AI'} ${E.score(b).total}`).join('') : ''}</p></div>
     <div class="sheet-body">
     <div class="menu-list">
       <button data-m="close" class="primary">Resume</button>
-      ${vsAI() ? `<button data-m="${ui.view === 'ai' ? 'view-me' : 'view-ai'}">${ui.view === 'ai' ? 'View your sheet' : "View AI player's sheet"} <small>${ui.view === 'ai' ? E.score(s).total : E.score(s.bot).total} pts</small></button>` : ''}
+      ${onAI() ? `<button data-m="view-me">View your sheet <small>${E.score(s).total} pts</small></button>` : ''}
+      ${vsAI() ? s.bots.map((b, i) => ui.view === `ai${i}` ? '' : `<button data-m="view-ai${i}">${viewLabel(i)} <small>${E.score(b).total} pts</small></button>`).join('') : ''}
       <button data-m="new">New game</button>
       <button data-m="rules">How to play</button>
       <button data-m="tour">Replay the tour <small>6 quick tips</small></button>
@@ -875,15 +923,17 @@ function openNew() {
     <div class="sheet-body">
     <div class="menu-list modes">
       <button data-m="rival" class="primary"><span><b>Solo</b><small>The Rival grabs dice and strikes boxes on your sheet</small></span><em>8 rounds</em></button>
-      <button data-m="ai" class="primary"><span><b>Vs AI player</b><small>Draft the same dice; highest score wins</small></span><em>10 rounds</em></button>
+      <div class="vs-ai-pick"><span><b>Vs AI players</b><small>Draft the same dice; highest score wins · 10 rounds</small></span>
+        <div class="n-pick">${[1, 2, 3].map(n => `<button data-m="ai${n}" class="primary${n === lastBots() ? ' last' : ''}"><b>${n}</b><small>${n === 1 ? 'AI' : 'AIs'}</small></button>`).join('')}</div></div>
       <button data-m="open"><span><b>Free play</b><small>No opponent. Learn the sheet at your pace</small></span><em>10 rounds</em></button>
     </div>
     <button class="text-btn" data-m="${s.phase === 'over' || ui.title ? 'close' : 'menu'}">${s.phase === 'over' || ui.title ? 'Cancel' : 'Back'}</button>
     </div>`);
 }
-function startNew(mode) {
+function startNew(mode, bots = 1) {
   clearTimeout(timer); clearBanners(); clearNews(); hush();
-  s = E.newGame(mode); history = []; ui.sel = null; ui.view = 'you'; ui.hudVals = null;
+  if (mode === 'ai') setPref('bots', bots);
+  s = E.newGame(mode, Math.random, { bots }); history = []; ui.sel = null; ui.view = 'you'; ui.hudVals = null; ui.oppBot = 0;
   ui.firstPaint = true; overShown = false; showPage('boats', false);
   if (ui.title) hideTitle();
   closeSheet();
@@ -899,20 +949,31 @@ function onOver(force = false) {
   if (!force && overShown) return;
   overShown = true;
   const sc = E.score(s), rows = [['Fish', 'fish'], ['Boats', 'boats'], ['Licenses', 'licenses'], ['Buildings', 'buildings'], ['Bonuses', 'bonus']];
-  const ai = vsAI() ? E.score(s.bot) : null;
+  const ais = vsAI() ? s.bots.map(b => E.score(b)) : null, ai = ais ? { total: Math.max(...ais.map(x => x.total)) } : null;
   const won = ai && sc.total > ai.total, tie = ai && sc.total === ai.total;
   const isBest = !force && recordBest(sc.total);
   if (!force && won) { const b = best(); b.wins = (b.wins || 0) + 1; try { localStorage.setItem(BEST, JSON.stringify(b)); } catch { } }
   const bestNow = best()[s.mode];
   let html;
-  if (ai) {
+  if (ai && ais.length === 1) {
     html = `<div class="sheet-head end ${won ? 'win' : tie ? 'tie' : 'lose'}"><p class="kicker">Vs AI · Game over</p>
       <h2 class="hero">${tie ? "It's a tie" : won ? 'You win!' : 'The AI wins'}</h2>
-      <div class="versus"><span><small>You</small><b data-to="${sc.total}">0</b></span><i>–</i><span><small>AI</small><b data-to="${ai.total}">0</b></span></div></div>
+      <div class="versus"><span><small>You</small><b data-to="${sc.total}">0</b></span><i>–</i><span><small>AI</small><b data-to="${ais[0].total}">0</b></span></div></div>
       <div class="sheet-body">
-      <table class="score-table vs"><tr class="head"><td></td><td>You</td><td>AI</td></tr>${rows.map(([k, f]) => `<tr class="row"><td>${k}</td><td data-to="${sc[f]}">0</td><td data-to="${ai[f]}">0</td></tr>`).join('')}</table>
+      <table class="score-table vs"><tr class="head"><td></td><td>You</td><td>AI</td></tr>${rows.map(([k, f]) => `<tr class="row"><td>${k}</td><td data-to="${sc[f]}">0</td><td data-to="${ais[0][f]}">0</td></tr>`).join('')}</table>
       <p class="end-note">${isBest ? '<span class="new-best">New best!</span> ' : ''}Best vs AI: ${bestNow ?? sc.total}</p>
-      <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="view-ai">View AI player's sheet</button><button data-m="view-me">View your sheet</button></div></div>`;
+      <div class="menu-list"><button data-m="new" class="primary">Play again</button><button data-m="view-ai0">View AI player's sheet</button><button data-m="view-me">View your sheet</button></div></div>`;
+  } else if (ai) {
+    const st = standings(), place = st.filter(x => x.total > sc.total).length + 1, top = st[0];
+    const ord = ['1st', '2nd', '3rd', '4th'][place - 1];
+    const cols = [{ name: 'You', sc, color: '' }, ...ais.map((x, i) => ({ name: botName(i), sc: x, color: botColor(i) }))];
+    html = `<div class="sheet-head end ${won ? 'win' : tie ? 'tie' : 'lose'}"><p class="kicker">Vs ${ais.length} AIs · Game over</p>
+      <h2 class="hero">${won ? 'You win!' : tie ? 'Tied for first' : `${top.name} wins`}</h2>
+      <div class="podium">${st.map((x, k) => `<span class="${x.you ? 'me' : ''}"><small>${['1st', '2nd', '3rd', '4th'][st.filter(y => y.total > x.total).length]}</small><em>${x.you ? 'You' : `<i class="dot" style="background:${botColor(x.i)}"></i>${x.name}`}</em><b data-to="${x.total}">0</b></span>`).join('')}</div></div>
+      <div class="sheet-body">
+      <table class="score-table vs many"><tr class="head"><td></td>${cols.map(c => `<td>${c.color ? `<i class="dot" style="background:${c.color}"></i>` : ''}${c.name}</td>`).join('')}</tr>${rows.map(([k, f]) => `<tr class="row"><td>${k}</td>${cols.map(c => `<td data-to="${c.sc[f]}">0</td>`).join('')}</tr>`).join('')}</table>
+      <p class="end-note">${won ? '' : `You finished ${ord} of ${ais.length + 1}. `}${isBest ? '<span class="new-best">New best!</span> ' : ''}Best vs AI: ${bestNow ?? sc.total}</p>
+      <div class="menu-list"><button data-m="new" class="primary">Play again</button>${ais.map((_, i) => `<button data-m="view-ai${i}">${viewLabel(i)}</button>`).join('')}<button data-m="view-me">View your sheet</button></div></div>`;
   } else {
     const nr = nextRank(sc.total), solo = s.mode === 'rival';
     html = `<div class="sheet-head end"><p class="kicker">${solo ? 'Solo' : 'Free play'} · Game over</p>
@@ -993,7 +1054,7 @@ function openRules() {
 
   <h3>Opponents</h3>
   <div class="fig opp"><span class="portrait">${OPPONENT.rival.face}</span><div><p><b>Solo:</b> the Rival takes a die each round and strikes the two lowest open boxes in that section (one for the shared die). Red <b>R</b> pins show where it is aiming. It goes first in even rounds.</p></div></div>
-  <div class="fig opp"><span class="portrait">${OPPONENT.ai.face}</span><div><p><b>Vs AI:</b> the AI drafts from the same dice for its own sheet and never touches yours. Tap <b>AI</b> in the strip to look at its sheet. Highest total after 10 rounds wins.</p></div></div>
+  <div class="fig opp"><span class="portrait">${OPPONENT.ai.face}</span><div><p><b>Vs AI:</b> play against 1, 2 or 3 AI players. Each drafts from the same dice for its own sheet and never touches yours. There is always one die more than players: everyone takes one, then everyone uses the die left over, and the first pick passes round the table each round. Tap an AI in the strip to look at its sheet. Highest total after 10 rounds wins.</p></div></div>
 
   <h3>Final score</h3>
   <div class="fig">${scoreArt}<div><p>Fish, launched boats, level-3 licenses, buildings and your King Crab bonus (max 10). The sheet keeps a live total.</p></div></div>
@@ -1005,7 +1066,7 @@ function openRules() {
 function showTitle() {
   ui.title = true; titleEl.hidden = false; document.body.classList.add('at-title');
   const resumable = hadSave && s.phase !== 'over';
-  const meta = `Round ${s.round} of ${s.rounds} · ${E.modeName(s.mode)} · ${E.score(s).total} points`;
+  const meta = `Round ${s.round} of ${s.rounds} · ${modeLabel()} · ${E.score(s).total} points`;
   titleEl.querySelector('.t-menu').innerHTML = resumable
     ? `<button class="t-btn primary" data-t="continue"><b>Continue</b><small>${meta}</small></button><button class="t-btn" data-t="new"><b>New game</b></button><button class="t-btn" data-t="rules"><b>How to play</b></button>`
     : `<button class="t-btn primary" data-t="new"><b>Play</b>${coachDone() ? '' : '<small>Starts with a quick tour</small>'}</button><button class="t-btn" data-t="rules"><b>How to play</b></button>`;
@@ -1033,9 +1094,9 @@ function coachSteps() {
   return [
     { id: 'dice', wait: true, target: () => diceEl, text: 'These are your dice. <b>Tap one</b> to pick it, and tap it again to put it back.' },
     { id: 'sheet', wait: true, target: sheetTarget, text: () => pages.querySelector('.target') ? 'The <b>gold outline</b> shows where your die can go. <b>Tap it</b> and the top open box is marked for you.' : 'This die has no box to mark here. <b>tap a button</b> to use it instead.' },
-    { id: 'status', target: () => $('#status'), text: () => `Your score, your coins (with how many more until a free <b>★ star action</b>) and the round. Fish pips are Fishing rounds.${vsAI() ? ' Tap <b>AI</b> to see its sheet.' : ''}` },
+    { id: 'status', target: () => $('#status'), text: () => `Your score, your coins (with how many more until a free <b>★ star action</b>) and the round. Fish pips are Fishing rounds.${vsAI() ? (nBots() > 1 ? ' Tap a coloured score to see that AI\'s sheet.' : ' Tap <b>AI</b> to see its sheet.') : ''}` },
     { id: 'tabs', target: () => tabsEl, text: 'Your sheet has three pages. <b>Swipe</b> or tap a tab for the Harbor and the Wharf. A <b>gold dot</b> means your die fits there too.' },
-    { id: 'opp', when: () => !!oppKind(), target: () => oppEl.querySelector('.face'), text: () => s.mode === 'rival' ? 'This is the <b>Rival</b>. Each round it grabs a die and strikes boxes on your sheet. Red <b>R</b> pins show where it is aiming.' : 'This is the <b>AI player</b>. It drafts the same dice for its own sheet. Highest score after 10 rounds wins.' },
+    { id: 'opp', when: () => !!oppKind(), target: () => oppEl.querySelector('.face'), text: () => s.mode === 'rival' ? 'This is the <b>Rival</b>. Each round it grabs a die and strikes boxes on your sheet. Red <b>R</b> pins show where it is aiming.' : nBots() > 1 ? `These are the <b>AI players</b>; whoever is moving sits here. They draft the same dice for their own sheets. Highest score after 10 rounds wins.` : 'This is the <b>AI player</b>. It drafts the same dice for its own sheet. Highest score after 10 rounds wins.' },
     { id: 'hold', target: null, text: '<b>Hold anything</b> (a box, a boat, a card or a die) to see what it does and what it is worth right now. Good luck!' },
   ].filter(st => !st.when || st.when());
 }

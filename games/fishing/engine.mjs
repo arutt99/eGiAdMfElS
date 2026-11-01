@@ -58,12 +58,26 @@ export const MODES = {
 export const modeName = m => (MODES[m] || MODES.open).name;
 const hasDraft = s => s.mode === 'rival' || s.mode === 'ai';
 
-export function newGame(mode = 'rival', rng = Math.random) {
+// Against the AI you can face 1, 2 or 3 computer players; each keeps its own sheet in s.bots.
+export const MAX_BOTS = 3;
+export function newGame(mode = 'rival', rng = Math.random, { bots = 1 } = {}) {
   if (!MODES[mode]) mode = 'rival';
   const s = newSheet(mode, rng);
-  if (mode === 'ai') { s.bot = newSheet(mode, rng, 'ai'); s.bot.step = { k: 'idle' }; }
+  if (mode === 'ai') {
+    const n = Math.max(1, Math.min(MAX_BOTS, bots | 0 || 1));
+    s.bots = Array.from({ length: n }, (_, i) => { const b = newSheet(mode, rng, 'ai'); b.bi = i; b.step = { k: 'idle' }; return b; });
+  }
   return s;
 }
+// Saves from before several AI players kept one in s.bot.
+export function migrate(s) {
+  if (s && s.bot && !s.bots) { s.bots = [s.bot]; s.bots[0].bi = 0; }
+  if (s) delete s.bot;
+  return s;
+}
+export const botCount = s => s.mode === 'ai' && s.bots ? s.bots.length : 0;
+export const AI_NAMES = ['Tin', 'Cog', 'Bolt'];
+export const botName = (s, i) => botCount(s) > 1 ? AI_NAMES[i] : 'AI';
 
 function newSheet(mode, rng, who) {
   const s = {
@@ -243,12 +257,18 @@ export function isAuto(s) {
   return ['roll', 'next', 'rival', 'ai', 'income', 'fishing', 'end'].includes(s.step.k);
 }
 
-function seqFor(s) {
-  if (!hasDraft(s)) return ['you', 'yshared'];
-  const o = s.mode === 'ai' ? 'ai' : 'rival', osh = o === 'ai' ? 'ashared' : 'rshared';
-  const youFirst = s.round % 2 === 1;
-  return youFirst ? ['you', o, 'yshared', osh] : [o, 'you', osh, 'yshared'];
+// Everyone takes one die, then everyone uses the leftover shared die, in the same order.
+// The first player moves round by round: you first in round 1, then the next seat, and so on.
+export function seats(s) {
+  if (!hasDraft(s)) return ['you'];
+  if (s.mode === 'rival') return ['you', 'rival'];
+  return ['you', ...(s.bots || []).map((_, i) => `ai:${i}`)];
 }
+function seqFor(s) {
+  const p = seats(s), k = (s.round - 1) % p.length, order = [...p.slice(k), ...p.slice(0, k)];
+  return [...order, ...order.map(a => a + '+')];
+}
+const diceCount = s => hasDraft(s) ? seats(s).length + 1 : 2;
 
 function enterSeq(s) {
   const a = s.seq[s.si];
@@ -258,16 +278,14 @@ function enterSeq(s) {
     return;
   }
   const shared = s.pool.findIndex(d => !d.by);
-  if (a === 'you') s.step = { k: 'pick' };
-  else if (a === 'rival') s.step = { k: 'rival', shared: false };
-  else if (a === 'rshared') s.step = { k: 'rival', shared: true, die: shared };
-  else if (a === 'ai') s.step = { k: 'ai', shared: false };
-  else if (a === 'ashared') s.step = { k: 'ai', shared: true, die: shared };
-  else if (a === 'yshared') s.step = { k: 'use', die: shared, src: 'shared', left: 1 };
+  const sh = a.endsWith('+'), who = sh ? a.slice(0, -1) : a;
+  if (who === 'you') s.step = sh ? { k: 'use', die: shared, src: 'shared', left: 1 } : { k: 'pick' };
+  else if (who === 'rival') s.step = sh ? { k: 'rival', shared: true, die: shared } : { k: 'rival', shared: false };
+  else { const bot = +who.split(':')[1]; s.step = sh ? { k: 'ai', bot, shared: true, die: shared } : { k: 'ai', bot, shared: false }; }
 }
 
 function roll(s, rng) {
-  const n = hasDraft(s) ? 3 : 2;
+  const n = diceCount(s);
   if (s.phase === 'boat') s.pool = Array.from({ length: n }, () => ({ kind: 'boat', face: pickFrom(BOAT_FACES, rng), by: null }));
   else s.pool = [...Array.from({ length: n - 1 }, () => ({ kind: 'town', face: pickFrom(TOWN_FACES, rng), by: null })),
     { kind: 'boat', face: pickFrom(BOAT_FACES, rng), by: null }];
@@ -286,7 +304,7 @@ function autoStep(s, rng) {
   if (k === 'ai') return aiTurn(s);
   if (k === 'income') {
     const n = incomeValue(s); gainCoins(s, n); note(s, `Income: +${n} coin${n > 1 ? 's' : ''}.`);
-    if (s.bot) { const b = botCtx(s); gainCoins(b, incomeValue(b)); botTasks(b); botDone(b); }
+    (s.bots || []).forEach((_, i) => { const b = botCtx(s, i); gainCoins(b, incomeValue(b)); botTasks(b); botDone(b); });
     s.fishingDone = s.fishingDone || [];
     if (s.round % 2 === 0) s.step = { k: 'fishing' };
     else { s.phase = 'town'; s.step = { k: 'roll' }; }
@@ -295,7 +313,7 @@ function autoStep(s, rng) {
   if (k === 'fishing') {
     const before = totalFish(s);
     fishing(s, false);
-    if (s.bot) { const b = botCtx(s); fishing(b, false); botTasks(b); botDone(b); }
+    (s.bots || []).forEach((_, i) => { const b = botCtx(s, i); fishing(b, false); botTasks(b); botDone(b); });
     s.fishingDone.push(s.round);
     s.phase = 'town'; s.step = { k: 'roll' };
     return { k: 'fishing', n: totalFish(s) - before };
@@ -481,12 +499,14 @@ function moveTokens(s) {
 }
 
 // ---------- the AI player ----------
-// The AI keeps a full sheet of its own in s.bot and drafts from the same dice as you.
-// It plays greedily: every legal use of every die it may take is tried on a copy of its
-// sheet, follow-up choices (stars, license-or-boat, oyster catches…) are resolved the same
-// way, and the result with the best projected value is kept.
-function botCtx(s) {
-  const b = s.bot;
+// Each AI player keeps a full sheet of its own in s.bots and drafts from the same dice as you.
+// Every legal use of every die it may take is tried on a copy of its sheet, follow-up choices
+// (stars, license-or-boat, oyster catches…) are resolved the same way, and the result with the
+// best projected value is kept. When it picks a die it also looks ahead in the draft: it predicts
+// what the players after it will take, and so which die will be left over as the shared die,
+// and counts the best use of that die too.
+function botCtx(s, i) {
+  const b = s.bots[i];
   b.pool = s.pool; b.round = s.round; b.phase = s.phase; b.rounds = s.rounds; b.fishingDone = s.fishingDone || [];
   return b;
 }
@@ -497,32 +517,45 @@ const fishingLeft = b => {
   for (let r = b.round; r <= b.rounds; r++) if (r % 2 === 0 && !(r === b.round && b.fishingDone?.includes(r))) n++;
   return n;
 };
-// weights tuned by self-play: column progress matters most, loose coins barely at all
-const MARK_W = 3, LIC_W = 2, COIN_W = 0, TIME_W = .5;
-const ABILITY = { casino: .3, bait: .5, salvage: 1.2, smoke: .6, canning: .5, buffet: .8 };
-export function botValue(b) {
+// Weights of the projected value, tuned by self-play.
+export const AI_W = {
+  mark: 4.5, lic: 2, coin: 0, time: .5, fish: .85, barge: .6, bld: .9, hex: .5,
+  lobster: .25, cod: .4, sword: .5, look: .3, star: 0, deny: 0,
+  ability: { casino: .3, bait: .3, salvage: 0, smoke: .6, canning: .5, buffet: .8 },
+};
+export function botValue(b, W = AI_W) {
   let v = score(b).total;
-  const fr = fishingLeft(b), roundsLeft = Math.max(0, b.rounds - b.round), late = TIME_W ? Math.min(1, (roundsLeft + 1) / (b.rounds * TIME_W)) : 1;
+  const fr = fishingLeft(b), roundsLeft = Math.max(0, b.rounds - b.round), late = W.time ? Math.min(1, (roundsLeft + 1) / (b.rounds * W.time)) : 1;
   for (const [t, list] of Object.entries(b.ships)) {
     if (t === 'barge' || !SHIPS[t].cap) continue;
-    for (const boat of list) if (boat.on) v += Math.min(capacity(b, t) - boat.fish, fr * (t === 'oyster' ? 2 : 1)) * .85;
+    for (const boat of list) if (boat.on) v += Math.min(capacity(b, t) - boat.fish, fr * (t === 'oyster' ? 2 : 1)) * W.fish;
   }
-  if (b.ships.barge[0].on) v += Math.min(SHIPS.barge.cap - b.ships.barge[0].fish, fr * 2) * .6;
-  for (const t of TYPES) if (b.lic[t] < 3) v += b.lic[t] * LICENSE_VP[t] / 3 * LIC_W * late;
-  v += b.lic.lobster * roundsLeft * .25 + b.lic.cod * .4 + b.lic.swordfish * fr * .5;
+  if (b.ships.barge[0].on) v += Math.min(SHIPS.barge.cap - b.ships.barge[0].fish, fr * 2) * W.barge;
+  for (const t of TYPES) if (b.lic[t] < 3) v += b.lic[t] * LICENSE_VP[t] / 3 * W.lic * late;
+  v += b.lic.lobster * roundsLeft * W.lobster + b.lic.cod * W.cod + b.lic.swordfish * fr * W.sword;
   for (const [sec, list] of Object.entries(b.marks)) {
-    const g = SECTIONS[sec].group, marked = list.filter(m => m === 1).length;
-    if (g !== 'wharf') v += marked * MARK_W * late;
+    const g = SECTIONS[sec].group;
+    let marked = 0; for (const m of list) if (m === 1) marked++;
+    if (g !== 'wharf') v += marked * W.mark * late;
     else if (!b.done[sec]) {
-      const worth = (BUILDING_VP[sec] || (sec === 'buffet' ? 4 : 0)) + (ABILITY[sec] || 0) * roundsLeft;
-      v += marked / list.length * worth * .6;
-    } else v += (ABILITY[sec] || 0) * roundsLeft;
+      const worth = (BUILDING_VP[sec] || (sec === 'buffet' ? 4 : 0)) + (W.ability[sec] || 0) * roundsLeft;
+      v += marked / list.length * worth * W.bld;
+    } else v += (W.ability[sec] || 0) * roundsLeft;
   }
-  if (b.done.buffet) v += Object.keys(b.hexes).length * .5;
-  return v + coinCount(b) * COIN_W;
+  if (b.done.buffet) v += Object.keys(b.hexes).length * W.hex;
+  if (W.star && roundsLeft) { // progress toward the next ★ on the coin track
+    const at = b.coins.indexOf(0);
+    if (at >= 0) {
+      let prev = -1, next = -1;
+      for (let i = at - 1; i >= 0; i--) if (STAR_BOXES.has(i)) { prev = i; break; }
+      for (let i = at; i < COIN_BOXES; i++) if (STAR_BOXES.has(i) && b.coins[i] === 0) { next = i; break; }
+      if (next >= 0) v += (at - prev - 1) / (next - prev) * W.star;
+    }
+  }
+  return v + coinCount(b) * W.coin;
 }
 
-const lean = b => clone({ ...b, log: [] });
+const lean = b => { const c = JSON.parse(JSON.stringify({ ...b, log: null, bots: null })); c.log = []; delete c.bots; return c; };
 function botMoves(b, idx) {
   const o = options(b, idx);
   if (!o) return [];
@@ -539,30 +572,41 @@ function taskChoices(b) {
   if (t.t === 'oyster') return [{ type: 'oyster', choice: 'fish' }, { type: 'oyster', choice: 'bonus' }];
   return [];
 }
-function bestOf(b, moves, deep) {
+// Play a move on a copy and finish everything it sets off (follow-ups, a second Shrimp use).
+function tryMove(b, m, W) {
+  const c = lean(b);
+  if (!act(c, m)) return null;
+  botTasks(c, W); if (c.step.k === 'use') botUse(c, W);
+  return c;
+}
+function bestOf(b, moves, deep, W, after = null) {
   let best = null;
   for (const m of moves) {
-    const c = lean(b);
-    if (!act(c, m)) continue;
-    if (deep) { botTasks(c); if (c.step.k === 'use') botUse(c); }
-    const v = botValue(c);
+    let v;
+    if (deep) {
+      const c = tryMove(b, m, W); if (!c) continue;
+      v = after ? after(c, m) : botValue(c, W);
+    } else {
+      const c = lean(b); if (!act(c, m)) continue;
+      v = botValue(c, W);
+    }
     if (!best || v > best.v + 1e-9) best = { m, v };
   }
-  return best?.m || null;
+  return best;
 }
 // Resolve every pending follow-up (stars, license-or-boat, King Crab bonus, oyster catches).
-function botTasks(b) {
+export function botTasks(b, W = AI_W) {
   for (let guard = 0; b.queue.length && guard < 60; guard++) {
-    const m = bestOf(b, taskChoices(b), false);
+    const m = bestOf(b, taskChoices(b), false, W)?.m;
     if (!m || !act(b, m)) b.queue.shift();
   }
 }
 // Keep using the die in hand (a level-3 Shrimp license gives two uses).
-function botUse(b) {
+function botUse(b, W = AI_W) {
   for (let guard = 0; b.step.k === 'use' && guard < 4; guard++) {
-    const m = bestOf(b, botMoves(b, b.step.die), false);
+    const m = bestOf(b, botMoves(b, b.step.die), false, W)?.m;
     if (!m || !act(b, m)) { b.step = { k: 'next' }; break; }
-    botTasks(b);
+    botTasks(b, W);
   }
 }
 const describe = (b, m, face) => ({
@@ -574,28 +618,81 @@ const describe = (b, m, face) => ({
   hex: () => `${label(face)} on a Buffet hex`,
 }[m.type] || (() => label(face)))();
 
-export function aiChoice(s) {
-  const st = s.step, b = botCtx(s);
+// The sheet a seat plays on, ready to choose from the current pool.
+function seatSheet(s, seat, pool) {
+  const src = seat === 'you' ? s : s.bots[+seat.split(':')[1]];
+  const c = lean(src);
+  c.pool = pool; c.round = s.round; c.phase = s.phase; c.rounds = s.rounds; c.fishingDone = s.fishingDone || [];
+  c.queue = []; c.step = { k: 'pick' };
+  return c;
+}
+// Which die is left as the shared die if the seat at position si takes die idx: the seats after
+// it in this draft are expected to take the die that does most for their own sheet.
+// Also returns how much those picks gain the other players.
+function leftoverAfter(s, idx, W) {
+  const pool = s.pool.map(d => ({ ...d }));
+  pool[idx].by = 'x';
+  let gain = 0;
+  for (let k = s.si + 1; k < s.seq.length && !s.seq[k].endsWith('+'); k++) {
+    const free = pool.map((d, i) => i).filter(i => !pool[i].by);
+    if (free.length <= 1) break;
+    const c = seatSheet(s, s.seq[k], pool);
+    const best = bestOf(c, free.flatMap(i => botMoves(c, i)), false, W);
+    if (best) gain += best.v - botValue(c, W);
+    pool[best ? best.m.die : free[0]].by = 'x';
+  }
+  return { left: pool.findIndex(d => !d.by), gain };
+}
+// Choose a move for sheet b (b.pool is the shared pool, b.step is 'pick' or 'use').
+// For a pick in a draft, s is the game, so the lookahead can see the other sheets.
+export function planMove(b, W = AI_W, s = null) {
+  const st = b.step, pick = st.k === 'pick';
+  const dice = pick ? b.pool.map((d, i) => i).filter(i => !b.pool[i].by) : [st.die];
+  const moves = dice.flatMap(i => botMoves(b, i));
+  if (!pick || !s || !W.look || dice.length < 2) return bestOf(b, moves, true, W)?.m || null;
+  const look = {};
+  for (const i of dice) look[i] = leftoverAfter(s, i, W);
+  // after its own move, count the best use of the die expected to come back as the shared die,
+  // less what the dice it leaves are worth to the players picking after it
+  const after = (c, m) => {
+    const { left: j, gain } = look[m.die], base = botValue(c, W) - gain * W.deny;
+    if (j < 0 || j == null) return base;
+    c.step = { k: 'use', die: j, src: 'shared', left: 1 };
+    const best = bestOf(c, botMoves(c, j), true, W);
+    return base + ((best ? best.v - gain * W.deny : base) - base) * W.look;
+  };
+  return bestOf(b, moves, true, W, after)?.m || null;
+}
+// Play out a planned move and everything it sets off.
+export function playMove(b, m, W = AI_W) {
+  if (!m || !act(b, m)) return false;
+  botTasks(b, W); botUse(b, W);
+  return true;
+}
+
+export function aiChoice(s, i = s.step.bot ?? 0) {
+  const st = s.step, b = botCtx(s, i);
   b.step = st.shared ? { k: 'use', die: st.die, src: 'shared', left: 1 } : { k: 'pick' };
-  const dice = st.shared ? [st.die] : s.pool.map((d, i) => i).filter(i => !s.pool[i].by);
-  const m = bestOf(b, dice.flatMap(i => botMoves(b, i)), true);
+  const dice = st.shared ? [st.die] : s.pool.map((d, k) => k).filter(k => !s.pool[k].by);
+  const m = planMove(b, AI_W, s);
   return { b, m, dice };
 }
 function aiTurn(s) {
-  const st = s.step;
-  const { b, m, dice } = aiChoice(s);
+  const st = s.step, bi = st.bot ?? 0;
+  const { b, m, dice } = aiChoice(s, bi);
   const idx = m ? m.die : dice[0], die = s.pool[idx];
   let text = 'passed';
   if (m && act(b, m)) {
     text = describe(b, m, die.face);
     botTasks(b);
     botUse(b);
-  } else if (!st.shared && die) die.by = 'ai';
+  }
+  if (!st.shared && die) { die.by = 'ai'; die.bi = bi; }
   const sc = score(b).total;
   botDone(b);
-  note(s, `${st.shared ? 'Shared' : 'Took'} ${label(die?.face)}: ${text}.`, 'ai');
+  note(s, `${st.shared ? 'Shared' : 'Took'} ${label(die?.face)}: ${text}.`, `ai:${bi}`);
   s.step = { k: 'next' };
-  return { k: 'ai', die: idx, face: die?.face, shared: st.shared, text, score: sc };
+  return { k: 'ai', bot: bi, die: idx, face: die?.face, shared: st.shared, text, score: sc };
 }
 
 // ---------- scoring ----------
@@ -618,7 +715,7 @@ export function score(s) {
 export const rank = total => RANKS.find(([min]) => total >= min)[1];
 
 export function validSave(s) {
-  if (s?.mode === 'ai' && !validSheet(s.bot)) return false;
+  if (s?.mode === 'ai' && !(Array.isArray(s.bots) && s.bots.length >= 1 && s.bots.length <= MAX_BOTS && s.bots.every(validSheet))) return false;
   return validSheet(s) && !!s.step && Array.isArray(s.queue);
 }
 function validSheet(s) {

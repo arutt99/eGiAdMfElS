@@ -252,7 +252,7 @@ export function dieInfo(s, i) {
   if (E.TYPES.includes(f) && s.done.buffet && !s.hexes[f]) body += `<p>Seafood Buffet: you could mark the ${L(f)} hex instead.</p>`;
   if (f === 'market') body += `<p>Right now it pays <b>${E.marketValue(s)} coins</b> (${E.totalFish(s)} fish).</p>`;
   body += `<p>Any die can instead be traded for ${E.cashValue(s)} coin${E.cashValue(s) > 1 ? 's' : ''}.</p>`;
-  const who = d.by === 'rival' ? ['Taken by the Rival', 'warn'] : d.by === 'ai' ? ['Taken by the AI player', 'warn'] : d.by === 'you' ? ['Yours this round', 'good'] : ['Available'];
+  const who = d.by === 'rival' ? ['Taken by the Rival', 'warn'] : d.by === 'ai' ? [`Taken by ${E.botCount(s) > 1 ? E.botName(s, d.bi ?? 0) : 'the AI player'}`, 'warn'] : d.by === 'you' ? ['Yours this round', 'good'] : ['Available'];
   if (s.mode === 'rival' && !d.by) body += `<p>If the Rival takes it, it strikes ${f === 'market' ? 'your next ★ on the coin track' : f === 'harbor' || f === 'wharf' ? `the ${f} section with its <b>R</b> pin` : E.TYPES.includes(f) ? `the bottom of the ${L(f)} column` : 'the boat column with its <b>R</b> pin'}.</p>`;
   return { kicker: d.kind === 'town' ? 'Town die' : 'Boat die', title: L(f), body: body + stat([who]) };
 }
