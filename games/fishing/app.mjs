@@ -54,8 +54,7 @@ function setView(v) {
   play('sheet');
   const swap = () => { ui.view = v; ui.firstPaint = true; ui.hudVals = null; render(); if (v === 'you') focusTargets(); };
   syncSeg(v);
-  if (reduced()) return swap();
-  // turn the sheet over like a card: out to the edge, swap, back in
+  // turn the sheet over like a card: out to the edge, swap, back in (a cross-fade with Reduce Motion)
   stage.classList.remove('flip-in'); stage.classList.add('flip-out');
   setTimeout(() => { swap(); stage.classList.remove('flip-out'); void stage.offsetWidth; stage.classList.add('flip-in'); setTimeout(() => stage.classList.remove('flip-in'), 260); }, 170);
 }
@@ -208,7 +207,7 @@ function renderStatus(delay = 0) {
   if (!prev) { scoreB.textContent = total; coinB.textContent = coins; }
   else {
     const go = () => { countUp(scoreB, total, { from: prev.total }); countUp(coinB, coins, { from: prev.coins }); };
-    if (delay && !reduced()) setTimeout(go, delay); else go();
+    if (delay) setTimeout(go, delay); else go();
   }
   scoreChip.setAttribute('aria-label', `${ui.view === 'ai' ? 'AI score' : 'Score'} ${total}`);
   coinChip.querySelector('.sub').textContent = star ? `★ in ${star}` : '';
@@ -390,7 +389,8 @@ function aiDid(t) {
 // The die the opponent took flies from the tray into its portrait.
 function flyDie(i) {
   const el = diceEls[i], face = oppEl.querySelector('.face');
-  if (!el || oppEl.hidden || reduced()) return;
+  if (!el || oppEl.hidden) return;
+  if (reduced()) { play('pick'); replay(oppEl, 'gloat'); return; } // the die stays put; the tray marks it taken
   const a = el.getBoundingClientRect(), b = face.getBoundingClientRect();
   if (!a.width || !b.width) return;
   const c = el.cloneNode(true);
@@ -792,7 +792,7 @@ function closeSheet() {
   if (!dlg.open) return;
   dlg.classList.remove('in');
   const card = dlg.querySelector('.sheet-card'); if (card) { card.style.transform = ''; card.style.transition = ''; }
-  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; pump(); coachSync(); }, reduced() ? 0 : 280);
+  closeT = setTimeout(() => { dlg.close(); dlg.innerHTML = ''; pump(); coachSync(); }, 280);
 }
 dlg.addEventListener('cancel', ev => { ev.preventDefault(); closeSheet(); });
 // swipe down to dismiss
@@ -1000,7 +1000,6 @@ function showTitle() {
 }
 function hideTitle() {
   ui.title = false; document.body.classList.remove('at-title');
-  if (reduced()) { titleEl.hidden = true; return; }
   titleEl.classList.add('out');
   setTimeout(() => { titleEl.hidden = true; titleEl.classList.remove('out'); }, 420);
 }

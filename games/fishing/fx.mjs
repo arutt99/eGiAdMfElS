@@ -162,7 +162,7 @@ export function floater(text, from, toEl, { kind = '', delay = 0 } = {}) {
 
 // ---------- count-up ----------
 export function countUp(el, to, { from = +el.textContent || 0, ms = 450, tick = false } = {}) {
-  if (reduced() || from === to) { el.textContent = to; return Promise.resolve(); }
+  if (from === to) { el.textContent = to; return Promise.resolve(); }
   return new Promise(res => {
     const t0 = performance.now(); let last = from;
     const step = now => {
