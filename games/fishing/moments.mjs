@@ -1,4 +1,4 @@
-// What changed on a sheet between two states — the moments the UI stages with sound, haptics,
+// What changed on a sheet between two states: the moments the UI stages with sound, haptics,
 // banners and score floaters. Pure: no DOM, so it can be tested in node.
 import * as E from './engine.mjs';
 

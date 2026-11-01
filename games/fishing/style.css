@@ -143,7 +143,7 @@ body.viewing-ai #tabs .thumb { background: linear-gradient(#ffd9d2, #f2b3a8); bo
   scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
 }
 #pages::-webkit-scrollbar { display: none; }
-/* Each page fits whole between the bars — never scrolls. Phone pages are cut to the screen's shape,
+/* Each page fits whole between the bars and never scrolls. Phone pages are cut to the screen's shape,
    so on phones they come out exactly as wide as the screen, edge to edge. */
 .page {
   flex: 0 0 100%; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; overflow: hidden;

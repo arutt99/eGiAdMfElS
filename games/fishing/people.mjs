@@ -32,7 +32,7 @@ export const OPPONENT = {
 };
 
 const pick = list => list[Math.floor(Math.random() * list.length)];
-const RIVAL_TAKE = ['Ha! That {die} is mine.', "I'll have the {die}, thanks.", 'Mine! The {die}.', 'Too slow — {die} for me.', 'The {die}? Don\'t mind if I do.'];
+const RIVAL_TAKE = ['Ha! That {die} is mine.', "I'll have the {die}, thanks.", 'Mine! The {die}.', 'Too slow! {die} for me.', 'The {die}? Don\'t mind if I do.'];
 const RIVAL_SHARED = ['Leftovers? I\'ll use that {die}.', 'Shared {die}… I\'ll make it count.', 'Even the scraps hurt you.'];
 const RIVAL_NONE = ['Bah. Nothing left to spoil.', 'Hmph. You got lucky.'];
 const AI_TAKE = ['Calculating… {die} it is.', 'Optimal pick: {die}.', 'Taking the {die}.', 'The {die} scores best for me.'];

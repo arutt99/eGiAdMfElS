@@ -1,5 +1,5 @@
 // Game feel: synthesized sound effects, haptics, banners, score floaters, confetti and count-ups.
-// Everything here is decoration — the game plays the same with all of it switched off.
+// Everything here is decoration; the game plays the same with all of it switched off.
 
 const PREFS = 'fishing.prefs';
 export const prefs = (() => {
