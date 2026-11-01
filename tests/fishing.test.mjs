@@ -246,6 +246,10 @@ test('games against 2 or 3 AI players roll one die more than players and rotate 
       assert.equal(s.seq[0], E.seats(s)[(round - 1) % (n + 1)]);
       assert.ok(s.seq.slice(n + 1).every(a => a.endsWith('+')));
     }
+    // town phase: one town die per player plus one boat die
+    s.phase = 'town'; s.step = { k: 'roll' }; E.auto(s, r);
+    assert.equal(s.pool.filter(d => d.kind === 'town').length, n + 1);
+    assert.equal(s.pool.filter(d => d.kind === 'boat').length, 1);
   }
 });
 
