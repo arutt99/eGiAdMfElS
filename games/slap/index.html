@@ -1,235 +1,185 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-    <meta name="theme-color" content="#071b16">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Slap! · Push-your-luck card game</title>
-    <style>
-        :root {
-            --ink: #f8f1df; --muted: #b9c9c0; --gold: #f5c451; --felt-dark: #071f1a;
-            --line: rgba(255, 239, 196, .18); --danger: #e85c4a; --shadow: 0 14px 34px rgba(0, 0, 0, .38);
-            --c1: #7c3fb2; --c2: #df941b; --c3: #bc3e42; --c4: #d65d2b; --c5: #2877b8;
-            --c6: #db7e23; --c7: #52636c; --c8: #d74b87; --c9: #24985c; --c10: #1f344a;
-        }
-        * { box-sizing: border-box; }
-        html { height: 100%; background: var(--felt-dark); }
-        body {
-            min-height: 100%; height: 100dvh; margin: 0; overflow: hidden; color: var(--ink);
-            font-family: Georgia, "Times New Roman", serif;
-            background-image: linear-gradient(rgba(4, 25, 20, .34), rgba(4, 25, 20, .55)), url("assets/slap-table.png");
-            background-position: center;
-            background-size: cover;
-            background-attachment: fixed;
-            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-        }
-        button { font: inherit; }
-        button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-        .app-shell { height: 100dvh; display: grid; grid-template-rows: auto minmax(0,1fr) auto; padding-top: env(safe-area-inset-top); }
-        .topbar {
-            position: relative; min-height: 58px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 12px;
-            background: linear-gradient(180deg, rgba(4,15,13,.96), rgba(4,15,13,.76)); border-bottom: 1px solid var(--line);
-            box-shadow: 0 5px 18px rgba(0,0,0,.22); z-index: 20;
-        }
-        .brand { text-align: center; line-height: .8; }
-        .brand strong { display: block; font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; font-size: 1.65rem; letter-spacing: .12em; color: var(--gold); text-shadow: 0 2px 0 #6e3f0e, 0 4px 10px #000; }
-        .brand span { display: block; margin-top: 7px; color: var(--muted); font-family: "Segoe UI", sans-serif; font-size: .68rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
-        .icon-button { width: 40px; height: 40px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: rgba(255,255,255,.07); box-shadow: inset 0 1px rgba(255,255,255,.08); cursor: pointer; }
-        .home-link { text-decoration: none; }
-        .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
-        .icon-button svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 2; }
-        .game-board { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; display: grid; align-content: start; gap: 9px; padding: 10px 10px 12px; }
-        .opponents { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
-        .player-area { position: relative; min-width: 0; height: 112px; padding: 7px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: linear-gradient(145deg, rgba(3,14,12,.74), rgba(5,25,20,.58)); box-shadow: inset 0 1px rgba(255,255,255,.04), 0 6px 14px rgba(0,0,0,.18); opacity: .74; transition: border-color .2s, box-shadow .2s, opacity .2s; }
-        .player-area.active { opacity: 1; border-color: rgba(245,196,81,.82); box-shadow: inset 0 0 20px rgba(245,196,81,.06), 0 0 0 1px rgba(245,196,81,.2), 0 8px 22px rgba(0,0,0,.28); }
-        .player-area.active::after { content: "TURN"; position: absolute; top: -6px; right: 8px; padding: 2px 6px; border-radius: 99px; background: var(--gold); color: #241605; font: 800 .56rem/1 "Segoe UI", sans-serif; letter-spacing: .1em; box-shadow: 0 2px 7px #0008; }
-        .player-header { min-height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,.08); color: #d8e2dc; font-family: "Segoe UI", sans-serif; font-size: .77rem; font-weight: 800; }
-        .player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .score-wrap { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: .65rem; }
-        .score-pill { min-width: 29px; padding: 3px 7px; text-align: center; border: 1px solid rgba(245,196,81,.28); border-radius: 99px; color: var(--gold); background: rgba(0,0,0,.52); font: 900 .83rem/1 "Segoe UI", sans-serif; }
-        .cards-container { height: 78px; min-height: 78px; display: flex; align-items: flex-start; gap: 5px; padding-top: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-        .cards-container::-webkit-scrollbar { display: none; }
-        .empty-hand { align-self: center; color: rgba(233,241,236,.35); font: 700 .62rem/1 "Segoe UI", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
-        .card-stack { display: flex; min-width: 0; flex-direction: row; }
-        .card { position: relative; width: 34px; height: 47px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border: 1px solid #c8bca3; border-radius: 5px; color: #1f1a14; background: linear-gradient(135deg, rgba(255,255,255,.68), rgba(255,255,255,.08) 38%), url("assets/slap-card-front.png") center / cover, #f3ead7; box-shadow: 0 3px 7px rgba(0,0,0,.38), inset 0 0 0 2px rgba(255,255,255,.4); }
-        .card-stack .card:not(:first-child) { margin-left: -25px; box-shadow: -2px 0 4px rgba(0,0,0,.2), 0 3px 7px rgba(0,0,0,.36); }
-        .chip { position: relative; width: 24px; height: 24px; display: grid; place-items: center; border: 3px dashed currentColor; border-radius: 50%; background: #fffdf8; box-shadow: inset 0 0 0 2px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.35); font: 950 .85rem/1 "Arial Black", sans-serif; }
-        .chip::before { content: ""; position: absolute; width: 12px; height: 12px; border: 1px solid currentColor; border-radius: 50%; opacity: .3; }
-        .c1 .chip{color:var(--c1)}.c2 .chip{color:var(--c2)}.c3 .chip{color:var(--c3)}.c4 .chip{color:var(--c4)}.c5 .chip{color:var(--c5)}.c6 .chip{color:var(--c6)}.c7 .chip{color:var(--c7)}.c8 .chip{color:var(--c8)}.c9 .chip{color:var(--c9)}.c10 .chip{color:var(--c10)}
-        .center-stage { position: relative; height: 146px; min-height: 146px; display: grid; grid-template-columns: 70px minmax(0,1fr) 70px; align-items: center; gap: 8px; padding: 10px; border: 1px solid rgba(245,196,81,.32); border-radius: 70px; background: radial-gradient(circle, rgba(12,83,61,.7), rgba(4,31,25,.58) 70%); box-shadow: inset 0 0 40px rgba(0,0,0,.24), 0 8px 24px rgba(0,0,0,.18); transition: filter .2s ease; }
-        .center-stage.impact { animation: tableImpact .46s ease-out; }
-        .deck-zone,.discard-zone { display: grid; justify-items: center; gap: 5px; }
-        .deck-stack { position: relative; width: 52px; height: 72px; display: grid; place-items: center; padding: 0; border: 2px solid #d6b460; border-radius: 7px; background: linear-gradient(rgba(3,16,13,.1), rgba(3,16,13,.4)), url("assets/slap-card-back.png") center / cover, #171410; box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), inset 0 0 0 3px #2d261b; color: var(--gold); font: 950 1.12rem/1 "Segoe UI", sans-serif; cursor: not-allowed; transition: filter .18s ease, box-shadow .18s ease; }
-        .deck-stack > span { position: absolute; right: 4px; bottom: 4px; min-width: 22px; padding: 3px 4px; border-radius: 99px; color: #1a1206; background: rgba(255,222,123,.94); font: 950 .72rem/1 "Segoe UI", sans-serif; }
-        .deck-stack:not(:disabled).is-ready { cursor: pointer; filter: saturate(1.08); box-shadow: 3px 3px 0 #ad914d, 5px 5px 9px rgba(0,0,0,.45), 0 0 0 4px rgba(245,196,81,.1); }
-        .pile-label { color: var(--muted); font: 700 .6rem/1 "Segoe UI", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
-        .discard-pile { width: 44px; height: 61px; display: grid; place-items: center; border: 1px dashed rgba(255,255,255,.23); border-radius: 6px; color: rgba(255,255,255,.5); background: rgba(0,0,0,.16); font: 900 .92rem/1 "Segoe UI", sans-serif; }
-        .dealer { min-width: 0; display: grid; justify-items: center; align-content: center; gap: 7px; text-align: center; }
-        .turn-owner { min-height: 13px; color: rgba(245,196,81,.78); font: 800 .58rem/1 "Segoe UI",sans-serif; letter-spacing: .12em; text-transform: uppercase; }
-        .drawn-card-area { width: 100%; min-height: 64px; display: flex; align-items: flex-start; justify-content: center; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 3px; }
-        .drawn-card-area .card { width: 42px; height: 58px; }
-        .drawn-card-area .card.card--drawn { animation: deal .18s ease-out; }
-        .drawn-card-area .chip { width: 30px; height: 30px; font-size: 1rem; }
-        .drawn-card-area .card-stack .card:not(:first-child) { margin-left: -30px; }
-        .drawn-card-area .empty-hand { align-self: center; }
-        .message-banner { height: 34px; min-height: 34px; display: -webkit-box; overflow: hidden; place-items: center; color: var(--gold); font-size: .98rem; font-weight: 800; line-height: 1.05; text-align: center; text-shadow: 0 2px 4px #000; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-        .turn-note { height: 16px; min-height: 16px; overflow: hidden; color: var(--muted); font: 600 .66rem/1.2 "Segoe UI", sans-serif; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-        @keyframes deal { from { opacity: 0; transform: translateY(-12px) rotate(-4deg) scale(.92); } to { opacity: 1; transform: none; } }
-        @keyframes tableImpact { 0%,100% { filter: saturate(1); } 45% { filter: saturate(1.35) brightness(1.08); } }
-        @keyframes messagePop { 0% { opacity: .4; transform: translateY(4px) scale(.96); } 100% { opacity: 1; transform: none; } }
-        .human-area .player-area { height: 125px; padding: 9px; opacity: 1; border-color: rgba(255,255,255,.16); }
-        .human-area .player-header { min-height: 28px; font-size: .9rem; }
-        .human-area .cards-container { height: 78px; min-height: 78px; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 7px 2px 2px; }
-        .human-area .card { width: 43px; height: 60px; border-radius: 6px; }
-        .human-area .chip { width: 31px; height: 31px; font-size: 1rem; }
-        .human-area .card-stack .card:not(:first-child) { margin-left: -31px; }
-        .action-dock { position: relative; z-index: 30; padding: 9px 10px calc(9px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: linear-gradient(180deg, rgba(3,16,13,.88), rgba(2,12,10,.98)); box-shadow: 0 -7px 24px rgba(0,0,0,.26); }
-        .controls { width: min(100%,470px); min-height: 48px; margin: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-        .action-button { min-height: 48px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; color: #fff; box-shadow: inset 0 1px rgba(255,255,255,.2), 0 4px 0 rgba(0,0,0,.38); font-family: "Segoe UI", sans-serif; font-size: .92rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
-        .action-button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.4)}.action-button:disabled{cursor:default;opacity:.35;filter:grayscale(.6);box-shadow:none}
-        .btn-new{background:linear-gradient(#4b9be2,#246eb2)}.btn-stop{background:linear-gradient(#3ac486,#218c5b)}.btn-steal{background:linear-gradient(#ef705e,#b83d31)}.btn-nosteal{background:linear-gradient(#6c7d82,#44545a)}
-        .waiting-state { grid-column: 1/-1; align-self: center; text-align: center; color: var(--muted); font: 700 .73rem/1 "Segoe UI", sans-serif; letter-spacing: .11em; text-transform: uppercase; }
-        .message-banner.pop { animation: messagePop .24s ease-out; }
-        .menu-panel { position: absolute; top: calc(100% + 8px); right: 12px; z-index: 80; width: min(350px, calc(100vw - 24px)); max-height: min(70dvh, 520px); overflow: auto; padding: 15px; border: 1px solid rgba(245,196,81,.42); border-radius: 17px; color: var(--ink); background: linear-gradient(145deg, rgba(13,52,40,.98), rgba(3,21,17,.98)); box-shadow: 0 18px 42px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.08); }
-        .menu-panel[hidden] { display: none; }
-        .menu-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; color: var(--gold); font: 900 .76rem/1 "Segoe UI", sans-serif; letter-spacing: .14em; text-transform: uppercase; }
-        .menu-close { border: 0; color: var(--muted); background: transparent; cursor: pointer; font: 900 1.15rem/1 "Segoe UI", sans-serif; }
-        .rules-list { display: grid; gap: 6px; margin: 0 0 15px; padding: 0; list-style: none; color: #d7e2db; font: .78rem/1.35 "Segoe UI", sans-serif; }
-        .rules-list li { padding-left: 15px; position: relative; }
-        .rules-list li::before { content: "✦"; position: absolute; left: 0; color: var(--gold); }
-        .log-heading { margin: 0 0 7px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.1); color: var(--muted); font: 800 .66rem/1 "Segoe UI", sans-serif; letter-spacing: .14em; text-transform: uppercase; }
-        .game-log { display: grid; gap: 7px; margin: 0; padding: 0 0 0 19px; color: #f0f3e9; font: .78rem/1.35 "Segoe UI", sans-serif; }
-        .game-log li::marker { color: var(--gold); font-weight: 900; }
-        .game-log .log-empty { margin-left: -19px; color: rgba(233,241,236,.48); list-style: none; }
-        .overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom)); overflow-y: auto; background: radial-gradient(circle at 50% 36%, rgba(32,135,96,.42), transparent 36%), repeating-linear-gradient(35deg, rgba(255,255,255,.012) 0 1px, transparent 1px 5px), rgba(3,15,12,.97); }
-        .overlay[hidden] { display: none; }.overlay-card{width:min(100%,430px);text-align:center}
-        .title-mark { margin: 0; font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; font-size: clamp(4.2rem,22vw,7.4rem); line-height: .78; letter-spacing: .05em; color: var(--gold); text-shadow: 0 4px 0 #8a5215, 0 8px 24px #000; transform: rotate(-2deg); }
-        .title-chip { width: 90px; height: 90px; margin: 22px auto 15px; display: grid; place-items: center; border: 8px dashed var(--danger); border-radius: 50%; color: #1c160e; background: #fff7df; box-shadow: 0 0 0 5px #fff7df, 0 0 0 7px var(--danger), var(--shadow); font: 950 1.65rem/1 "Arial Black", sans-serif; }
-        .overlay-kicker { margin: 0 0 8px; color: var(--gold); font: 800 .72rem/1 "Segoe UI", sans-serif; letter-spacing: .2em; text-transform: uppercase; }
-        .overlay-copy { max-width: 330px; margin: 0 auto 23px; color: #d3dfd8; font-size: 1rem; line-height: 1.45; }
-        .primary-cta { width: min(100%,310px); min-height: 56px; border: 1px solid #ffdd7b; border-radius: 15px; color: #241704; background: linear-gradient(#ffd974,#e8a933); box-shadow: inset 0 1px #fff7ca, 0 5px 0 #8b5514, 0 12px 25px #0008; font-family: "Segoe UI",sans-serif; font-size: 1.05rem; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
-        .overlay-actions { display:grid;gap:13px;justify-items:center }.text-button{border:0;color:#d5e1da;background:transparent;font-family:"Segoe UI",sans-serif;font-size:.82rem;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
-        .toast { position:fixed;left:50%;bottom:calc(82px + env(safe-area-inset-bottom));z-index:140;width:max-content;max-width:calc(100% - 28px);padding:10px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);background:#091c17;box-shadow:var(--shadow);font:700 .78rem/1.2 "Segoe UI",sans-serif;opacity:0;pointer-events:none;transform:translate(-50%,10px);transition:.22s ease}.toast.show{opacity:1;transform:translate(-50%,0)}
-        @media (min-width:700px) and (orientation:landscape){.game-board{width:min(100%,980px);margin:auto;grid-template-columns:minmax(350px,1fr) minmax(300px,.9fr);align-content:center;padding:16px}.opponents{grid-column:1}.center-stage{grid-column:2;grid-row:1/span 2;height:250px;min-height:250px}.human-area{grid-column:1}}
-        @media (max-height:690px) and (orientation:portrait){.topbar{min-height:50px;padding-top:5px;padding-bottom:5px}.brand span{display:none}.game-board{gap:7px;padding-top:7px}.player-area{padding:5px 6px}.cards-container{height:62px;min-height:62px;padding-top:4px}.card{width:31px;height:42px}.chip{width:21px;height:21px;font-size:.74rem}.card-stack .card:not(:first-child){margin-top:0;margin-left:-22px}.center-stage{height:124px;min-height:124px;padding:7px}.drawn-card-area{min-height:50px}.message-banner{height:30px;min-height:30px;font-size:.86rem}.turn-note{height:14px;min-height:14px}.human-area .cards-container{height:62px;min-height:62px}}
-        @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;transition-duration:.001ms!important}}
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#06231c">
+  <meta name="description" content="Slap! A push-your-luck card game. Build the richest loot pile, steal from the table, and don't bust.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Slap!">
+  <title>Slap!</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/fonts/lilita-one-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/slap-card-front.webp" as="image">
+  <link rel="preload" href="assets/slap-card-back.webp" as="image">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <main class="app-shell" aria-live="polite">
-        <header class="topbar">
-            <a class="icon-button home-link" href="../../" aria-label="Back to game shelf" title="Game shelf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"></path><path d="M6.5 10v9h11v-9M10 19v-5h4v5"></path></svg></a>
-            <div class="brand"><strong>SLAP!</strong><span>High-stakes card game</span></div>
-            <div class="top-actions">
-                <button class="icon-button" id="menu-button" type="button" aria-label="Open game menu" aria-expanded="false" onclick="toggleMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
-                <button class="icon-button" id="fullscreen-button" type="button" aria-label="Enter fullscreen" onclick="toggleFullscreen()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg></button>
-            </div>
-            <aside class="menu-panel" id="menu-panel" hidden aria-label="Game menu">
-                <div class="menu-title"><span>How to play</span><button class="menu-close" type="button" aria-label="Close game menu" onclick="closeMenu()">×</button></div>
-                <ul class="rules-list">
-                    <li>Tap the deck to draw at least one card on your turn.</li>
-                    <li>Three exposed cards are the danger line: matching a value busts your turn.</li>
-                    <li>Matching exposed cards can be stolen before you keep the new card.</li>
-                    <li>Keep your cards exposed to press on, or bank them safely on your next turn.</li>
-                </ul>
-                <h2 class="log-heading">Game log</h2>
-                <ol class="game-log" id="game-log" aria-live="polite"><li class="log-empty">Start a game to follow every draw, steal, bust, and bank.</li></ol>
-            </aside>
-        </header>
-        <section class="game-board" id="game-board" aria-label="Card table">
-            <div class="opponents" id="opponents-container"></div>
-            <section class="center-stage" id="center-stage" aria-label="Draw pile and current play">
-                <div class="deck-zone"><button class="deck-stack" id="deck-stack" type="button" aria-label="Draw pile" onclick="handleAction('DRAW')"><span id="deck-count">90</span></button><div class="pile-label">Tap to draw</div></div>
-                <div class="dealer"><div class="turn-owner" id="turn-owner"></div><div class="drawn-card-area" id="drawn-card-area" aria-label="Active turn cards"></div><div class="message-banner" id="message-banner">Ready to play</div><div class="turn-note" id="turn-note">Draw at least one card on your turn.</div></div>
-                <div class="discard-zone"><div class="discard-pile" id="discard-count" aria-label="Discarded cards">0</div><div class="pile-label">Lost</div></div>
-            </section>
-            <section class="human-area" aria-label="Your cards"><div class="player-area" id="human-panel"><div class="player-header"><span class="player-name">You</span><span class="score-wrap">Loot <span class="score-pill" id="human-score">0</span></span></div><div class="cards-container" id="human-cards"></div></div></section>
-        </section>
-        <footer class="action-dock"><div class="controls" id="controls"><div class="waiting-state">Deal the cards to begin</div></div></footer>
-    </main>
-    <section class="overlay" id="start-overlay" aria-label="Start game"><div class="overlay-card"><div class="title-chip" aria-hidden="true">10</div><h1 class="title-mark">SLAP!</h1><p class="overlay-kicker">Push your luck · steal the table</p><p class="overlay-copy">Build the richest loot pile without drawing a duplicate once three cards are in front of you.</p><div class="overlay-actions"><button class="primary-cta" type="button" onclick="startGame()">Deal the cards</button><button class="text-button" type="button" onclick="startFullscreenGame()">Play in fullscreen</button></div></div></section>
-    <section class="overlay" id="result-overlay" aria-label="Game result" hidden><div class="overlay-card"><p class="overlay-kicker">Final count</p><h2 class="title-mark" id="result-title">Winner!</h2><div class="title-chip" id="result-score" aria-label="Winning score">0</div><p class="overlay-copy" id="result-copy"></p><div class="overlay-actions"><button class="primary-cta" type="button" onclick="startGame()">Play again</button><button class="text-button" type="button" onclick="closeResult()">View final table</button></div></div></section>
-    <div class="toast" id="toast" role="status"></div>
-    <script>
-        const CARD_COUNTS=Object.freeze({1:11,2:11,3:11,4:11,5:11,6:7,7:7,8:7,9:7,10:7});
-        const TOTAL_CARDS=90;
-        const BOT_PROFILES=[
-            {name:'Doc',persona:'The Shark',style:'shark'},
-            {name:'Wyatt',persona:'The Maverick',style:'maverick'},
-            {name:'Jesse',persona:'The Bandit',style:'bandit'},
-            {name:'Billy',persona:'The Rock',style:'rock'}
-        ];
-        const state={deck:[],discard:[],players:[],currentPlayerIndex:0,phase:'ready',drawnCard:null,inputResolver:null,turnToken:0,gameActive:false,log:[]};
-        const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)), sum=cards=>cards.reduce((total,card)=>total+card,0);
-        function renderLog(){const list=document.getElementById('game-log');if(!list)return;list.innerHTML='';if(!state.log.length){const empty=document.createElement('li');empty.className='log-empty';empty.textContent='Start a game to follow every draw, steal, bust, and bank.';list.append(empty);return}state.log.slice(-24).forEach(entry=>{const item=document.createElement('li');item.textContent=entry.text;list.append(item)});list.lastElementChild?.scrollIntoView({block:'nearest'})}
-        function logEvent(text){state.log.push({text,time:Date.now()});if(state.log.length>60)state.log.shift();renderLog()}
-        function syncDeckControl(){const deck=document.getElementById('deck-stack');if(!deck)return;const active=state.players[state.currentPlayerIndex];const ready=Boolean(state.gameActive&&state.phase==='choosing-draw'&&active?.isHuman&&state.inputResolver);deck.disabled=!ready;deck.classList.toggle('is-ready',ready);deck.setAttribute('aria-label',ready?'Tap to draw a card':'Draw pile')}
-        function impactTable(){const table=document.getElementById('center-stage');if(!table)return;table.classList.remove('impact');void table.offsetWidth;table.classList.add('impact')}
-        function createDeck(){const cards=[];Object.entries(CARD_COUNTS).forEach(([value,count])=>{for(let i=0;i<count;i++)cards.push(Number(value))});for(let i=cards.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]]}return cards}
-        function createPlayers(){return [{id:0,name:'You',persona:'',style:'human',isHuman:true,score:0,bankedCount:0,faceUp:[]},...BOT_PROFILES.map((profile,index)=>({id:index+1,...profile,isHuman:false,score:0,bankedCount:0,faceUp:[]}))]}
-        function generateCardHTML(value,animated=false){return `<div class="card c${value}${animated?' card--drawn':''}" data-val="${value}" aria-label="Card ${value}"><div class="chip">${value}</div></div>`}
-        function getStackedCardsHTML(cards,animatedValue=null){if(!cards.length)return '<span class="empty-hand">No cards exposed</span>';return[...new Set(cards)].sort((a,b)=>a-b).map(value=>{const count=cards.filter(card=>card===value).length;return `<div class="card-stack" aria-label="${count} card${count===1?'':'s'} worth ${value} each">${Array.from({length:count},(_,index)=>generateCardHTML(value,value===animatedValue&&index===count-1)).join('')}</div>`}).join('')}
-        function cardsAtSeat(player){return state.gameActive&&state.currentPlayerIndex===player.id&&player.faceUp.length?'<span class="empty-hand">Playing in center</span>':getStackedCardsHTML(player.faceUp)}
-        function renderBoard(animateDraw=false){document.getElementById('deck-count').textContent=state.deck.length;document.getElementById('discard-count').textContent=state.discard.length;const active=state.players[state.currentPlayerIndex],centerCards=state.gameActive&&active?[...active.faceUp,...(state.drawnCard===null?[]:[state.drawnCard])]:[];document.getElementById('drawn-card-area').innerHTML=centerCards.length?getStackedCardsHTML(centerCards,animateDraw?state.drawnCard:null):'<span class="empty-hand">Turn pile</span>';document.getElementById('turn-owner').textContent=state.gameActive&&active?`${active.name}'s turn pile`:'';const opponents=document.getElementById('opponents-container');opponents.innerHTML=state.players.slice(1).map(player=>`<article class="player-area${state.gameActive&&state.currentPlayerIndex===player.id?' active':''}"><div class="player-header"><span class="player-name">${player.name}</span><span class="score-wrap">Loot <span class="score-pill">${player.score}</span></span></div><div class="cards-container">${cardsAtSeat(player)}</div></article>`).join('');const human=state.players[0]||{score:0,faceUp:[]};document.getElementById('human-panel').className=`player-area${state.gameActive&&state.currentPlayerIndex===0?' active':''}`;document.getElementById('human-score').textContent=human.score;document.getElementById('human-cards').innerHTML=cardsAtSeat(human);syncDeckControl()}
-        function setMessage(message,note=''){const banner=document.getElementById('message-banner');banner.textContent=message;banner.classList.remove('pop');void banner.offsetWidth;banner.classList.add('pop');document.getElementById('turn-note').textContent=note}
-        function renderActions(actions=[]){const controls=document.getElementById('controls');if(!actions.length){const active=state.players[state.currentPlayerIndex];controls.innerHTML=state.phase==='choosing-draw'&&active?.isHuman?'<div class="waiting-state">Tap the deck to draw</div>':'<div class="waiting-state">The table is playing…</div>';syncDeckControl();return}controls.innerHTML=actions.map(action=>`<button type="button" class="action-button ${action.className}" ${action.disabled?'disabled':''} onclick="handleAction('${action.value}')">${action.label}</button>`).join('');syncDeckControl()}
-        function askHuman(actions){const promise=new Promise(resolve=>{state.inputResolver=resolve});renderActions(actions);syncDeckControl();return promise}
-        function handleAction(action){if(action==='RESTART'){startGame();return}if(!state.inputResolver)return;const resolve=state.inputResolver;state.inputResolver=null;renderActions();resolve(action)}
-        function cancelPendingInput(){if(state.inputResolver){const resolve=state.inputResolver;state.inputResolver=null;resolve('CANCELLED')}}
-        function bankExposedCards(player){if(!player.faceUp.length)return 0;const amount=sum(player.faceUp);player.score+=amount;player.bankedCount+=player.faceUp.length;player.faceUp=[];return amount}
-        function opponentsWith(value,activeIndex){return state.players.filter((player,index)=>index!==activeIndex&&player.faceUp.includes(value))}
-        function stealMatchingCards(player,victims,value){let stolen=0;victims.forEach(victim=>{const matching=victim.faceUp.filter(card=>card===value);stolen+=matching.length;player.faceUp.push(...matching);victim.faceUp=victim.faceUp.filter(card=>card!==value)});return stolen}
-        function botRead(player){const held=new Set(player.faceUp),bustCards=state.deck.filter(card=>held.has(card)).length,risk=state.deck.length?bustCards/state.deck.length:1,exposedValue=sum(player.faceUp),opponentValues=new Set(state.players.filter(other=>other.id!==player.id).flatMap(other=>other.faceUp)),stealChance=state.deck.length?state.deck.filter(card=>opponentValues.has(card)).length/state.deck.length:0;return{risk,exposedValue,stealChance,count:player.faceUp.length}}
-        function botWantsToDraw(player){if(player.faceUp.length<3)return true;const read=botRead(player);switch(player.style){case'maverick':return read.exposedValue<31&&read.risk<.35;case'bandit':return read.exposedValue<23&&(read.risk<.24||read.stealChance>.24);case'rock':return read.exposedValue<13&&read.risk<.11;default:return read.exposedValue<21&&read.risk<.17}}
-        function botWantsToSteal(player,value,count){const gain=value*count,crossesLine=player.faceUp.length<3&&player.faceUp.length+count+1>=3;switch(player.style){case'maverick':case'bandit':return true;case'rock':return gain>=7&&!crossesLine;default:return gain>=5||(!crossesLine&&value>=3)}}
-        function assertGameState(){const inPlay=state.players.reduce((count,player)=>count+player.faceUp.length,0),banked=state.players.reduce((count,player)=>count+player.bankedCount,0),drawn=state.drawnCard===null?0:1,accounted=state.deck.length+state.discard.length+inPlay+banked+drawn;if(accounted!==TOTAL_CARDS){console.error(`Card-state error: ${accounted} of ${TOTAL_CARDS} cards accounted for.`);setMessage('Table error','A card-state check failed. Start a new game.');state.gameActive=false;renderActions([{label:'New game',value:'RESTART',className:'btn-new'}]);return false}return true}
-        async function playTurn(token){
-            if(!state.gameActive||token!==state.turnToken)return;
-            const player=state.players[state.currentPlayerIndex];
-            state.phase='banking';renderActions();
-            const banked=bankExposedCards(player);
-            if(banked){logEvent(`${player.name} banks ${banked} points. Banked cards are safe.`);setMessage(`${player.name} banks ${banked}`,'Banked cards are safe and cannot be stolen.');renderBoard();assertGameState();await sleep(520)}
-            let first=true;
-            while(state.gameActive&&token===state.turnToken){
-                state.phase='choosing-draw';
-                let wants;
-                if(player.isHuman){
-                    setMessage(first?'Your turn':'Press your luck?',first?'Tap the deck to draw your first card.':`${player.faceUp.length} card${player.faceUp.length===1?'':'s'} exposed · ${sum(player.faceUp)} points at risk`);
-                    const action=await askHuman(first?[]:[{label:'Keep',value:'STOP',className:'btn-stop'}]);
-                    if(action==='CANCELLED')return;
-                    wants=action==='DRAW';
-                }else{
-                    wants=first||botWantsToDraw(player);setMessage(wants?`${player.name} draws…`:`${player.name} keeps`,wants?'Watching the draw pile…':'Cards stay exposed until their next turn.');await sleep(430)
-                }
-                if(!wants){logEvent(`${player.name} keeps ${player.faceUp.length?`${sum(player.faceUp)} points`:'the table'} exposed.`);break}
-                if(!state.deck.length){await finishGame(token);return}
-                first=false;state.phase='drawing';const card=state.deck.pop();state.drawnCard=card;logEvent(`${player.name} draws ${card}.`);renderBoard(true);setMessage(`${player.name} draws ${card}`,'Checking for a duplicate…');await sleep(380);
-                const bust=player.faceUp.length>=3&&player.faceUp.includes(card);
-                if(bust){state.phase='bust';const lost=[...player.faceUp,card];state.discard.push(...lost);player.faceUp=[];state.drawnCard=null;logEvent(`${player.name} busts on ${card}; ${lost.length} exposed cards are lost.`);impactTable();setMessage(`${player.name} busts!`,`${lost.length} exposed cards are lost.`);renderBoard();assertGameState();await sleep(900);break}
-                const victims=opponentsWith(card,state.currentPlayerIndex);let didSteal=false;
-                if(victims.length){
-                    const available=victims.reduce((total,victim)=>total+victim.faceUp.filter(value=>value===card).length,0);let steal;state.phase='choosing-steal';
-                    if(player.isHuman){setMessage(`${available} matching card${available===1?'':'s'} exposed`,`Take every exposed ${card} from ${victims.map(v=>v.name).join(', ')}?`);const action=await askHuman([{label:`Steal ${available}`,value:'STEAL',className:'btn-steal'},{label:'Pass',value:'PASS',className:'btn-nosteal'}]);if(action==='CANCELLED')return;steal=action==='STEAL'}
-                    else{steal=botWantsToSteal(player,card,available);setMessage(steal?`${player.name} steals ${available}!`:`${player.name} passes`,steal?`All exposed ${card}s change hands.`:'The matching cards stay put.');await sleep(480)}
-                    if(steal){const stolen=stealMatchingCards(player,victims,card);didSteal=true;logEvent(`${player.name} steals ${stolen} exposed ${card}${stolen===1?'':'s'}.`);impactTable()}else logEvent(`${player.name} passes on the exposed ${card}${available===1?'':'s'}.`)
-                }
-                player.faceUp.push(card);if(!didSteal)logEvent(`${player.name} keeps ${card} exposed.`);state.drawnCard=null;renderBoard();assertGameState();await sleep(230);if(!state.deck.length){await finishGame(token);return}
-            }
-            if(!state.gameActive||token!==state.turnToken)return;state.currentPlayerIndex=(state.currentPlayerIndex+1)%state.players.length;renderBoard();await sleep(180);void playTurn(token)
-        }
-        async function finishGame(token){if(!state.gameActive||token!==state.turnToken)return;state.gameActive=false;state.phase='finished';cancelPendingInput();renderActions();logEvent('The deck is empty. Exposed cards are banked for the final count.');setMessage('Final card!','Everyone banks the cards still in front of them.');await sleep(650);state.players.forEach(player=>{const banked=bankExposedCards(player);if(banked)logEvent(`${player.name} banks ${banked} points for the final count.`)});state.drawnCard=null;renderBoard();assertGameState();const high=Math.max(...state.players.map(player=>player.score)),winners=state.players.filter(player=>player.score===high),title=winners.length===1?`${winners[0].name} wins!`:'It’s a tie!',names=winners.map(player=>player.name).join(' & ');logEvent(`${title} Final score: ${high}.`);setMessage(title,`${names} · ${high} points`);document.getElementById('result-title').textContent=title;document.getElementById('result-score').textContent=high;document.getElementById('result-copy').textContent=winners.length===1?`${names} leaves the table with the richest loot.`:`${names} share the top score.`;await sleep(500);document.getElementById('result-overlay').hidden=false}
-        function startGame(){cancelPendingInput();closeMenu();state.turnToken++;state.deck=createDeck();state.discard=[];state.players=createPlayers();state.currentPlayerIndex=0;state.phase='starting';state.drawnCard=null;state.gameActive=true;state.log=[];renderLog();logEvent('New game started. You have the first turn.');document.getElementById('start-overlay').hidden=true;document.getElementById('result-overlay').hidden=true;renderBoard();assertGameState();setMessage('Cards are shuffled','You have the first turn.');renderActions();const token=state.turnToken;setTimeout(()=>void playTurn(token),260)}
-        function closeResult(){document.getElementById('result-overlay').hidden=true}
-        function toggleMenu(){const panel=document.getElementById('menu-panel'),button=document.getElementById('menu-button'),open=panel.hidden;panel.hidden=!open;button.setAttribute('aria-expanded',String(open));if(open)renderLog()}
-        function closeMenu(){const panel=document.getElementById('menu-panel'),button=document.getElementById('menu-button');if(!panel)return;panel.hidden=true;button?.setAttribute('aria-expanded','false')}
-        function showToast(message){const toast=document.getElementById('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove('show'),2600)}
-        async function toggleFullscreen(){try{if(document.fullscreenElement||document.webkitFullscreenElement){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit)await exit.call(document)}else{const root=document.documentElement,enter=root.requestFullscreen||root.webkitRequestFullscreen;if(!enter){showToast('For true fullscreen on iPhone, add this game to your Home Screen.');return false}await enter.call(root)}return true}catch(error){showToast('Fullscreen was blocked by this browser.');return false}}
-        async function startFullscreenGame(){await toggleFullscreen();startGame()}function updateFullscreenLabel(){const active=Boolean(document.fullscreenElement||document.webkitFullscreenElement);document.getElementById('fullscreen-button').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen')}
-        document.addEventListener('fullscreenchange',updateFullscreenLabel);document.addEventListener('webkitfullscreenchange',updateFullscreenLabel);
-        document.addEventListener('click',event=>{if(!event.target.closest('#menu-panel, #menu-button'))closeMenu()});
-        state.players=createPlayers();state.deck=Array(TOTAL_CARDS).fill(0);renderBoard();
-    </script>
+  <!-- Title -->
+  <section class="screen title-screen" id="title" aria-labelledby="title-mark">
+    <a class="icon-button corner" href="../../" aria-label="Back to game shelf">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
+    </a>
+    <div class="screen-card">
+      <div class="title-chip" aria-hidden="true"><span>10</span></div>
+      <h1 class="title-mark" id="title-mark">SLAP!</h1>
+      <p class="kicker">Push your luck · Steal the table</p>
+      <p class="title-copy">Build the richest loot pile. Once three cards are in front of you, draw a value you already have and you lose them all.</p>
+      <div class="title-actions">
+        <button class="cta" type="button" data-action="resume" hidden>Resume game</button>
+        <button class="cta" type="button" data-action="new">Deal the cards</button>
+        <div class="title-links">
+          <button class="link-button" type="button" data-action="rules">How to play</button>
+          <button class="link-button" type="button" data-action="fullscreen" data-needs-fullscreen hidden>Play fullscreen</button>
+        </div>
+      </div>
+      <p class="career" id="career"></p>
+    </div>
+  </section>
+
+  <!-- Table -->
+  <main class="app-shell" id="app" hidden>
+    <header class="topbar">
+      <a class="icon-button" href="../../" aria-label="Back to game shelf">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"/><path d="M6.5 10v9h11v-9M10 19v-5h4v5"/></svg>
+      </a>
+      <div class="brand" aria-hidden="true">SLAP!</div>
+      <div class="top-actions">
+        <button class="icon-button" type="button" data-action="fullscreen" data-needs-fullscreen hidden aria-label="Enter fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+        </button>
+        <button class="icon-button" type="button" data-action="menu" aria-label="Rules, log and settings" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="board" id="board" aria-label="Card table">
+      <div class="opponents" id="opponents"></div>
+
+      <section class="stage" id="stage" aria-label="Draw pile and turn pile">
+        <div class="stage-head">
+          <span class="pile-owner" id="pile-owner"></span>
+          <span class="meter" id="meter" role="img"></span>
+        </div>
+        <div class="stage-row">
+          <div class="deck-zone">
+            <button class="deck" id="deck" type="button" aria-label="Draw pile" disabled><span class="deck-count" id="deck-count">90</span></button>
+            <span class="zone-label" id="deck-label">Deck</span>
+          </div>
+          <div class="pile" id="pile"></div>
+          <div class="lost-zone">
+            <div class="lost" id="lost" aria-label="Lost cards"><span class="lost-count" id="lost-count">0</span></div>
+            <span class="zone-label">Lost</span>
+          </div>
+        </div>
+        <div class="busts" id="busts"></div>
+        <p class="headline" id="headline">Ready to play</p>
+        <p class="note" id="note"></p>
+      </section>
+
+      <section class="seat me" id="me" data-pid="0" aria-label="Your seat"></section>
+    </section>
+
+    <footer class="dock" id="dock"></footer>
+  </main>
+
+  <!-- Result -->
+  <section class="screen result-screen" id="result" aria-labelledby="result-title" hidden>
+    <div class="screen-card">
+      <p class="kicker">Final count</p>
+      <h2 class="result-title" id="result-title">You win!</h2>
+      <ol class="standings" id="standings"></ol>
+      <p class="career" id="result-career"></p>
+      <div class="title-actions">
+        <button class="cta" type="button" data-action="new">Play again</button>
+        <div class="title-links">
+          <button class="link-button" type="button" data-action="view-table">View the table</button>
+          <a class="link-button" href="../../">Game shelf</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Rules · Log · Settings sheet -->
+  <div class="sheet-wrap" id="sheet" hidden>
+    <div class="backdrop" data-action="close-sheet"></div>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">
+      <div class="grabber" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <h2 id="sheet-title" class="sr-only">Game menu</h2>
+        <div class="segmented" role="tablist" aria-label="Menu sections">
+          <button type="button" role="tab" data-tab="rules" aria-selected="true">Rules</button>
+          <button type="button" role="tab" data-tab="log" aria-selected="false">Log</button>
+          <button type="button" role="tab" data-tab="settings" aria-selected="false">Settings</button>
+        </div>
+        <button class="sheet-done" type="button" data-action="close-sheet">Done</button>
+      </div>
+      <div class="sheet-body">
+        <div class="tab-panel" data-panel="rules" role="tabpanel">
+          <ol class="rules">
+            <li><b>Draw.</b> On your turn, tap the deck or <i>Draw</i>. You must draw at least one card.</li>
+            <li><b>Mind the danger line.</b> Once three or more cards are in front of you, drawing a value you already have is a <b>bust</b>: every exposed card goes to the Lost pile.</li>
+            <li><b>Steal.</b> Draw a value someone else has exposed and you may take all of their cards of that value.</li>
+            <li><b>Keep.</b> Stop whenever you like. Your cards stay exposed, and can be stolen, until your next turn starts. Then they bank into your <b>Loot</b> for good.</li>
+            <li><b>Win.</b> When the deck runs out, everyone banks what's in front of them. The richest Loot wins.</li>
+          </ol>
+          <p class="rules-note">The deck has 90 cards: eleven each of 1 to 5 and seven each of 6 to 10.</p>
+          <button class="row-button" type="button" data-action="tour">Show the walkthrough</button>
+        </div>
+        <div class="tab-panel" data-panel="log" role="tabpanel" hidden>
+          <div class="log" id="log"></div>
+        </div>
+        <div class="tab-panel" data-panel="settings" role="tabpanel" hidden>
+          <div class="group">
+            <label class="row"><span>Sound</span><input type="checkbox" switch data-pref="sound"></label>
+            <label class="row"><span>Haptics</span><input type="checkbox" switch data-pref="haptics"></label>
+            <label class="row"><span>Show bust odds<small>Your chance of busting on the next draw</small></span><input type="checkbox" switch data-pref="odds"></label>
+          </div>
+          <p class="group-label">Opponent speed</p>
+          <div class="segmented wide" data-choice="speed">
+            <button type="button" data-value="relaxed">Relaxed</button>
+            <button type="button" data-value="normal">Normal</button>
+            <button type="button" data-value="fast">Fast</button>
+          </div>
+          <p class="group-label">Difficulty</p>
+          <div class="segmented wide" data-choice="difficulty">
+            <button type="button" data-value="easy">Easy</button>
+            <button type="button" data-value="normal">Normal</button>
+            <button type="button" data-value="hard">Hard</button>
+          </div>
+          <p class="group-hint" id="difficulty-hint">Applies from your next game.</p>
+          <div class="group">
+            <button class="row-button" type="button" data-action="new">New game</button>
+            <button class="row-button" type="button" data-action="quit">Back to title</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- First-run walkthrough -->
+  <div class="tour" id="tour" hidden>
+    <div class="tour-hole" id="tour-hole"></div>
+    <div class="tour-tip" id="tour-tip" role="dialog" aria-live="polite" aria-labelledby="tour-title">
+      <p class="tour-step" id="tour-step"></p>
+      <h3 id="tour-title"></h3>
+      <p id="tour-text"></p>
+      <div class="tour-actions">
+        <button class="link-button" type="button" data-action="tour-skip">Skip</button>
+        <button class="cta small" type="button" data-action="tour-next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="fx" aria-hidden="true"></div>
+  <div class="sr-only" id="sr" aria-live="polite"></div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script type="module" src="app.mjs"></script>
 </body>
 </html>

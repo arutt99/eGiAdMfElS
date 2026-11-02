@@ -1,0 +1,15 @@
+{
+  "name": "Slap!",
+  "short_name": "Slap!",
+  "description": "A push-your-luck card game: steal from the table, and don't bust.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#06231c",
+  "theme_color": "#06231c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
