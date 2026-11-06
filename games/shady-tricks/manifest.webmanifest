@@ -1,0 +1,15 @@
+{
+  "name": "Shady Tricks",
+  "short_name": "Shady Tricks",
+  "description": "A wicked trick-taker: the second-highest card wins, pairs cancel, and going over 40 knocks you out.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#061b16",
+  "theme_color": "#061b16",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
