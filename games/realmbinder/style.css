@@ -3081,3 +3081,10 @@ body {
 .simple-deck.turned .under { transform: translate(-5px,5px) translateZ(2px) rotateY(180deg); }
 .simple-deck.turned .under2 { transform: translate(-10px,10px) translateZ(4px) rotateY(180deg); }
 .simple-deck .flip.leave { transform: translateX(50px); }
+
+/* Preserve the approved woodland artwork behind the warm, readable collection UI. */
+body {
+  background: linear-gradient(#241c16e8, #241c16ee), url('./assets/woodland-background.png') center / cover fixed, var(--bg);
+}
+.c-art img, .pack .p-art img { object-fit: contain; background: #f5dfb8; }
+.card.gilded .c-art img { filter: sepia(.35) saturate(1.2); }

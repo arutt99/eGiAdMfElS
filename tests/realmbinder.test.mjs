@@ -5,7 +5,7 @@ import {
   mulberry, rollPack, newSave, validSave, openPack, shopView, buyPacks, buyBox, buySingle, sellCopy, duplicates,
   sellDuplicates, allowance, claimAllowance, shelve, copyValue, marketPrice, sellPrice, completion,
 } from '../games/realmbinder/engine.mjs';
-import { cardArt } from '../games/realmbinder/art.mjs';
+import { cardArt, artSource } from '../games/realmbinder/art.mjs';
 
 const T0 = Date.UTC(2026, 10, 7, 9, 0, 0);
 
@@ -174,4 +174,13 @@ test('market prices drift but stay near the rarity base', () => {
       assert.ok(p >= base * 0.5 && p <= base * 2.1, `${c.name} ${p}`);
     }
   }
+});
+
+
+test('DOM and 3D printing share the approved illustration source', () => {
+  for (const card of CARDS) {
+    assert.ok(artSource(card).endsWith(`/assets/card-art/${card.id}.webp`), card.id);
+  }
+  const keeper = { id: 'keeper', name: 'Marta', faction: 'hearth', rarity: 'U', subject: 'hero:halfling:lantern', kind: 'hero' };
+  assert.ok(artSource(keeper).startsWith('data:image/svg+xml,'));
 });

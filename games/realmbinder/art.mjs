@@ -2,7 +2,7 @@
 // sky and time of day, layered ridges, a faction landscape, the subject, particles and light.
 // No images; the same card always draws the same picture.
 
-import { RARITIES } from './data.mjs';
+import { CARDS, RARITIES } from './data.mjs';
 
 const W = 200, H = 150;
 
@@ -792,7 +792,13 @@ function spell(style, rng, P, rank) {
 }
 
 const cache = new Map();
-export function artFor(card) {
-  if (!cache.has(card.id)) cache.set(card.id, `<img src="data:image/svg+xml,${encodeURIComponent(cardArt(card))}" width="200" height="150" alt="" draggable="false">`);
+const illustratedCards = new Set(CARDS.map(card => card.id));
+// Shared by DOM cards and the Three.js printing plates so the artwork stays identical.
+export function artSource(card) {
+  if (illustratedCards.has(card.id)) return new URL(`./assets/card-art/${card.id}.webp`, import.meta.url).href;
+  if (!cache.has(card.id)) cache.set(card.id, `data:image/svg+xml,${encodeURIComponent(cardArt(card))}`);
   return cache.get(card.id);
+}
+export function artFor(card) {
+  return `<img src="${artSource(card)}" width="200" height="150" alt="" loading="lazy" draggable="false">`;
 }

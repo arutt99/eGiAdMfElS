@@ -23,7 +23,7 @@ Every copy you own is its own object, with a condition (Mint, Near Mint, Excelle
 
 ## Art
 
-All art is procedural SVG (`art.mjs`), seeded by the card, so the same card always draws the same picture. Each scene has a time of day, a faction palette, layered ridges, a faction landscape, the subject, particles and a vignette. Subjects come from the card's `subject` code in `data.mjs`:
+The approved visual direction and reference are in [ART_DIRECTION.md](ART_DIRECTION.md). All 130 cards use individual illustrated assets. The shopkeeper and other non-card subjects use procedural SVG (`art.mjs`). Procedural subjects come from the `subject` codes in `data.mjs`:
 
 - `hero:<race>:<gear>`: a portrait (elf, dwarf, human, orc, goblin, mage, halfling) with a weapon or item. Skin, hair, clothing, pose and scale vary. Rares get capes, Legendaries get crowns.
 - `beast:<shape>`: wolf, stag, owl, eagle, horse, ram, bear, troll, golem, treant, dragon, plus variants.
@@ -57,8 +57,8 @@ Bot collectors who trade and bid, scheduled set releases with sets going out of 
 
 The collector’s table, Copper Kettle, binder, display room, card frames, booster wrappers, inspector and pull summary share a cozy walnut, parchment and lamplight design, with forest-green foil packs. Desktop navigation sits above the collection; phone navigation remains within thumb reach.
 
-- Cards establish their own sizing container. Artwork always keeps its native 4:3 composition without cropping or flex shrink; names wrap within a fixed header, and full flavor text is also available in the inspector.
-- Artwork is embedded as an SVG image so repeated cards never share gradient IDs with hidden cards or overlays.
+- Cards establish their own sizing container. Artwork fits within its 4:3 window without cropping, distortion or flex shrink; names wrap within a fixed header, and full flavor text is also available in the inspector.
+- The approved illustrated assets are shared by DOM cards and the Three.js opener. Procedural non-card art is embedded as an SVG image so repeated scenes never share gradient IDs with hidden cards or overlays.
 - Packs and cards remain still at rest. A deliberate tear and flip replace idle wobble and geometric hover tilt. Reduced-motion preferences disable transitions.
 - Opener timers are cancelled on close, restart and Reveal all. Rapid input cannot consume extra packs or advance through an unfinished flip. A committed pack’s ten cards are saved before its animation starts.
 - Card details stay interactive above the pull summary. Dialogs lock background interaction, contain keyboard focus and support Escape. Reveal controls work with touch, mouse and keyboard.

@@ -1,5 +1,5 @@
 // Canvas printing plates: the same card data and complete 4:3 artwork as the binder.
-import { cardArt } from '../art.mjs';
+import { artSource } from '../art.mjs';
 import { FACTIONS, KINDS, RARITIES } from '../data.mjs';
 const W = 768;
 const palette = { sylvan:'#547d60',deephold:'#9b7650',westmarch:'#607f99',horde:'#95584d',conclave:'#86719c',hearth:'#a28a54',wilds:'#7b8b90' };
@@ -18,8 +18,14 @@ function crown(c,x,y,s,color='#d7ba77') {
   c.beginPath();c.moveTo(-19,8);c.lineTo(19,8);c.moveTo(-12,23);c.lineTo(12,23);c.stroke();c.restore();
 }
 async function artwork(card) {
-  const img=new Image(); img.src=`data:image/svg+xml,${encodeURIComponent(cardArt(card))}`;
+  const img=new Image(); img.src=artSource(card);
   await img.decode();return img;
+}
+function printArt(c,img,x,y,w,h) {
+  const scale=Math.min(w/img.naturalWidth,h/img.naturalHeight);
+  const iw=img.naturalWidth*scale,ih=img.naturalHeight*scale;
+  c.fillStyle='#f5dfb8';c.fillRect(x,y,w,h);
+  c.drawImage(img,x+(w-iw)/2,y+(h-ih)/2,iw,ih);
 }
 function grain(c,h,amount=7000) {
   // Deterministic print grain, not animated noise.
@@ -39,7 +45,7 @@ export async function packPlate(card, back=false) {
   } else {
     text(c,'REALMBINDER',W/2,190,53);
     text(c,'FIRST EDITION',W/2,235,17,'#c3c6aa');
-    const art=await artwork(card);c.drawImage(art,70,320,628,471);
+    const art=await artwork(card);printArt(c,art,70,320,628,471);
     c.strokeStyle='#c5ad6d';c.lineWidth=3;c.strokeRect(70,320,628,471);
     crown(c,W/2,280,.65);text(c,'THE SUNDERED',W/2,890,52);text(c,'CROWN',W/2,950,60);
     text(c,'10 CARDS  ·  SET 01',W/2,1060,21,'#ccd0b5');
@@ -61,7 +67,7 @@ export async function cardPlate(card,copy) {
   const words=card.name.split(' ');let first='';while(words.length && c.measureText(first+words[0]).width<580)first+=words.shift()+' ';
   c.fillText(first.trim(),45,words.length?73:96);if(words.length)c.fillText(words.join(' '),45,116);
   c.beginPath();c.arc(693,82,28,0,Math.PI*2);c.fillStyle='#344d3b';c.fill();c.strokeStyle='#af9357';c.stroke();text(c,String(card.cost),693,94,31,'#eee1b8');
-  const img=await artwork(card);c.drawImage(img,24,145,720,540);
+  const img=await artwork(card);printArt(c,img,24,145,720,540);
   c.fillStyle='#ac996d';c.fillRect(24,684,720,2);c.fillStyle='#344333';c.fillRect(24,686,720,60);
   text(c,`${KINDS[card.kind]} · ${FACTIONS[card.faction].short}`,46,724,22,'#ddd2af','left','system-ui');
   c.save();c.translate(710,716);c.rotate(Math.PI/4);c.fillStyle=RARITIES[card.rarity].color;c.fillRect(-8,-8,16,16);c.restore();
