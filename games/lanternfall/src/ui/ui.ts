@@ -67,6 +67,7 @@ const ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 11 8-7 8 7"/><path d="M6.500 10v9h11v-9M10 19v-5h4v5"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
   spellbook: '<svg viewBox="0 0 24 24"><path d="M5 4.500A2.500 2.500 0 0 1 7.500 2H19v16H7.500A2.500 2.500 0 0 0 5 20.500z"/><path d="M5 20.500A2.500 2.500 0 0 0 7.500 23H19v-3" fill="none" stroke="currentColor" stroke-width="1.600"/><path d="M12 6l1.200 2.800L16 10l-2.800 1.200L12 14l-1.200-2.800L8 10l2.800-1.200z" fill="#2a1d36"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.600" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   gear: '<svg viewBox="0 0 24 24"><path d="M19.400 13a7.500 7.500 0 0 0 0-2l2-1.600-2-3.400-2.400 1a7.500 7.500 0 0 0-1.700-1L15 3.500h-4l-.4 2.500a7.500 7.500 0 0 0-1.700 1l-2.400-1-2 3.400 2 1.600a7.500 7.500 0 0 0 0 2l-2 1.600 2 3.400 2.400-1a7.500 7.500 0 0 0 1.700 1l.4 2.500h4l.4-2.500a7.500 7.500 0 0 0 1.700-1l2.400 1 2-3.400zM13 15.200a3.200 3.200 0 1 1 0-6.400 3.200 3.200 0 0 1 0 6.400z" transform="translate(-1 0)"/></svg>',
 };
@@ -201,6 +202,8 @@ export class UI {
   private startWave = 1;
   private floatPool: Float[] = [];
   private shownLives = -1;
+  /** Whether the phone layout's wave box is folded down to one line. Kept between battles. */
+  private waveCollapsed = false;
   private shownMaxLives = -1;
   private coins: Coin[] = [];
   private lastGoldPop = 0;
@@ -866,7 +869,8 @@ export class UI {
         </div>
       </div>
       <div class="top-center">
-        <div class="wave-box panel slim">
+        <div class="wave-box panel slim ${this.waveCollapsed ? 'collapsed' : ''}">
+          <button class="wave-toggle" id="h-wave-toggle" aria-label="${this.waveCollapsed ? 'Show wave details' : 'Hide wave details'}" aria-expanded="${!this.waveCollapsed}">${ICONS.chevron}</button>
           <div class="wave-line"><span id="h-wave-label"></span><span id="h-wave-time" class="dim"></span></div>
           <div class="wave-preview" id="h-preview"></div>
           <button class="wave-btn" id="h-call" aria-keyshortcuts="Space"><span id="h-call-text">Call wave</span><kbd>Space</kbd></button>
@@ -951,6 +955,15 @@ export class UI {
       else if (act === 'cancel') this.app.cancelAction();
     };
     const toggle = $('#h-spell-toggle');
+    const waveToggle = $('#h-wave-toggle');
+    waveToggle.onclick = () => {
+      this.waveCollapsed = waveToggle.parentElement!.classList.toggle('collapsed');
+      waveToggle.setAttribute('aria-expanded', String(!this.waveCollapsed));
+      waveToggle.setAttribute('aria-label', this.waveCollapsed ? 'Show wave details' : 'Hide wave details');
+    };
+    // On phones the lantern's health bar starts hidden. Tapping the lives counter or the lantern shows or hides it.
+    this.hud.classList.remove('lantern-on');
+    $('#h-lives').parentElement!.addEventListener('click', () => this.toggleLanternHp());
     toggle.onclick = () => {
       const collapsed = spells.classList.toggle('collapsed');
       toggle.setAttribute('aria-expanded', String(!collapsed));
@@ -1285,6 +1298,11 @@ export class UI {
     f.el.textContent = text;
     f.el.className = `float ${cls}`;
     f.el.style.display = 'block';
+  }
+
+  /** Shows or hides the lantern's health bar. Only the phone layout hides it; on a computer it always shows. */
+  toggleLanternHp() {
+    this.hud.classList.toggle('lantern-on');
   }
 
   /** Keeps the lantern's health bar floating above it. */
