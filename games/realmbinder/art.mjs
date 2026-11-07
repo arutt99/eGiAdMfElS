@@ -2,7 +2,7 @@
 // sky and time of day, layered ridges, a faction landscape, the subject, particles and light.
 // No images; the same card always draws the same picture.
 
-import { RARITIES } from './data.mjs';
+import { CARDS, RARITIES } from './data.mjs';
 
 const W = 200, H = 150;
 
@@ -792,7 +792,9 @@ function spell(style, rng, P, rank) {
 }
 
 const cache = new Map();
+const illustratedCards = new Set(CARDS.map(card => card.id));
 export function artFor(card) {
+  if (illustratedCards.has(card.id)) return `<img src="./assets/card-art/${card.id}.webp" alt="" loading="lazy">`;
   if (!cache.has(card.id)) cache.set(card.id, cardArt(card));
   return cache.get(card.id);
 }

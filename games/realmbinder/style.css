@@ -28,8 +28,8 @@ body {
   color: var(--ink); font-family: var(--sans);
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
   background:
-    radial-gradient(40rem 26rem at 90% -5%, rgba(232, 191, 94, .1), transparent 60%),
-    radial-gradient(40rem 30rem at -10% 10%, rgba(90, 58, 150, .16), transparent 60%),
+    linear-gradient(rgba(25, 23, 15, .79), rgba(25, 20, 12, .86)),
+    url("./assets/woodland-background.png") center / cover fixed,
     var(--bg);
 }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
@@ -374,3 +374,10 @@ main { max-width: 760px; margin: 0 auto; padding: 14px 16px calc(var(--tabs-h) +
 @media (max-width: 380px) { .products { grid-template-columns: 1fr; } }
 @media (min-width: 700px) { .binder .page { gap: 16px; } .shelf-row { gap: 18px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Storybook illustration assets */
+.c-art img, .pack .p-art img { display: block; width: 100%; height: 100%; object-fit: contain; background: #f5dfb8; }
+.card.gilded .c-art img { filter: sepia(.35) saturate(1.2); }
+.panel, .stat { background: rgba(43, 43, 28, .85); border-color: rgba(226, 196, 139, .23); box-shadow: inset 0 1px rgba(255, 239, 200, .07); }
+.top, .tabs { background: rgba(35, 38, 26, .95); }
+.btn { background: linear-gradient(#e9c786, #c39654); color: #30230f; }
