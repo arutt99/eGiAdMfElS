@@ -203,6 +203,11 @@ export interface GameOptions {
   cleared: number;
   hero?: HeroId;
   seed?: number;
+  /**
+   * Endless only: the first wave to fight (1-based). Earlier waves are skipped, and the player
+   * starts with the gold and hero level those waves would have earned.
+   */
+  startWave?: number;
 }
 
 /** Real seconds of calm between waves, counted once the road is clear. */
@@ -276,6 +281,8 @@ export class Game {
   state: 'playing' | 'won' | 'lost' = 'playing';
   /** Number of waves started so far. */
   wave = 0;
+  /** Waves skipped before the battle began. The player still calls the first wave fought. */
+  readonly firstWave: number;
   totalWaves: number;
   /** Real seconds until the next wave, or -1 until the current wave is cleared. */
   waveTimer = -1;
@@ -333,6 +340,8 @@ export class Game {
     this.maxLives = diff.lives + this.rank('lives') * 2;
     this.lives = this.maxLives;
     this.totalWaves = opts.endless ? Infinity : opts.map.waves.length;
+    this.firstWave = opts.endless ? Math.max(0, Math.floor(opts.startWave ?? 1) - 1) : 0;
+    this.wave = this.firstWave;
 
     const anchor = this.lanternPos();
     const road = this.world.roads[0];
@@ -344,6 +353,7 @@ export class Game {
       hp: 0, maxHp: 0, damage: 0, dtype: hd.damageType, rate: hd.rate, range: hd.range, speed: hd.speed, cooldown: 0,
       blockCap: hd.blockCap, blocked: 0, moving: false, ordered: false, dead: false, expires: Infinity, attackAt: -9, hitAt: -9, owner: null,
     };
+    if (this.firstWave) this.skipAhead();
     this.applyHeroStats();
     this.hero.hp = this.hero.maxHp;
     this.units.push(this.hero);
@@ -355,6 +365,33 @@ export class Game {
 
   rank(id: MetaId) {
     return this.meta[id] ?? 0;
+  }
+
+  /** True once the player has called a wave in this battle. */
+  get started() {
+    return this.wave > this.firstWave;
+  }
+
+  /** Grants roughly the kill bounties, wave gold and hero levels of the skipped waves. */
+  private skipAhead() {
+    const diff = DIFFICULTY[this.difficulty];
+    const bountyBonus = 1 + this.rank('bounty') * 0.04;
+    let gold = 0;
+    let xp = 0;
+    for (let i = 0; i < this.firstWave; i++) {
+      for (const s of parseWave(this.scriptFor(i), this.world.roads.length, i)) {
+        const bounty = ENEMIES[s.type].bounty;
+        gold += bounty * (1 + 0.025 * i) * (s.elite ? 1.5 : 1) * diff.gold * bountyBonus;
+        xp += bounty * 0.5;
+      }
+      if (i > 0) gold += (22 + i * 5) * diff.gold + this.rank('tithe') * 8;
+    }
+    this.gold = Math.min(MAX_GOLD, Math.round(this.gold + gold));
+    xp *= 1 + this.rank('heroXp') * 0.25;
+    while (this.heroLevel < HERO_COMMON.maxLevel && xp >= this.xpToNext()) {
+      xp -= this.xpToNext();
+      this.heroLevel++;
+    }
   }
 
   lanternPos() {
@@ -551,7 +588,7 @@ export class Game {
 
   /** Gold for calling the next wave now. Calling while enemies remain earns the full bonus. */
   get earlyBonus() {
-    if (this.wave === 0 || !this.canCallWave) return 0;
+    if (!this.started || !this.canCallWave) return 0;
     const seconds = this.waveTimer < 0 ? WAVE_INTERVAL : this.waveTimer;
     return Math.round(seconds * EARLY_GOLD_PER_SECOND * (1 + this.rank('earlyBonus') * 0.25));
   }
@@ -559,10 +596,10 @@ export class Game {
   callNextWave(): boolean {
     if (!this.canCallWave) return false;
     const early = this.earlyBonus;
-    const bonus = this.wave > 0 ? Math.round((22 + this.wave * 5) * DIFFICULTY[this.difficulty].gold) : 0;
+    const bonus = this.started ? Math.round((22 + this.wave * 5) * DIFFICULTY[this.difficulty].gold) : 0;
     let income = bonus + early;
     for (const t of this.towers) income += t.stats.goldPerWave ?? 0;
-    if (this.wave > 0) {
+    if (this.started) {
       income += this.rank('tithe') * 8;
       income += Math.min(this.rank('interest') * 45, Math.floor(this.gold * this.rank('interest') * 0.03));
     }
@@ -1334,7 +1371,7 @@ export class Game {
     }
     // The break starts once the road is clear, so a slow wave never overlaps the next one.
     const roadClear = this.spawnQueue.length === 0 && this.enemies.length === 0 && this.delayed.length === 0;
-    if (this.wave > 0 && roadClear && this.wave < this.totalWaves) {
+    if (this.started && roadClear && this.wave < this.totalWaves) {
       if (this.waveTimer < 0) this.waveTimer = WAVE_INTERVAL;
       this.waveTimer -= dt / this.timeScale;
       if (this.waveTimer <= 0) {

@@ -14,10 +14,11 @@ import { QUALITY, type QualityId } from '../render/engine';
 import { enemyPortrait, heroPortrait, towerPortrait } from '../render/portraits';
 import { MAX_GOLD, TARGET_MODES, type Game, type TargetMode, type Tower } from '../sim/game';
 import { buzz, isTouch } from './touch';
+import { clamp } from '../core/util';
 
 export interface AppActions {
   previewMap(map: MapDef): void;
-  startGame(map: MapDef, difficulty: Difficulty, endless: boolean): void;
+  startGame(map: MapDef, difficulty: Difficulty, endless: boolean, startWave?: number): void;
   quitToMenu(): void;
   restart(): void;
   resume(): void;
@@ -50,6 +51,8 @@ export interface ActionBar {
 
 /** How long a finger rests on something before its details appear. */
 const LONG_PRESS_MS = 420;
+/** The latest Endless wave the demo lets a battle start at. */
+const MAX_START_WAVE = 200;
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -208,6 +211,8 @@ export class UI {
   private selectedMap: MapDef = MAPS[0];
   private selectedDiff: Difficulty = 'normal';
   private endless = false;
+  /** Demo mode only: the Endless wave to begin at. */
+  private startWave = 1;
   private floatPool: Float[] = [];
   private shownLives = -1;
   private shownMaxLives = -1;
@@ -423,6 +428,9 @@ export class UI {
             <button class="nav-btn" data-a="settings">Settings</button>
             <button class="nav-btn" data-a="credits">Credits</button>
             ${canFullscreen() ? '<button class="nav-btn" data-a="fullscreen">Play fullscreen</button>' : ''}
+            ${DEMO
+              ? '<button class="nav-btn" data-a="demo">Leave Demo Mode<small>Back to your own save</small></button>'
+              : '<button class="nav-btn" data-a="demo">Demo Mode<small>Everything unlocked, pick any map and wave</small></button>'}
           </nav>
         </div>
         ${location.protocol === 'file:' ? '' : `<a class="home-link" href="../../" aria-label="Back to Pocket Table">${ICONS.home}<span>Pocket Table</span></a>`}
@@ -450,6 +458,13 @@ export class UI {
       else if (a === 'settings') this.showSettings();
       else if (a === 'fullscreen') {
         void goFullscreen().then(() => this.showTitle());
+      }
+      else if (a === 'demo') {
+        // The demo uses its own save, chosen when the page loads, so switching reloads the page.
+        const url = new URL(location.href);
+        if (DEMO) url.searchParams.delete('demo');
+        else url.searchParams.set('demo', '1');
+        location.assign(url.href);
       }
     };
   }
@@ -503,7 +518,7 @@ export class UI {
     this.menu.innerHTML = `
       <div class="select-screen">
         <button class="back" data-a="back">Back</button>
-        <section class="map-info panel">
+        <section class="map-info panel ${DEMO && this.endless ? 'demo-endless' : ''}">
           <p class="eyebrow">${this.endless ? 'Endless Night' : `Chapter ${m.index + 1}`}</p>
           <h2>${m.name}</h2>
           <p class="subtitle">${m.subtitle}</p>
@@ -523,7 +538,8 @@ export class UI {
           <p class="diff-blurb">${DIFFICULTY[this.selectedDiff].blurb} ${this.endless ? `Every ${ENDLESS_WAVES_PER_STARLIGHT} waves survived earns 1 Starlight.` : `Each star earns <b>${DIFFICULTY[this.selectedDiff].reward}</b> Starlight, plus <b>${FIRST_CLEAR_BONUS}</b> for a first clear.`}</p>
           ${unlockNote}
           ${this.heroPicker()}
-          <button class="play-btn" data-a="start">Defend ${m.name}</button>
+          ${DEMO && this.endless ? this.startWavePicker() : ''}
+          <button class="play-btn" data-a="start">${this.playLabel()}</button>
         </section>
         <div class="map-rail">
           ${MAPS.map((x) => {
@@ -555,10 +571,16 @@ export class UI {
       }
       if (a === 'back') this.showTitle();
       else if (a === 'start') {
+        const typed = $<HTMLInputElement>('#start-wave', this.menu);
+        if (typed) this.setStartWave(typed.valueAsNumber, false);
         this.save.data.lastMap = m.id;
         this.save.data.lastDifficulty = this.selectedDiff;
         this.save.write();
-        this.app.startGame(m, this.selectedDiff, this.endless);
+        this.app.startGame(m, this.selectedDiff, this.endless, DEMO && this.endless ? this.startWave : 1);
+      } else if (a === 'wave-down' || a === 'wave-up') {
+        this.setStartWave(this.startWave + (a === 'wave-up' ? 1 : -1));
+      } else if (t.closest<HTMLElement>('[data-wave]')) {
+        this.setStartWave(+t.closest<HTMLElement>('[data-wave]')!.dataset.wave!);
       } else if (d) {
         this.selectedDiff = d;
         this.renderMapSelect();
@@ -571,6 +593,45 @@ export class UI {
         }
       }
     };
+    // Typing a wave updates the screen in place, so the field keeps focus.
+    this.menu.oninput = (e) => {
+      const input = e.target as HTMLInputElement;
+      if (input.id !== 'start-wave') return;
+      this.setStartWave(input.valueAsNumber, false);
+      $('.play-btn', this.menu).textContent = this.playLabel();
+      for (const b of this.menu.querySelectorAll<HTMLElement>('[data-wave]')) b.classList.toggle('on', +b.dataset.wave! === this.startWave);
+      $<HTMLButtonElement>('[data-a="wave-down"]', this.menu).disabled = this.startWave <= 1;
+      $<HTMLButtonElement>('[data-a="wave-up"]', this.menu).disabled = this.startWave >= MAX_START_WAVE;
+    };
+    this.menu.onchange = (e) => {
+      const input = e.target as HTMLInputElement;
+      if (input.id === 'start-wave') input.value = String(this.startWave);
+    };
+  }
+
+  /** Demo mode: chooses which Endless wave the battle starts at. */
+  private startWavePicker() {
+    const presets = [1, 10, 20, 30, 50];
+    return `<div class="start-wave">
+      <label class="sw-label" for="start-wave">Start at wave</label>
+      <div class="sw-row">
+        <button class="ghost-btn sw-step" data-a="wave-down" aria-label="One wave earlier" ${this.startWave <= 1 ? 'disabled' : ''}>−</button>
+        <input id="start-wave" class="cheat-input sw-input" type="number" inputmode="numeric" min="1" max="${MAX_START_WAVE}" step="1" value="${this.startWave}">
+        <button class="ghost-btn sw-step" data-a="wave-up" aria-label="One wave later" ${this.startWave >= MAX_START_WAVE ? 'disabled' : ''}>+</button>
+      </div>
+      <div class="sw-presets">${presets.map((w) => `<button class="diff-btn ${w === this.startWave ? 'on' : ''}" data-wave="${w}">${w}</button>`).join('')}</div>
+      <p class="sw-note">Skipped waves pay out their gold and hero experience.</p>
+    </div>`;
+  }
+
+  private setStartWave(w: number, redraw = true) {
+    if (!Number.isFinite(w)) return;
+    this.startWave = clamp(Math.round(w), 1, MAX_START_WAVE);
+    if (redraw) this.renderMapSelect();
+  }
+
+  private playLabel() {
+    return DEMO && this.endless && this.startWave > 1 ? `Defend from wave ${this.startWave}` : `Defend ${this.selectedMap.name}`;
   }
 
   /** The hero choice on the map screen. Locked heroes show as silhouettes. */
@@ -1032,12 +1093,12 @@ export class UI {
     const moreWaves = game.wave < game.totalWaves;
     const timer = game.waveTimer;
     const waveTime = $('#h-wave-time');
-    c.set(waveTime, moreWaves && timer > 0 ? `Next in ${Math.ceil(timer)}s` : game.spawnQueue.length ? 'Attacking' : !moreWaves ? 'Final wave' : game.wave === 0 ? 'Ready when you are' : 'Clear the road');
+    c.set(waveTime, moreWaves && timer > 0 ? `Next in ${Math.ceil(timer)}s` : game.spawnQueue.length ? 'Attacking' : !moreWaves ? 'Final wave' : !game.started ? 'Ready when you are' : 'Clear the road');
     waveTime.classList.toggle('urgent', moreWaves && timer > 0 && timer <= 5);
     const callBtn = $<HTMLButtonElement>('#h-call');
     callBtn.disabled = !game.canCallWave;
     callBtn.classList.toggle('hide', !moreWaves);
-    if (game.wave === 0) c.set($('#h-call-text'), 'Start wave 1');
+    if (!game.started) c.set($('#h-call-text'), `Start wave ${game.wave + 1}`);
     else {
       const early = game.earlyBonus;
       c.set($('#h-call-text'), early > 0 ? `Call early +${early} gold` : 'Call next wave');

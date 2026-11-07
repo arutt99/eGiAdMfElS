@@ -15,6 +15,12 @@ Lanternfall is played in landscape. Held upright, a phone shows a "turn sideways
 
 On computers the mouse and keyboard work as before. The interface switches to touch wording whenever the most recent input was a finger.
 
+## Demo mode
+
+**Demo Mode** on the title screen reloads the game with `?demo` in the address. It plays from a separate save with every map cleared and the whole Tech Tree bought, so every tower, spell and hero is ready. Your real save is untouched, and **Leave Demo Mode** goes back to it.
+
+In demo mode, Endless Night lets you pick any map and the wave to start at. Skipped waves pay out roughly the gold and hero experience they would have earned, and the battle waits for you to call the first wave. The cheat menu (`` ` `` or the pause menu) can add more gold.
+
 ## Development
 
 ```bash

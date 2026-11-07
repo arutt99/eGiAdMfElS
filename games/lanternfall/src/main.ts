@@ -54,6 +54,8 @@ class App implements AppActions {
   currentMap: MapDef = MAPS[0];
   difficulty: Difficulty = 'normal';
   endless = false;
+  /** Demo mode only: the Endless wave the battle begins at. */
+  startWave = 1;
   paused = false;
   speedIdx = 0;
   private announcedWave = 0;
@@ -180,19 +182,20 @@ class App implements AppActions {
     }, 240);
   }
 
-  startGame(map: MapDef, difficulty: Difficulty, endless: boolean) {
+  startGame(map: MapDef, difficulty: Difficulty, endless: boolean, startWave = 1) {
     clearTimeout(this.previewTimer);
     this.previewTimer = 0;
     audio.unlock();
     this.currentMap = map;
     this.difficulty = difficulty;
     this.endless = endless;
+    this.startWave = endless ? startWave : 1;
     this.ui.setSelectedMap(map);
     this.engine.fadeTo(1);
     window.setTimeout(() => {
       this.cleanupGame();
       this.loadStage(map);
-      this.game = new Game({ map, difficulty, endless, meta: this.save.data.meta, cleared: this.save.cleared, hero: this.save.activeHero });
+      this.game = new Game({ map, difficulty, endless, meta: this.save.data.meta, cleared: this.save.cleared, hero: this.save.activeHero, startWave: this.startWave });
       this.view = new GameView(this.game, this.stage!, this.engine);
       const s = this.save.data.settings;
       this.view.showNumbers = s.numbers;
@@ -222,7 +225,7 @@ class App implements AppActions {
       this.engine.fadeTo(0);
       const firstVisit = !endless && map.index >= this.save.cleared && !this.save.data.seenChapters.includes(map.id);
       if (firstVisit) this.playChapterOpening(map);
-      else this.ui.banner(map.name, endless ? 'Endless Night' : map.subtitle);
+      else this.ui.banner(map.name, endless ? (this.startWave > 1 ? `Endless Night · from wave ${this.startWave}` : 'Endless Night') : map.subtitle);
     }, 300);
   }
 
@@ -306,7 +309,7 @@ class App implements AppActions {
 
   restart() {
     this.ui.hideHud();
-    this.startGame(this.currentMap, this.difficulty, this.endless);
+    this.startGame(this.currentMap, this.difficulty, this.endless, this.startWave);
   }
 
   resume() {
@@ -382,7 +385,7 @@ class App implements AppActions {
     const g = this.game!;
     if (g.wave === this.announcedWave) return;
     this.announcedWave = g.wave;
-    if (g.wave === 0) return;
+    if (!g.started) return;
     const title = !g.endless && g.wave === g.totalWaves ? 'Final Wave' : `Wave ${g.wave}`;
     if (g.waveHasBoss(g.wave - 1)) this.ui.banner(title, g.bossAnnouncement(g.wave - 1), 'boss');
     else this.ui.banner(title);
