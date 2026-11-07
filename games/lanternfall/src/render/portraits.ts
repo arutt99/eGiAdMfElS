@@ -83,8 +83,11 @@ export async function renderPortraits(onProgress: (k: number) => void) {
       holder.add(m);
     };
     add(g.body, Mats.std);
+    add(g.glow, Mats.glow);
     add(g.head, Mats.std, 0, 1.68);
+    if (g.glowHead) add(g.glowHead, Mats.glow, 0, 1.68);
     add(g.armR, Mats.std, 0.56, 1.48, 0.2);
+    if (g.glowArmR) add(g.glowArmR, Mats.glow, 0.56, 1.48, 0.2);
     add(g.armL, Mats.std, -0.56, 1.48);
     add(g.glowArm, Mats.glow, -0.56, 1.48);
     add(g.legL, Mats.std, -0.2, 0.58);
