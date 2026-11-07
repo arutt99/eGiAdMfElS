@@ -673,6 +673,7 @@ class App implements AppActions {
     }
     this.selected = this.towerUnderPointer();
     if (this.selected) audio.play('click');
+    else if (this.pointerOnLantern()) this.ui.toggleLanternHp();
   }
 
   // ---------- Touch action bar ----------
@@ -813,6 +814,19 @@ class App implements AppActions {
     }
   }
 
+  /** Whether the pointer is over the lantern: within a short reach of the line from its base to its top on screen. */
+  private pointerOnLantern() {
+    const l = this.stage?.lanternPos;
+    if (!l) return false;
+    const a = this.project(l.x, l.y, l.z);
+    const b = this.project(l.x, l.y + LANTERN_HP_HEIGHT - 1.5, l.z);
+    if (!a.visible && !b.visible) return false;
+    const px = this.pointer.x, py = this.pointer.y;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(px - (a.x + dx * t), py - (a.y + dy * t)) < 36;
+  }
+
   /** Intersects the pointer ray with the terrain. */
   private pick(): { x: number; z: number } | null {
     const g = this.game;
@@ -881,6 +895,7 @@ class App implements AppActions {
     }
     this.selected = this.towerUnderPointer();
     if (this.selected) audio.play('click');
+    else if (this.pointerOnLantern()) this.ui.toggleLanternHp();
   }
 
   private rightClick() {
