@@ -534,8 +534,8 @@ export class GameView {
 
       if (e.hp < e.maxHp || e.def.boss) {
         const top = y + rig.height * e.scale * ENEMY_SCALE + 0.45;
-        const w = e.def.boss ? 2.6 : 1.05 + e.scale * 0.5;
-        this.bars.add(x, top, z, Math.max(0, e.hp / e.maxHp), w, e.elite ? 1 : 0);
+        const w = e.def.boss ? 3.2 : 1.05 + e.scale * 0.5;
+        this.bars.add(x, top + (e.def.boss ? 0.25 : 0), z, Math.max(0, e.hp / e.maxHp), w, e.def.boss ? 3 : e.elite ? 1 : 0);
       }
 
       // Ambient creature effects.

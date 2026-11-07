@@ -323,10 +323,6 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .pv.elite { filter: drop-shadow(0 0 5px var(--gold)); }
 .pv.boss { filter: drop-shadow(0 0 6px #ff4fd8); }
 .boss-tag { padding: 2px 6px; border-radius: 5px; font: 800 11px/1.2 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: #fff; background: #a3289a; }
-.boss-bar { width: min(460px, 60vw); padding: 6px 12px 8px; text-align: center; border-color: rgba(255, 79, 216, 0.5); animation: rise 0.4s both; }
-.boss-name { display: block; margin-bottom: 4px; font: 600 15px var(--display); color: #ffd6f6; }
-.boss-track { height: 9px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
-.boss-track i { display: block; height: 100%; transform-origin: left; background: linear-gradient(90deg, #7c2bd0, #ff4fd8); transition: transform 0.18s ease-out; }
 .income { position: absolute; left: 100%; top: 2px; margin-left: 8px; opacity: 0; font: 800 15px var(--body); color: var(--gold-hi); white-space: nowrap; text-shadow: 0 1px 3px #000; pointer-events: none; }
 .vignette { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .vignette[data-kind='hurt'] { box-shadow: inset 0 0 150px 46px rgba(214, 40, 28, 0.72); }
@@ -457,7 +453,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .banner p { font: 500 italic 22px var(--body); margin-top: 6px; text-shadow: 0 2px 8px #000; }
 .banner.show { animation: banner 2.3s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
 
-#hud:has(#h-coach:not(.hidden)) .foe-alerts, #hud:has(#h-boss:not(.hidden)) .foe-alerts { top: 136px; }
+#hud:has(#h-coach:not(.hidden)) .foe-alerts { top: 136px; }
 .foe-alerts { position: absolute; left: 14px; top: 76px; width: 300px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .foe-alert { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; animation: slideInL 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
 .foe-alert.out { animation: foeOut 0.3s ease-in both; }
@@ -572,7 +568,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 
 /* Spells fold away on small screens. The toggle only shows there. */
 .spell-toggle { display: none; }
-.wave-toggle { display: none; }
+.wave-toggle, #h-wave-short, #h-call-short { display: none; }
 .hero-portrait.active { border-color: var(--gold-hi); box-shadow: 0 0 0 2px var(--gold-hi), 0 0 18px rgba(255, 200, 90, 0.6); animation: heroCall 1.1s ease-in-out infinite; }
 @keyframes heroCall { 50% { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 6px rgba(255, 200, 90, 0.25); } }
 
@@ -635,16 +631,19 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .pv, .pv img { width: 20px; height: 20px; }
   .pv b { font-size: 9.5px; }
   .wave-btn { grid-column: 3; padding: 0 10px; min-height: 34px; font-size: 13px; border-radius: 9px; }
-  .wave-box.collapsed .wave-preview, .wave-box.collapsed .wave-line .dim { display: none; }
+  /* Folded, the box is a small pill: "W3/10" and a short call button. */
+  .wave-box.collapsed { padding: 2px; column-gap: 4px; border-radius: 9px; }
+  .wave-box.collapsed .wave-preview, .wave-box.collapsed .wave-line .dim, .wave-box.collapsed #h-wave-label, .wave-box.collapsed #h-call-text { display: none; }
+  .wave-box.collapsed #h-wave-short, .wave-box.collapsed #h-call-short { display: inline; }
+  .wave-box.collapsed .wave-line { font-size: 12.5px; padding-right: 2px; }
   .wave-box.collapsed .wave-toggle, .wave-box.collapsed .wave-btn { grid-row: 1; }
-  .wave-box.collapsed .wave-toggle svg { transform: none; }
-  .wave-box.collapsed .wave-btn { min-height: 30px; }
+  .wave-box.collapsed .wave-toggle { width: 22px; border-radius: 7px; }
+  .wave-box.collapsed .wave-toggle svg { transform: none; width: 14px; height: 14px; }
+  .wave-box.collapsed .wave-btn { min-height: 24px; padding: 0 8px; font-size: 12px; border-radius: 7px; box-shadow: 0 1px 0 #8a5a1c; }
 
   /* The lantern's health bar floats over the map, so it stays hidden until the lives counter or the lantern is tapped. */
   #hud:not(.lantern-on) .lantern-hp { visibility: hidden; }
   .lives { cursor: pointer; }
-  .boss-bar { width: min(380px, 100%); padding: 4px 10px 6px; }
-  .boss-name { font-size: 13px; margin-bottom: 3px; }
   .coach { max-width: min(520px, 100%); padding: 6px 10px; font-size: 13.5px; line-height: 1.22; gap: 8px; }
   .top-right { top: calc(6px + var(--st)); right: calc(var(--gap) + var(--sr)); gap: 6px; }
   .icon-btn { width: 42px; height: 42px; border-radius: 11px; }
@@ -694,7 +693,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .sell-btn { padding: 8px; font-size: 14px; }
 
   .foe-alerts { top: calc(56px + var(--st)); left: calc(var(--gap) + var(--sl)); width: 260px; gap: 5px; }
-  #hud:has(#h-coach:not(.hidden)) .foe-alerts, #hud:has(#h-boss:not(.hidden)) .foe-alerts { top: calc(106px + var(--st)); }
+  #hud:has(#h-coach:not(.hidden)) .foe-alerts { top: calc(106px + var(--st)); }
   .foe-chip { padding: 2px 8px 2px 2px; gap: 6px; }
   .foe-chip img { width: 28px; height: 28px; }
   .foe-txt b { font-size: 13.5px; }

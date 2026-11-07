@@ -329,24 +329,27 @@ export class Ribbons {
   }
 }
 
+// Life bars keep a fixed size on screen, so they stay readable when the camera is zoomed out.
 const BAR_VERT = /* glsl */ `
-  attribute vec3 aBar; // value, width, kind
-  varying vec2 vUv; varying vec3 vBar;
+  attribute vec3 aBar; // value, width, kind (0 enemy, 1 elite or hero, 2 soldier, 3 boss)
+  uniform vec2 uView; // canvas size in CSS pixels
+  varying vec2 vUv; varying vec3 vBar; varying vec2 vPx;
   void main() {
     vUv = uv; vBar = aBar;
-    vec4 c = viewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-    float scale = clamp(-c.z / 60.0, 0.55, 1.6);
-    c.xy += position.xy * vec2(aBar.y, 0.17) * scale;
-    gl_Position = projectionMatrix * c;
-    gl_Position.z -= 0.0015 * gl_Position.w;
+    vPx = aBar.z > 2.5 ? vec2(96.0, 10.0) : vec2(aBar.y * 22.0, 5.0);
+    vec4 c = projectionMatrix * viewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    c.xy += position.xy * vPx * 2.0 / uView * c.w;
+    c.z -= 0.0015 * c.w;
+    gl_Position = c;
   }
 `;
 const BAR_FRAG = /* glsl */ `
-  varying vec2 vUv; varying vec3 vBar;
+  varying vec2 vUv; varying vec3 vBar; varying vec2 vPx;
   void main() {
-    vec2 e = abs(vUv - 0.5) * 2.0;
-    float border = step(0.975, e.x) + step(0.7, e.y);
-    vec3 full = vBar.z > 1.5 ? vec3(0.45, 0.75, 1.2) : vBar.z > 0.5 ? vec3(1.3, 0.92, 0.3) : mix(vec3(1.25, 0.2, 0.14), vec3(0.42, 1.05, 0.28), smoothstep(0.2, 0.62, vBar.x));
+    // A one-pixel dark outline, measured in screen pixels.
+    vec2 edge = (0.5 - abs(vUv - 0.5)) * vPx;
+    float border = step(min(edge.x, edge.y), 1.0);
+    vec3 full = vBar.z > 2.5 ? mix(vec3(0.62, 0.22, 1.1), vec3(1.35, 0.35, 1.15), vUv.x) : vBar.z > 1.5 ? vec3(0.45, 0.75, 1.2) : vBar.z > 0.5 ? vec3(1.3, 0.92, 0.3) : mix(vec3(1.25, 0.2, 0.14), vec3(0.42, 1.05, 0.28), smoothstep(0.2, 0.62, vBar.x));
     vec3 col = vUv.x < vBar.x ? full : vec3(0.05, 0.03, 0.07);
     if (border > 0.0) col = vec3(0.03, 0.02, 0.04);
     gl_FragColor = vec4(col, 0.94);
@@ -365,7 +368,7 @@ export class HealthBars {
     this.attr = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     this.attr.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aBar', this.attr);
-    this.mat = new THREE.ShaderMaterial({ vertexShader: BAR_VERT, fragmentShader: BAR_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    this.mat = new THREE.ShaderMaterial({ uniforms: { uView: { value: new THREE.Vector2(1280, 720) } }, vertexShader: BAR_VERT, fragmentShader: BAR_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide });
     this.mesh = new THREE.InstancedMesh(geo, this.mat, capacity);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 20;
@@ -384,6 +387,7 @@ export class HealthBars {
   }
 
   end() {
+    (this.mat.uniforms.uView.value as THREE.Vector2).set(Math.max(1, innerWidth), Math.max(1, innerHeight));
     this.mesh.count = this.n;
     this.mesh.instanceMatrix.needsUpdate = true;
     this.attr.needsUpdate = true;

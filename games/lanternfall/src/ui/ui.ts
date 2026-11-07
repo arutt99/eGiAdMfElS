@@ -871,13 +871,9 @@ export class UI {
       <div class="top-center">
         <div class="wave-box panel slim ${this.waveCollapsed ? 'collapsed' : ''}">
           <button class="wave-toggle" id="h-wave-toggle" aria-label="${this.waveCollapsed ? 'Show wave details' : 'Hide wave details'}" aria-expanded="${!this.waveCollapsed}">${ICONS.chevron}</button>
-          <div class="wave-line"><span id="h-wave-label"></span><span id="h-wave-time" class="dim"></span></div>
+          <div class="wave-line"><span id="h-wave-label"></span><span id="h-wave-short"></span><span id="h-wave-time" class="dim"></span></div>
           <div class="wave-preview" id="h-preview"></div>
-          <button class="wave-btn" id="h-call" aria-keyshortcuts="Space"><span id="h-call-text">Call wave</span><kbd>Space</kbd></button>
-        </div>
-        <div class="boss-bar panel slim hidden" id="h-boss">
-          <span class="boss-name" id="h-boss-name"></span>
-          <div class="boss-track"><i id="h-boss-fill"></i></div>
+          <button class="wave-btn" id="h-call" aria-keyshortcuts="Space"><span id="h-call-text">Call wave</span><span id="h-call-short">▶</span><kbd>Space</kbd></button>
         </div>
         <div class="coach hidden" id="h-coach"></div>
       </div>
@@ -1124,6 +1120,7 @@ export class UI {
     c.set($('#h-speed-text'), `${ctx.speed}×`);
 
     c.set($('#h-wave-label'), game.endless ? `Wave ${game.wave}` : `Wave ${game.wave} of ${game.totalWaves}`);
+    c.set($('#h-wave-short'), game.endless ? `W${game.wave}` : `W${game.wave}/${game.totalWaves}`);
     const moreWaves = game.wave < game.totalWaves;
     const timer = game.waveTimer;
     const waveTime = $('#h-wave-time');
@@ -1132,24 +1129,13 @@ export class UI {
     const callBtn = $<HTMLButtonElement>('#h-call');
     callBtn.disabled = !game.canCallWave;
     callBtn.classList.toggle('hide', !moreWaves);
-    if (!game.started) c.set($('#h-call-text'), `Start wave ${game.wave + 1}`);
-    else {
+    if (!game.started) {
+      c.set($('#h-call-text'), `Start wave ${game.wave + 1}`);
+      c.set($('#h-call-short'), '▶ Start');
+    } else {
       const early = game.earlyBonus;
       c.set($('#h-call-text'), early > 0 ? `Call early +${early} gold` : 'Call next wave');
-    }
-    let bossHp = 0, bossMax = 0, bossCount = 0, bossName = '';
-    for (const e of game.enemies) {
-      if (!e.def.boss) continue;
-      // Different bosses on the road at once share one bar.
-      bossName = !bossName || bossName === e.def.name ? e.def.name : 'Bosses';
-      bossHp += Math.max(0, e.hp);
-      bossMax += e.maxHp;
-      bossCount++;
-    }
-    $('#h-boss').classList.toggle('hidden', bossCount === 0);
-    if (bossCount > 0) {
-      c.set($('#h-boss-name'), bossCount > 1 ? `${bossName} × ${bossCount}` : bossName);
-      $('#h-boss-fill').style.transform = `scaleX(${(bossHp / bossMax).toFixed(3)})`;
+      c.set($('#h-call-short'), early > 0 ? `▶ +${early}` : '▶');
     }
     const previewKey = `${game.wave}`;
     if (previewKey !== this.lastPreviewKey) {
