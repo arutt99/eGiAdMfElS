@@ -281,10 +281,12 @@ export class GameView {
     body.add(mesh(geo.body), mesh(geo.glow, true));
     const head = mesh(geo.head);
     head.position.set(0, 1.68, 0);
+    if (geo.glowHead) head.add(mesh(geo.glowHead, true));
     body.add(head);
     const armR = new THREE.Group();
     armR.position.set(0.56, 1.48, 0);
     armR.add(mesh(geo.armR));
+    if (geo.glowArmR) armR.add(mesh(geo.glowArmR, true));
     const armL = new THREE.Group();
     armL.position.set(-0.56, 1.48, 0);
     armL.add(mesh(geo.armL), mesh(geo.glowArm, true));

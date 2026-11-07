@@ -1,8 +1,9 @@
 // Enemy rigs (rendered with instancing, one instanced mesh per moving part), hero, guards, lantern, rift.
 import * as THREE from 'three';
-import { inkEnemyRig, inkHumanoid, inkOakheart, inkSable } from './ink-creatures';
+import { inkEnemyRig, inkHumanoid } from './ink-creatures';
 import type { HeroId } from '../data/meta';
 import { INK } from './style';
+import { heroEmber, heroOakheart, heroSable } from './hero-models';
 import type { EnemyId } from '../data/enemies';
 import { MB } from './mb';
 
@@ -335,6 +336,9 @@ export interface HumanoidGeo {
   legR: THREE.BufferGeometry;
   glow: THREE.BufferGeometry;
   glowArm: THREE.BufferGeometry;
+  /** Unlit details on the head and the weapon arm (eyes, gems, runes). */
+  glowHead?: THREE.BufferGeometry;
+  glowArmR?: THREE.BufferGeometry;
 }
 
 function humanoid(primary: [number, number], secondary: number, cape: [number, number], helmetGold: boolean, lantern: boolean): HumanoidGeo {
@@ -400,7 +404,7 @@ let guardGeo: HumanoidGeo | null = null;
 export function getHeroGeo(id: HeroId = 'ember') {
   let g = heroGeos.get(id);
   if (!g) {
-    g = id === 'sable' ? inkSable() : id === 'oakheart' ? inkOakheart() : (INK ? inkHumanoid : humanoid)([0x8c2f2c, 0xc2483c], 0xd9402f, [0x8c2020, 0xd14a32], true, true);
+    g = id === 'sable' ? heroSable() : id === 'oakheart' ? heroOakheart() : heroEmber();
     heroGeos.set(id, g);
   }
   return g;

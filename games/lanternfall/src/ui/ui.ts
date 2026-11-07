@@ -8,6 +8,7 @@ import { ENEMIES, type EnemyId } from '../data/enemies';
 import { ENDLESS_UNLOCK_AFTER, MAPS, type MapDef } from '../data/maps';
 import { CHAPTERS, CREDITS, EPILOGUE, PROLOGUE, type StoryScene } from '../data/story';
 import { LOCK_ICON, mapArt } from './map-art';
+import { POWER_ICONS, POWER_ICON_DEFS } from './power-icons';
 import { DIFFICULTY, heroAvailable, HERO_COMMON, HEROES, HERO_ORDER, META, META_BY_ID, SCHOOLS, SPELLS, SPELL_ORDER, type Difficulty, type HeroDef, type HeroId, type MetaDef, type MetaId, type SpellId } from '../data/meta';
 import { DAMAGE_ORDER, DAMAGE_TYPES, TOWERS, TOWER_ORDER, towerStats, type AttackType, type TowerId, type TowerStats } from '../data/towers';
 import { QUALITY, type QualityId } from '../render/engine';
@@ -68,22 +69,6 @@ const ICONS = {
   spellbook: '<svg viewBox="0 0 24 24"><path d="M5 4.500A2.500 2.500 0 0 1 7.500 2H19v16H7.500A2.500 2.500 0 0 0 5 20.500z"/><path d="M5 20.500A2.500 2.500 0 0 0 7.500 23H19v-3" fill="none" stroke="currentColor" stroke-width="1.600"/><path d="M12 6l1.200 2.800L16 10l-2.800 1.200L12 14l-1.200-2.800L8 10l2.800-1.200z" fill="#2a1d36"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   gear: '<svg viewBox="0 0 24 24"><path d="M19.400 13a7.500 7.500 0 0 0 0-2l2-1.600-2-3.400-2.400 1a7.500 7.500 0 0 0-1.700-1L15 3.500h-4l-.4 2.500a7.500 7.500 0 0 0-1.700 1l-2.400-1-2 3.400 2 1.600a7.500 7.500 0 0 0 0 2l-2 1.600 2 3.400 2.400-1a7.500 7.500 0 0 0 1.700 1l.4 2.500h4l.4-2.500a7.500 7.500 0 0 0 1.700-1l2.400 1 2-3.400zM13 15.200a3.200 3.200 0 1 1 0-6.400 3.200 3.200 0 0 1 0 6.400z" transform="translate(-1 0)"/></svg>',
-  starfall: '<svg viewBox="0 0 48 48"><path d="M40 6 22 24l-7 2-5 6 3 6 6 3 6-5 2-7L45 11z" fill="#ffb24d"/><circle cx="16" cy="33" r="7" fill="#ffe7a8"/><path d="M28 6 14 20M42 20 28 34" stroke="#ffd98a" stroke-width="2.500" stroke-linecap="round"/></svg>',
-  winter: '<svg viewBox="0 0 48 48" fill="none" stroke="#a8ecff" stroke-width="3" stroke-linecap="round"><path d="M24 5v38M7.500 14.500l33 19M40.500 14.500l-33 19"/><path d="M24 12l-4-4M24 12l4-4M24 36l-4 4M24 36l4 4M13.600 18l-5.400-1.500M13.600 18l1.500-5.400M34.400 30l5.400 1.500M34.400 30l-1.500 5.400M34.400 18l5.400-1.500M34.400 18l-1.500-5.400M13.600 30l-5.400 1.500M13.600 30l1.500 5.400"/></svg>',
-  guards: '<svg viewBox="0 0 48 48"><path d="M24 4l16 6v12c0 11-7 18-16 22C15 40 8 33 8 22V10z" fill="#5a8fd0"/><path d="M24 4v40c9-4 16-11 16-22V10z" fill="#7fb8ff"/><path d="M24 14v18M17 21h14" stroke="#f6ead2" stroke-width="3.500" stroke-linecap="round"/></svg>',
-  sunbreak: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="9" fill="#ffd36b"/><g stroke="#ff9a3c" stroke-width="3.500" stroke-linecap="round"><path d="M24 4v7M24 37v7M4 24h7M37 24h7M9.900 9.900l5 5M33.100 33.100l5 5M38.100 9.900l-5 5M14.900 33.100l-5 5"/></g></svg>',
-  ward: '<svg viewBox="0 0 48 48"><path d="M24 44S7 35 7 19a9.500 9.500 0 0 1 17-5.800A9.500 9.500 0 0 1 41 19c0 16-17 25-17 25z" fill="#ffb86b"/><path d="M24 15v18M15 24h18" stroke="#fff4d6" stroke-width="3.500" stroke-linecap="round"/></svg>',
-  hex: '<svg viewBox="0 0 48 48" fill="none" stroke="#d48bff" stroke-width="3" stroke-linejoin="round"><path d="M24 4l17 10v20L24 44 7 34V14z"/><path d="M24 12l10 18H14z" stroke="#f0d8ff"/><circle cx="24" cy="24" r="3" fill="#f0d8ff" stroke="none"/></svg>',
-  rally: '<svg viewBox="0 0 48 48"><path d="M6 32c12 2 24-4 30-20l6 3c-2 16-12 28-30 26z" fill="#e8b64c"/><ellipse cx="39" cy="13" rx="4" ry="6" transform="rotate(25 39 13)" fill="#7a4a22"/><path d="M6 32l-2 7 8 2" fill="#ffd98a"/></svg>',
-  rift: '<svg viewBox="0 0 48 48" fill="none" stroke="#a78bff" stroke-width="3.500" stroke-linecap="round"><path d="M38 12C26 2 8 10 9 25c1 13 17 19 26 10 7-8 2-19-8-19-9 0-12 11-6 15"/></svg>',
-  golden: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="17" fill="#ffcf4f"/><circle cx="24" cy="24" r="12" fill="none" stroke="#b87d1a" stroke-width="2.500"/><path d="M24 15v9l6 4" fill="none" stroke="#7a4a10" stroke-width="3.500" stroke-linecap="round"/></svg>',
-  phoenix: '<svg viewBox="0 0 48 48"><path d="M24 44c-9 0-14-6-14-13 0-8 8-10 8-20 6 3 8 8 8 12 3-1 4-5 3-8 7 5 9 11 9 16 0 8-5 13-14 13z" fill="#ff7a24"/><path d="M24 42c-4 0-7-3-7-7 0-5 5-6 7-12 3 5 7 7 7 12 0 4-3 7-7 7z" fill="#ffd25a"/></svg>',
-  arrowrain: '<svg viewBox="0 0 48 48" stroke="#c8ff8a" stroke-width="3" stroke-linecap="round" fill="none"><path d="M12 6v26M24 4v34M36 6v26"/><path d="M7 26l5 8 5-8M19 32l5 8 5-8M31 26l5 8 5-8" stroke="#9fe86a"/></svg>',
-  huntersmark: '<svg viewBox="0 0 48 48" fill="none" stroke="#c8ff8a" stroke-width="3" stroke-linecap="round"><circle cx="24" cy="24" r="15"/><circle cx="24" cy="24" r="5" fill="#ff6a5a" stroke="none"/><path d="M24 3v10M24 35v10M3 24h10M35 24h10"/></svg>',
-  deadeye: '<svg viewBox="0 0 48 48"><path d="M4 24s8-13 20-13 20 13 20 13-8 13-20 13S4 24 4 24z" fill="#e6f8d0"/><circle cx="24" cy="24" r="8" fill="#3a6a30"/><circle cx="24" cy="24" r="3.500" fill="#10200c"/></svg>',
-  earthshatter: '<svg viewBox="0 0 48 48"><path d="M3 34l12-4 7 3 8-5 15 6v10H3z" fill="#7a7468"/><path d="M24 4l-4 14 6 2-5 14 11-19-6-2 4-9z" fill="#ffd36b"/></svg>',
-  stonewall: '<svg viewBox="0 0 48 48"><path d="M8 8h32v24L24 44 8 32z" fill="#8a9488"/><path d="M8 18h32M8 28h32M20 8v10M30 18v10M18 28v8" stroke="#3f4a40" stroke-width="2.500"/></svg>',
-  avalanche: '<svg viewBox="0 0 48 48"><path d="M3 42L20 10l8 12 5-6 12 26z" fill="#a4b0a4"/><path d="M20 10l-5 10 5-2 4 4 4-0z" fill="#f0f4ee"/><circle cx="10" cy="40" r="4" fill="#6a7468"/><circle cx="38" cy="40" r="5" fill="#6a7468"/></svg>',
 };
 
 function statRows(s: TowerStats, prev?: TowerStats): string {
@@ -172,7 +157,8 @@ async function goFullscreen() {
   }
 }
 
-const abilityIcon = (id: string) => (ICONS as Record<string, string>)[id] ?? ICONS.sunbreak;
+const abilityIcon = (id: string) => POWER_ICONS[id] ?? POWER_ICONS.sunbreak;
+const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 function heroAuraText(h: HeroDef) {
   return `Nearby towers gain ${h.aura.label}.`;
@@ -226,7 +212,6 @@ export class UI {
   private lastTowerPanelKey = '';
   private lastPreviewKey = '';
   private game: Game | null = null;
-  private toastTimer = 0;
   private tooltip!: HTMLElement;
   private cards = new Map<TowerId, HTMLElement>();
   private spellBtns = new Map<SpellId, HTMLElement>();
@@ -237,6 +222,7 @@ export class UI {
   constructor(public save: Save, public app: AppActions) {
     this.root = $('#ui');
     this.root.innerHTML = `
+      ${POWER_ICON_DEFS}
       <div id="floats"></div>
       <div id="hud" class="hidden"></div>
       <div id="menu"></div>
@@ -687,8 +673,8 @@ export class UI {
     let art = '';
     if (m.kind === 'tower') art = `<img src="${towerPortrait(m.subject as TowerId, 0, 0)}" alt="">`;
     else if (m.kind === 'hero') art = `<img src="${heroPortrait(m.subject as HeroId)}" alt="">`;
-    else if (m.kind === 'spell') art = `<span class="n-ic">${(ICONS as Record<string, string>)[m.subject!]}</span>`;
-    else if (m.id === 'heroUltimate') art = `<span class="n-ic">${ICONS.phoenix}</span>`;
+    else if (m.kind === 'spell') art = `<span class="n-ic">${POWER_ICONS[m.subject!]}</span>`;
+    else if (m.id === 'heroUltimate') art = `<span class="n-ic">${POWER_ICONS.phoenix}</span>`;
     return `<button class="node ${cls}" data-u="${m.id}" data-tip="tech" data-id="${m.id}" style="grid-row:${m.row + 1};grid-column:${m.col + 1}" ${sealed || maxed || poor ? 'aria-disabled="true"' : ''}>
       ${art}
       <span class="n-name">${m.name}</span>
@@ -904,7 +890,7 @@ export class UI {
           <div class="mini-bar hp"><i id="h-hero-hp"></i></div>
           <div class="mini-bar xp"><i id="h-hero-xp"></i></div>
           <div class="abilities">
-            ${game.heroDef.abilities.map((a, i) => (game.isAbilityUnlocked(i) ? `<button class="skill small" id="h-ability-${i}" data-tip="ability" data-id="${i}" aria-label="${a.name}">${abilityIcon(a.id)}<kbd>${a.hotkey}</kbd><span class="cd"></span></button>` : '')).join('')}
+            ${game.heroDef.abilities.map((a, i) => (game.isAbilityUnlocked(i) ? `<button class="skill small" style="--sc:${hex(game.heroDef.accent)}" id="h-ability-${i}" data-tip="ability" data-id="${i}" aria-label="${a.name}">${abilityIcon(a.id)}<kbd>${a.hotkey}</kbd><span class="cd"></span></button>` : '')).join('')}
           </div>
         </div>
       </div>
@@ -919,7 +905,7 @@ export class UI {
       </div>
       <aside class="tower-panel panel hidden" id="h-panel"></aside>
       <div class="banner" id="h-banner"></div>
-      <div class="toast hidden" id="h-toast"></div>
+      <div class="foe-alerts" id="h-alerts" aria-live="polite"></div>
       <div class="hint-line hidden" id="h-hint"></div>
     `;
     const towers = $('#h-towers');
@@ -948,7 +934,8 @@ export class UI {
       b.dataset.tip = 'spell';
       b.dataset.id = id;
       b.setAttribute('aria-label', def.name);
-      b.innerHTML = `${ICONS[id]}<kbd>${def.hotkey}</kbd><span class="cd"></span>`;
+      b.style.setProperty('--sc', hex(def.color));
+      b.innerHTML = `${POWER_ICONS[id]}<kbd>${def.hotkey}</kbd><span class="cd"></span>`;
       b.onclick = () => unlocked && this.app.pickSpell(id);
       spells.appendChild(b);
       this.spellBtns.set(id, b);
@@ -1001,15 +988,6 @@ export class UI {
     b.classList.add('show');
   }
 
-  toast(html: string, ms = 5200) {
-    const t = $('#h-toast');
-    if (!t) return;
-    t.innerHTML = html;
-    t.classList.remove('hidden');
-    clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => t.classList.add('hidden'), ms);
-  }
-
   hint(text: string | null, bad = false) {
     const h = $('#h-hint');
     if (!h) return;
@@ -1022,9 +1000,52 @@ export class UI {
     h.classList.toggle('bad', bad);
   }
 
+  /**
+   * A new enemy gets a small callout under the gold counter instead of a big card.
+   * Tapping it opens the details, which stay until closed. Left alone, it fades on its own.
+   */
   announceEnemy(id: EnemyId) {
+    const box = $('#h-alerts');
+    if (!box) return;
     const e = ENEMIES[id];
-    this.toast(`<img src="${enemyPortrait(id)}" alt=""><div><p class="eyebrow">New enemy</p><h4>${e.name}</h4><p>${e.blurb}</p>${resistChips(id)}</div>`, 7000);
+    const el = document.createElement('div');
+    el.className = 'foe-alert';
+    el.innerHTML = `
+      <button class="foe-chip" aria-expanded="false" aria-label="New enemy: ${e.name}. Show details">
+        <img src="${enemyPortrait(id)}" alt=""><span class="foe-txt"><em>New enemy</em><b>${e.name}</b></span><span class="foe-more" aria-hidden="true"></span>
+      </button>
+      <div class="foe-card" hidden>
+        <p>${e.blurb}</p><div class="tags"><span class="tag trait">${e.trait}</span></div>${resistChips(id)}
+        <button class="foe-x" aria-label="Close">${ICONS.close}</button>
+      </div>`;
+    const chip = el.querySelector<HTMLButtonElement>('.foe-chip')!;
+    const card = el.querySelector<HTMLElement>('.foe-card')!;
+    let timer = 0;
+    const dismiss = () => {
+      clearTimeout(timer);
+      if (el.classList.contains('out')) return;
+      el.classList.add('out');
+      window.setTimeout(() => el.remove(), 320);
+    };
+    const arm = (ms: number) => {
+      clearTimeout(timer);
+      timer = window.setTimeout(dismiss, ms);
+    };
+    const setOpen = (open: boolean) => {
+      card.hidden = !open;
+      chip.setAttribute('aria-expanded', String(open));
+      el.classList.toggle('open', open);
+      // An open card waits for the player; a closed chip lingers a little longer, then goes.
+      if (open) clearTimeout(timer);
+      else arm(5000);
+    };
+    chip.onclick = () => setOpen(!el.classList.contains('open'));
+    el.querySelector<HTMLButtonElement>('.foe-x')!.onclick = dismiss;
+    box.prepend(el);
+    // Only the newest few stay on screen.
+    const all = box.querySelectorAll<HTMLElement>('.foe-alert:not(.out)');
+    for (let i = 3; i < all.length; i++) all[i].remove();
+    arm(12000);
   }
 
   private updateCoach(game: Game, heroOrdered: boolean, upgraded: boolean) {
