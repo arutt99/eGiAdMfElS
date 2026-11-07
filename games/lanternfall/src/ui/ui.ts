@@ -13,6 +13,7 @@ import { DAMAGE_ORDER, DAMAGE_TYPES, TOWERS, TOWER_ORDER, towerStats, type Attac
 import { QUALITY, type QualityId } from '../render/engine';
 import { enemyPortrait, heroPortrait, towerPortrait } from '../render/portraits';
 import { MAX_GOLD, TARGET_MODES, type Game, type TargetMode, type Tower } from '../sim/game';
+import { buzz, isTouch } from './touch';
 
 export interface AppActions {
   previewMap(map: MapDef): void;
@@ -32,7 +33,23 @@ export interface AppActions {
   setTargetMode(m: TargetMode): void;
   centerHero(): void;
   deselect(): void;
+  confirmAction(): void;
+  cancelAction(): void;
+  toggleHeroMode(): void;
 }
+
+/** The bar shown above the tower cards on touch screens while building, casting or sending the hero. */
+export interface ActionBar {
+  kind: 'build' | 'spell' | 'hero';
+  title: string;
+  text: string;
+  bad?: boolean;
+  /** The confirm button's label, 'off' to show it disabled, or null to leave it out. */
+  confirm: string | null;
+}
+
+/** How long a finger rests on something before its details appear. */
+const LONG_PRESS_MS = 420;
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -43,6 +60,9 @@ const ICONS = {
   flame: '<svg viewBox="0 0 24 24"><path d="M12 2c1 4 6 6.5 6 12a6 6 0 0 1-12 0c0-2.7 1.4-4.3 2.6-5.7.3 1.5 1 2.5 2.1 3C10.300 8 10.800 4.800 12 2z"/></svg>',
   coin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.500h4.500a2 2 0 0 1 0 4H10a2 2 0 0 0 0 4" fill="none" stroke="rgba(60,30,0,.55)" stroke-width="1.700" transform="translate(0 -1.500)"/></svg>',
   star: '<svg viewBox="0 0 24 24"><path d="M12 2.600l2.900 6.200 6.800.8-5 4.600 1.300 6.700-6-3.300-6 3.300 1.300-6.700-5-4.600 6.800-.8z"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 11 8-7 8 7"/><path d="M6.500 10v9h11v-9M10 19v-5h4v5"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  spellbook: '<svg viewBox="0 0 24 24"><path d="M5 4.500A2.500 2.500 0 0 1 7.500 2H19v16H7.500A2.500 2.500 0 0 0 5 20.500z"/><path d="M5 20.500A2.500 2.500 0 0 0 7.500 23H19v-3" fill="none" stroke="currentColor" stroke-width="1.600"/><path d="M12 6l1.200 2.800L16 10l-2.800 1.200L12 14l-1.200-2.800L8 10l2.800-1.200z" fill="#2a1d36"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   gear: '<svg viewBox="0 0 24 24"><path d="M19.400 13a7.500 7.500 0 0 0 0-2l2-1.600-2-3.400-2.400 1a7.500 7.500 0 0 0-1.700-1L15 3.500h-4l-.4 2.500a7.500 7.500 0 0 0-1.700 1l-2.400-1-2 3.400 2 1.600a7.500 7.500 0 0 0 0 2l-2 1.600 2 3.400 2.400-1a7.500 7.500 0 0 0 1.700 1l.4 2.500h4l.4-2.500a7.500 7.500 0 0 0 1.700-1l2.400 1 2-3.400zM13 15.200a3.200 3.200 0 1 1 0-6.400 3.200 3.200 0 0 1 0 6.400z" transform="translate(-1 0)"/></svg>',
   starfall: '<svg viewBox="0 0 48 48"><path d="M40 6 22 24l-7 2-5 6 3 6 6 3 6-5 2-7L45 11z" fill="#ffb24d"/><circle cx="16" cy="33" r="7" fill="#ffe7a8"/><path d="M28 6 14 20M42 20 28 34" stroke="#ffd98a" stroke-width="2.500" stroke-linecap="round"/></svg>',
@@ -135,6 +155,18 @@ function resistDots(id: EnemyId) {
   const r = ENEMIES[id].resist;
   const hard = DAMAGE_ORDER.filter((t) => (r[t] ?? 0) >= 0.5);
   return hard.length ? `<span class="pv-res">${hard.map((t) => `<i style="--dt:${DAMAGE_TYPES[t].color}"></i>`).join('')}</span>` : '';
+}
+
+/** Fullscreen helps on phones that support it (Android). iPhones get the same by adding the game to the Home Screen. */
+const canFullscreen = () => isTouch() && document.fullscreenEnabled && !document.fullscreenElement;
+
+async function goFullscreen() {
+  try {
+    await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
+  } catch {
+    // Either step can be refused. The game still works without them.
+  }
 }
 
 const abilityIcon = (id: string) => (ICONS as Record<string, string>)[id] ?? ICONS.sunbreak;
@@ -239,6 +271,8 @@ export class UI {
       else this.cineNext();
     });
     document.addEventListener('pointerover', (e) => {
+      // Touch has no hover. Its details come from a long press instead.
+      if (e.pointerType !== 'mouse') return;
       const t = e.target as HTMLElement;
       if (t.closest('button:not(:disabled)')) {
         const rel = e.relatedTarget as HTMLElement | null;
@@ -251,8 +285,65 @@ export class UI {
     this.root.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('button')) audio.play('click');
     });
+    this.bindLongPress();
     this.selectedDiff = save.data.lastDifficulty;
     this.selectedMap = MAPS.find((m) => m.id === save.data.lastMap) ?? MAPS[0];
+  }
+
+  /**
+   * On touch, resting a finger on anything with details (a tower card, spell, enemy, tech) shows its
+   * tooltip until the finger lifts. The tap that would follow is swallowed, so looking never buys or builds.
+   */
+  private bindLongPress() {
+    let timer = 0;
+    let host: HTMLElement | null = null;
+    let sx = 0, sy = 0;
+    let swallowClick = false;
+    const cancel = () => {
+      clearTimeout(timer);
+      timer = 0;
+      host = null;
+    };
+    document.addEventListener('pointerdown', (e) => {
+      swallowClick = false;
+      if (e.pointerType === 'mouse') return;
+      cancel();
+      const target = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
+      if (!target) {
+        this.hideTip();
+        return;
+      }
+      host = target;
+      sx = e.clientX;
+      sy = e.clientY;
+      timer = window.setTimeout(() => {
+        timer = 0;
+        if (!host?.isConnected) return;
+        this.showTip(host);
+        swallowClick = true;
+        buzz(10);
+      }, LONG_PRESS_MS);
+    }, { capture: true });
+    document.addEventListener('pointermove', (e) => {
+      if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel();
+    }, { capture: true });
+    const lift = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      cancel();
+      if (swallowClick) this.hideTip();
+    };
+    document.addEventListener('pointerup', lift, { capture: true });
+    document.addEventListener('pointercancel', lift, { capture: true });
+    document.addEventListener('click', (e) => {
+      if (!swallowClick) return;
+      swallowClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+    }, { capture: true });
+    // A long press would otherwise open the browser's own menu.
+    document.addEventListener('contextmenu', (e) => {
+      if (isTouch()) e.preventDefault();
+    });
   }
 
   setLoading(k: number, text?: string) {
@@ -331,8 +422,10 @@ export class UI {
             <button class="nav-btn" data-a="chronicle">The Chronicle</button>
             <button class="nav-btn" data-a="settings">Settings</button>
             <button class="nav-btn" data-a="credits">Credits</button>
+            ${canFullscreen() ? '<button class="nav-btn" data-a="fullscreen">Play fullscreen</button>' : ''}
           </nav>
         </div>
+        ${location.protocol === 'file:' ? '' : `<a class="home-link" href="../../" aria-label="Back to Pocket Table">${ICONS.home}<span>Pocket Table</span></a>`}
         ${!this.save.persisted ? '<p class="save-warn">Your browser is blocking local storage, so progress will not be saved after you close this page.</p>' : DEMO ? '<p class="save-warn">Demo mode: everything is unlocked. Your real save is untouched.</p>' : ''}
       </div>`;
     this.menu.classList.remove('hidden');
@@ -355,6 +448,9 @@ export class UI {
       else if (a === 'endless') { this.endless = true; this.showMapSelect(); }
       else if (a === 'upgrades') this.showUpgrades(() => this.showTitle());
       else if (a === 'settings') this.showSettings();
+      else if (a === 'fullscreen') {
+        void goFullscreen().then(() => this.showTitle());
+      }
     };
   }
 
@@ -628,7 +724,15 @@ export class UI {
           </section>
           <section>
             <h3>Controls</h3>
-            <dl class="keys">
+            ${isTouch() ? `<dl class="keys">
+              <dt>Tap</dt><dd>Choose and place a tower, select a tower, cast a spell</dd>
+              <dt>Tap ✓</dt><dd>Build the tower you placed (or tap it again)</dd>
+              <dt>Drag</dt><dd>Move the camera</dd>
+              <dt>Pinch</dt><dd>Zoom</dd>
+              <dt>Twist two fingers</dt><dd>Rotate the camera</dd>
+              <dt>Hero portrait</dt><dd>Tap it, then tap the map to send your hero</dd>
+              <dt>Touch and hold</dt><dd>See what a tower, spell or enemy does</dd>
+            </dl>` : `<dl class="keys">
               <dt>Left-click</dt><dd>Build, select a tower, cast a spell</dd>
               <dt>Right-click</dt><dd>Send the hero / cancel</dd>
               <dt>Right-drag, Q / E</dt><dd>Rotate the camera</dd>
@@ -643,7 +747,7 @@ export class UI {
               <dt>R, Delete, T</dt><dd>Upgrade, sell, change targeting</dd>
               <dt>P, Esc</dt><dd>Pause</dd>
               <dt>&#96;</dt><dd>Cheats</dd>
-            </dl>
+            </dl>`}
           </section>
         </div>
         <div class="dialog-foot">
@@ -682,7 +786,7 @@ export class UI {
           else this.showTitle();
         } else {
           btn.dataset.armed = '1';
-          btn.textContent = 'Click again to confirm';
+          btn.textContent = isTouch() ? 'Tap again to confirm' : 'Click again to confirm';
         }
       }
     };
@@ -700,9 +804,11 @@ export class UI {
     this.cache.clear();
     this.lastTowerPanelKey = '';
     this.lastPreviewKey = '';
+    this.lastActionKey = '';
     this.cards.clear();
     this.spellBtns.clear();
     this.hud.classList.remove('hidden');
+    const touch = isTouch();
     this.hud.innerHTML = `
       <div class="top-left panel slim">
         <div class="res lives" data-tip="text" data-text="Lantern health. Enemies that reach the lantern dim it. If it goes out, the map is lost.">
@@ -725,11 +831,11 @@ export class UI {
         <div class="coach hidden" id="h-coach"></div>
       </div>
       <div class="top-right">
-        <button class="icon-btn speed" id="h-speed" data-tip="text" data-text="Game speed (F)"><span id="h-speed-text">1×</span></button>
-        <button class="icon-btn" id="h-pause" aria-label="Pause" data-tip="text" data-text="Pause (P)">${ICONS.pause}</button>
+        <button class="icon-btn speed" id="h-speed" aria-label="Game speed" data-tip="text" data-text="${touch ? 'Game speed' : 'Game speed (F)'}"><span id="h-speed-text">1×</span></button>
+        <button class="icon-btn" id="h-pause" aria-label="Pause" data-tip="text" data-text="${touch ? 'Pause' : 'Pause (P)'}">${ICONS.pause}</button>
       </div>
       <div class="bottom-left panel slim">
-        <button class="hero-portrait" id="h-hero" data-tip="text" data-text="${game.heroDef.name}. ${heroAuraText(game.heroDef)} Right-click the map to move. Press H to center the camera.">
+        <button class="hero-portrait" id="h-hero" data-tip="text" aria-label="${touch ? `Send ${game.heroDef.name}` : game.heroDef.name}" data-text="${game.heroDef.name}. ${heroAuraText(game.heroDef)} ${touch ? 'Tap here, then tap the map to send your hero there.' : 'Right-click the map to move. Press H to center the camera.'}">
           <img src="${heroPortrait(game.heroDef.id)}" alt=""><span class="lvl" id="h-hero-level"></span><span class="respawn hidden" id="h-hero-respawn"></span>
         </button>
         <div class="hero-side">
@@ -744,7 +850,12 @@ export class UI {
       <div class="vignette" id="h-vignette"></div>
       <div class="tower-bar" id="h-towers"></div>
       <div class="lantern-hp" id="h-lantern-hp" role="img" aria-label="Lantern health"><b></b><div class="lantern-hp-bar"><i></i></div></div>
-      <div class="bottom-right panel slim" id="h-spells"></div>
+      <div class="bottom-right panel slim" id="h-spells"><button class="spell-toggle" id="h-spell-toggle" aria-label="Hide spells" aria-expanded="true">${ICONS.spellbook}</button></div>
+      <div class="action-bar hidden" id="h-action" role="status">
+        <div class="act-body"><b class="act-title"></b><span class="act-text"></span></div>
+        <button class="act-ok" data-act="ok"></button>
+        <button class="act-x" data-act="cancel" aria-label="Cancel">${ICONS.close}</button>
+      </div>
       <aside class="tower-panel panel hidden" id="h-panel"></aside>
       <div class="banner" id="h-banner"></div>
       <div class="toast hidden" id="h-toast"></div>
@@ -784,7 +895,19 @@ export class UI {
     $('#h-call').onclick = () => this.app.callWave();
     $('#h-speed').onclick = () => this.app.cycleSpeed();
     $('#h-pause').onclick = () => this.app.togglePause();
-    $('#h-hero').onclick = () => this.app.centerHero();
+    // A mouse right-clicks to move the hero, so its portrait centers the camera. Touch uses the portrait to send them.
+    $('#h-hero').onclick = () => (isTouch() ? this.app.toggleHeroMode() : this.app.centerHero());
+    $('#h-action').onclick = (e) => {
+      const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
+      if (act === 'ok') this.app.confirmAction();
+      else if (act === 'cancel') this.app.cancelAction();
+    };
+    const toggle = $('#h-spell-toggle');
+    toggle.onclick = () => {
+      const collapsed = spells.classList.toggle('collapsed');
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      toggle.setAttribute('aria-label', collapsed ? 'Show spells' : 'Hide spells');
+    };
     this.abilityBtns = game.heroDef.abilities.map((_, i) => this.hud.querySelector<HTMLElement>(`#h-ability-${i}`));
     this.abilityBtns.forEach((btn, i) => {
       if (btn) btn.onclick = () => this.app.useAbility(i);
@@ -850,13 +973,22 @@ export class UI {
       el.classList.add('hidden');
       return;
     }
-    const steps: [string, () => boolean][] = [
+    const touchSteps: [string, () => boolean][] = [
+      ["<b>Build a tower.</b> Tap the Archer's Roost below, tap open ground beside the road, then tap ✓ to build it.", () => game.towers.length >= 1],
+      ['<b>Build another, then start the fight.</b> Try the Arcane Spire, then tap <b>Start wave 1</b> at the top.', () => game.wave >= 1],
+      ["<b>Send your hero.</b> Tap your hero's portrait, then tap the road. Your hero stops enemies and fights them, and also strengthens nearby towers.", () => heroOrdered],
+      ['<b>Upgrade.</b> Tap any tower to open its panel. After level 2, each tower can specialize in one of two forms.', () => upgraded],
+      ['<b>Use your spells.</b> Tap Starfall, then tap a crowded stretch of road. Touch and hold anything to see what it does.', () => game.spellCd.starfall > 5],
+    ];
+    const mouseSteps: [string, () => boolean][] = [
       ["<b>Build a tower.</b> Press <kbd>1</kbd> for the Archer's Roost, then click open ground beside the road.", () => game.towers.length >= 1],
       ['<b>Build another, then start the fight.</b> Try the Arcane Spire <kbd>2</kbd>, then press <kbd>Space</kbd> to call the first wave.', () => game.wave >= 1],
       ['<b>Send your hero.</b> Right-click the road. Your hero stops enemies and fights them, and also strengthens nearby towers.', () => heroOrdered],
       ['<b>Upgrade.</b> Click any tower to open its panel. After level 2, each tower can specialize in one of two forms.', () => upgraded],
       ['<b>Use your spells.</b> Press <kbd>Z</kbd> and click a crowded stretch of road to call down Starfall.', () => game.spellCd.starfall > 5],
     ];
+    const touch = isTouch();
+    const steps = touch ? touchSteps : mouseSteps;
     if (this.tutorialStep >= steps.length) {
       this.tutorialStep = -1;
       this.save.data.tutorialDone = true;
@@ -869,8 +1001,9 @@ export class UI {
       this.tutorialStep++;
       return;
     }
-    if (el.dataset.step !== String(this.tutorialStep)) {
-      el.dataset.step = String(this.tutorialStep);
+    const stepKey = `${this.tutorialStep}${touch ? 't' : 'm'}`;
+    if (el.dataset.step !== stepKey) {
+      el.dataset.step = stepKey;
       el.innerHTML = `<span class="coach-text">${text}</span><button class="link" data-skip>Skip tips</button>`;
       el.classList.remove('hidden');
       ($('[data-skip]', el) as HTMLElement).onclick = () => {
@@ -881,7 +1014,7 @@ export class UI {
     }
   }
 
-  update(game: Game, ctx: { selected: Tower | null; speed: number; buildType: TowerId | null; spell: SpellId | null; heroOrdered: boolean; upgraded: boolean }) {
+  update(game: Game, ctx: { selected: Tower | null; speed: number; buildType: TowerId | null; spell: SpellId | null; heroOrdered: boolean; upgraded: boolean; heroMode: boolean; action: ActionBar | null }) {
     const c = this.cache;
     const hudRoot = this.hud;
     if (!hudRoot.firstChild) return;
@@ -971,8 +1104,30 @@ export class UI {
     respawn.classList.toggle('hidden', !hero.dead);
     if (hero.dead) c.set(respawn, `${Math.ceil(game.heroRespawnT)}`);
 
+    $('#h-hero').classList.toggle('active', ctx.heroMode);
+    this.updateActionBar(ctx.action);
     this.updateTowerPanel(game, ctx.selected);
     this.updateCoach(game, ctx.heroOrdered, ctx.upgraded);
+  }
+
+  private lastActionKey = '';
+  private updateActionBar(a: ActionBar | null) {
+    const bar = $('#h-action');
+    const key = a ? `${a.kind}|${a.title}|${a.text}|${a.bad}|${a.confirm}` : '';
+    if (key === this.lastActionKey) return;
+    this.lastActionKey = key;
+    bar.classList.toggle('hidden', !a);
+    this.hud.classList.toggle('acting', !!a);
+    if (!a) return;
+    bar.dataset.kind = a.kind;
+    $('.act-title', bar).textContent = a.title;
+    const text = $('.act-text', bar);
+    text.textContent = a.text;
+    text.classList.toggle('bad', !!a.bad);
+    const ok = $<HTMLButtonElement>('.act-ok', bar);
+    ok.classList.toggle('hidden', a.confirm === null);
+    ok.disabled = a.confirm === 'off';
+    ok.textContent = a.confirm && a.confirm !== 'off' ? a.confirm : 'Build';
   }
 
   private updateTowerPanel(game: Game, t: Tower | null) {

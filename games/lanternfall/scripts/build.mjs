@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const outFile = resolve(root, 'Lanternfall.html');
+const outFile = resolve(root, 'index.html');
 const watch = process.argv.includes('--watch');
 
 const inlineHtml = {
@@ -22,7 +22,7 @@ const inlineHtml = {
         .replace('/*__CSS__*/', () => css.replace(/<\/style/gi, '<\\/style'))
         .replace('/*__JS__*/', () => js.replace(/<\/script/gi, '<\\/script'));
       writeFileSync(outFile, html);
-      console.log(`Built Lanternfall.html (${(html.length / 1048576).toFixed(2)} MB)`);
+      console.log(`Built index.html (${(html.length / 1048576).toFixed(2)} MB)`);
     });
   },
 };
