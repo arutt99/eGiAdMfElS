@@ -78,6 +78,8 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .title-nav .nav-btn:nth-child(4) { animation-delay: 0.66s; }
 .title-nav .nav-btn:nth-child(5) { animation-delay: 0.73s; }
 .title-nav .nav-btn:nth-child(6) { animation-delay: 0.8s; }
+.title-nav .nav-btn:nth-child(7) { animation-delay: 0.87s; }
+.title-nav .nav-btn:nth-child(8) { animation-delay: 0.94s; }
 .title-block .eyebrow { margin-bottom: 14px; font-size: 14px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7); }
 .title-nav { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 34px; }
 .nav-btn { position: relative; display: inline-flex; align-items: center; gap: 12px; padding: 9px 16px 9px 0; font: 600 clamp(20px, 1.9vw, 28px)/1.2 var(--display); color: var(--cream); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75); transition: transform 0.18s ease, color 0.18s ease; }
@@ -182,6 +184,18 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .damage-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 14.5px; color: var(--cream-dim); }
 .damage-key .tags { display: inline-flex; gap: 4px; }
 .hero-pick { display: flex; gap: 8px; margin: 10px 0 12px; }
+.start-wave { margin: 4px 0 14px; }
+/* The demo's wave picker takes the room the story and reward text would use. */
+.demo-endless .story, .demo-endless .diff-blurb { display: none; }
+.demo-endless .diff { margin-bottom: 4px; }
+.sw-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cream-dim); }
+.sw-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.sw-step { flex: none; width: 42px; padding: 7px 0; font-size: 20px; line-height: 1; }
+.sw-step:disabled { opacity: 0.4; }
+.sw-input { flex: 1; width: auto; min-width: 0; padding: 7px 10px; font-size: 17px; }
+.sw-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.sw-presets .diff-btn { padding: 6px 2px; font-weight: 700; }
+.sw-note { margin: 6px 0 0; font-size: 13px; color: var(--cream-dim); }
 .hero-opt { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; padding: 5px 3px; border-radius: 10px; background: rgba(255, 255, 255, 0.045); border: 1.5px solid var(--line); font-size: 13.5px; font-weight: 700; }
 .hero-opt img { width: 44px; height: 44px; object-fit: contain; }
 .hero-opt.on { border-color: var(--gold-hi); background: rgba(239, 189, 85, 0.16); }
@@ -695,6 +709,13 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .diff-blurb { margin: 7px 0 8px; font-size: 13px; }
   .unlock-note { margin: -2px 0 8px; font-size: 13px; }
   .hero-pick { margin: 6px 0 8px; gap: 6px; }
+  .start-wave { margin: 2px 0 8px; }
+  .sw-label { margin-bottom: 4px; font-size: 12px; }
+  .sw-row { margin-bottom: 4px; }
+  .sw-step { width: 36px; padding: 5px 0; font-size: 18px; }
+  .sw-input { padding: 5px 8px; font-size: 15px; }
+  .sw-presets .diff-btn { padding: 4px 2px; }
+  .sw-note { font-size: 12px; }
   .hero-opt { font-size: 12.5px; }
   .hero-opt img { width: 34px; height: 34px; }
   .map-info .play-btn { position: sticky; bottom: 0; margin: 4px 0 0; padding: 11px 16px; font-size: 18px; box-shadow: 0 2px 0 #8a5a1c, 0 -10px 16px 4px rgba(27, 18, 36, 0.9); }

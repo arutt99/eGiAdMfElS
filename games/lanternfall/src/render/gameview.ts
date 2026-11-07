@@ -1372,7 +1372,7 @@ export class GameView {
 
   private updateChevrons() {
     const game = this.game;
-    const showRoad = game.state === 'playing' && game.spawnQueue.length === 0 && game.wave < game.totalWaves && (game.enemies.length === 0 || game.wave === 0);
+    const showRoad = game.state === 'playing' && game.spawnQueue.length === 0 && game.wave < game.totalWaves && (game.enemies.length === 0 || !game.started);
     let n = 0;
     let na = 0;
     const tmp = tmpRoad;
