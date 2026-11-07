@@ -1,6 +1,6 @@
 # Realmbinder
 
-A digital trading-card collection in an original high-fantasy world: open booster packs, fill a binder, show off your best pulls on a shelf, and buy and sell at a shop whose stock changes over time. Served as static files at `games/realmbinder/`, with no build step, account or server. Progress is saved in the browser (`realmbinder.save.v1`).
+A digital trading-card collection in an original high-fantasy world: open booster packs, fill a binder, show off your best pulls on a shelf, and buy and sell at a shop whose stock changes over time. Served as static files at `games/realmbinder/`, with a prebuilt 3D opener and no account or application server. Progress is saved in the browser (`realmbinder.save.v1`).
 
 ## Set 1: The Sundered Crown
 
@@ -51,3 +51,53 @@ Add `?ff=6` to the URL to move the clock six hours ahead, which is handy for see
 ## Next ideas
 
 Bot collectors who trade and bid, scheduled set releases with sets going out of print, more shops with their own personalities, grading, and achievements.
+
+
+## Interface overhaul
+
+The collector’s table, Copper Kettle, binder, display room, card frames, booster wrappers, inspector and pull summary share a cozy walnut, parchment and lamplight design, with forest-green foil packs. Desktop navigation sits above the collection; phone navigation remains within thumb reach.
+
+- Cards establish their own sizing container. Artwork always keeps its native 4:3 composition without cropping or flex shrink; names wrap within a fixed header, and full flavor text is also available in the inspector.
+- Artwork is embedded as an SVG image so repeated cards never share gradient IDs with hidden cards or overlays.
+- Packs and cards remain still at rest. A deliberate tear and flip replace idle wobble and geometric hover tilt. Reduced-motion preferences disable transitions.
+- Opener timers are cancelled on close, restart and Reveal all. Rapid input cannot consume extra packs or advance through an unfinished flip. A committed pack’s ten cards are saved before its animation starts.
+- Card details stay interactive above the pull summary. Dialogs lock background interaction, contain keyboard focus and support Escape. Reveal controls work with touch, mouse and keyboard.
+- The binder supports search, faction, ownership and rarity filters. The display picker includes the entire collection, sorted by value.
+- Existing `realmbinder.save.v1` collections and the set/economy remain compatible. The prebuilt opener is included, so the game still serves as static files.
+
+### Verification
+
+Serve the repository root on localhost, then run:
+
+```sh
+node --test tests/realmbinder.test.mjs
+node tests/realmbinder.browser.cjs
+```
+
+The browser suite needs Playwright and Chromium. Set `PLAYWRIGHT_MODULE` to an installed Playwright package and `CHROMIUM_PATH` to a Chromium executable when they are outside the normal paths. `REALMBINDER_URL` can override the default `http://127.0.0.1:4173/games/realmbinder/` URL.
+
+Browser coverage includes pack cancellation, complete keyboard reveals, rapid Reveal all, inspector actions above the summary, shop purchases, binder filters, shelf changes, save/reload compatibility, all 130 cards’ frame bounds, and desktop/320px/390px/landscape layouts. QA screenshots are written to the ignored `tmp/realmbinder-qa/` directory.
+
+
+## Three.js pack opening
+
+The opener lazily loads a self-contained Three.js 0.187.0 bundle only when needed. No CDN or remote artwork service is required.
+
+- A sculpted foil pouch has pinched edges, crimped seals, deterministic creases, front/back print, an irregular tear line and physically lit reflective materials.
+- Pull across the top seam with touch or mouse, or use **Break the seal**. The strip separates, the sleeve drops away and the card stack emerges.
+- Rounded cards have cardstock edges, matching printed backs, full card art and view-dependent foil/gilded materials. One click turns the entire deck face-up. Each subsequent click on the deck slides the top card aside and reveals the next card already face-up; there is no separate flip per card. A quiet paper flick accompanies each reveal, without rarity chimes.
+- Drag a revealed card slightly to inspect it under the light. Bounds come from the stationary stage; moving a card never changes its input reference.
+- Rendering stops at rest. Pixel density is capped at 2. Each closed/skipped/restarted opener disposes its renderer, geometries, materials, textures, environment map, observers and event handlers.
+- Reduced-motion preferences and unavailable WebGL use the simple opener. **Simple view / 3D view** remembers a manual preference. If graphics are lost after commitment, the ten saved cards are shown in the pull summary.
+
+### Building the 3D bundle
+
+```sh
+cd games/realmbinder
+npm ci
+npm run build
+```
+
+Edit `src/opener-3d.mjs` and `src/print-textures.mjs`, then rebuild the committed `opener-3d.mjs`. The build also includes the Three.js MIT license in `licenses/three.txt`.
+
+`tests/realmbinder-3d.browser.cjs` exercises GPU rendering, complete ten-card reveals, drag opening and inspection, skip cancellation, graphics-context loss, disposal and simple-mode preference. It captures screenshots and `tmp/realmbinder-qa/pack-opening-3d.webm`. It requires Playwright’s FFmpeg installation for recording; the ordinary browser regression suite does not require FFmpeg.

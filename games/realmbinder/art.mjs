@@ -183,7 +183,7 @@ export function cardArt(card) {
 
   out.push(particles(rng, kind === 'spell' ? 'stars' : fac.particles, P, rank));
   out.push(`<rect width="${W}" height="${H}" fill="url(#${P('vig')})"/>`);
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>${defs.join('')}</defs>${out.join('')}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs>${defs.join('')}</defs>${out.join('')}</svg>`;
 }
 
 function rays(rng, color, rank, cx, cy) {
@@ -793,6 +793,6 @@ function spell(style, rng, P, rank) {
 
 const cache = new Map();
 export function artFor(card) {
-  if (!cache.has(card.id)) cache.set(card.id, cardArt(card));
+  if (!cache.has(card.id)) cache.set(card.id, `<img src="data:image/svg+xml,${encodeURIComponent(cardArt(card))}" width="200" height="150" alt="" draggable="false">`);
   return cache.get(card.id);
 }
