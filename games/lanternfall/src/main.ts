@@ -17,7 +17,8 @@ import { renderPortraits } from './render/portraits';
 import { Stage } from './render/stage';
 import { Game, TARGET_MODES, type Tower } from './sim/game';
 import { World, type RoadPath } from './sim/world';
-import { UI, type AppActions } from './ui/ui';
+import { buzz, isTouch } from './ui/touch';
+import { UI, type ActionBar, type AppActions } from './ui/ui';
 
 const FIXED_DT = 1 / 60;
 /** Milliseconds between a battle ending and its results appearing, so the final moment can play out. */
@@ -26,6 +27,12 @@ const END_DELAY_LOST = 2300;
 /** How far above the lantern's base its health bar floats. */
 const LANTERN_HP_HEIGHT = 8.6;
 const SPEEDS = [1, 2, 3];
+/** How far a finger may wander, in pixels, before a touch counts as a drag instead of a tap. */
+const TAP_SLOP = 10;
+/** A second tap this close to a tower preview, in world units, builds it. */
+const CONFIRM_RADIUS = 1.1;
+/** Phones held upright show a "turn sideways" screen, so a battle pauses behind it. */
+const PORTRAIT_PHONE = '(orientation: portrait) and (max-width: 600px) and (hover: none)';
 
 function detectQuality(renderer: THREE.WebGLRenderer): QualityId {
   const gl = renderer.getContext();
@@ -68,8 +75,18 @@ class App implements AppActions {
   heroOrdered = false;
   upgraded = false;
   finished = false;
+  /** Touch only: waiting for a tap on the map to send the hero there. */
+  heroMode = false;
+  /**
+   * Touch only: where the build preview or spell target sits. A tower preview stays put until
+   * the player confirms it; a spell target only shows while a finger rests on the map.
+   */
+  private aim: { x: number; z: number } | null = null;
 
   private pointer = { x: 0, y: 0, inside: false, drag: 0 as 0 | 1 | 2 | 3, sx: 0, sy: 0, moved: false, lx: 0, ly: 0 };
+  /** Fingers currently on the map, and the two-finger gesture they make. */
+  private touches = new Map<number, { x: number; y: number }>();
+  private gesture: { dist: number; angle: number; mx: number; my: number } | null = null;
   private keys = new Set<string>();
   private raycaster = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
@@ -258,6 +275,10 @@ class App implements AppActions {
     this.selected = null;
     this.buildType = null;
     this.spell = null;
+    this.heroMode = false;
+    this.aim = null;
+    this.touches.clear();
+    this.gesture = null;
     if (this.stage) {
       const u = this.stage.uniforms;
       u.uRing.value.w = 0;
@@ -324,6 +345,8 @@ class App implements AppActions {
     if (!this.game.isTowerUnlocked(t)) return;
     this.spell = null;
     this.selected = null;
+    this.heroMode = false;
+    this.aim = null;
     this.buildType = this.buildType === t ? null : t;
     audio.play('click');
   }
@@ -342,6 +365,8 @@ class App implements AppActions {
     }
     this.buildType = null;
     this.selected = null;
+    this.heroMode = false;
+    this.aim = null;
     this.spell = this.spell === id ? null : id;
     audio.play('click');
   }
@@ -437,6 +462,10 @@ class App implements AppActions {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('pointerdown', (e) => {
       canvas.setPointerCapture(e.pointerId);
+      if (e.pointerType === 'touch') {
+        this.touchDown(e);
+        return;
+      }
       p.x = p.sx = p.lx = e.clientX;
       p.y = p.sy = p.ly = e.clientY;
       p.inside = true;
@@ -444,8 +473,18 @@ class App implements AppActions {
       p.drag = e.button === 0 ? 1 : e.button === 1 ? 3 : 2;
     });
     // Fires after pointerup, and also when a drag is cut short without one (touch cancel, focus loss).
-    canvas.addEventListener('lostpointercapture', () => { p.drag = 0; });
+    canvas.addEventListener('lostpointercapture', (e) => {
+      if (e.pointerType === 'touch') this.touchUp(e, false);
+      else p.drag = 0;
+    });
+    window.addEventListener('pointercancel', (e) => {
+      if (e.pointerType === 'touch') this.touchUp(e, false);
+    });
     window.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') {
+        this.touchMove(e);
+        return;
+      }
       p.x = e.clientX;
       p.y = e.clientY;
       p.inside = e.target === canvas;
@@ -462,13 +501,14 @@ class App implements AppActions {
         rig.tPitch = Math.max(0.5, Math.min(1.35, rig.tPitch + dy * 0.003));
         this.menuOrbit = false;
       } else if ((p.drag === 1 && !this.buildType && !this.spell) || p.drag === 3) {
-        if (this.game) {
-          const k = (rig.dist / window.innerHeight) * 0.56;
-          rig.pan(-dx * k, -dy * k * 1.3);
-        }
+        this.panBy(dx, dy);
       }
     });
     window.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') {
+        this.touchUp(e, e.target === canvas);
+        return;
+      }
       const drag = p.drag;
       p.drag = 0;
       if (!drag || p.moved || e.target !== canvas) return;
@@ -488,6 +528,218 @@ class App implements AppActions {
       this.last = performance.now();
       if (document.hidden && this.game && !this.paused && !this.finished) this.togglePause();
     });
+    // Turning a phone upright covers the battle, so pause it.
+    matchMedia(PORTRAIT_PHONE).addEventListener('change', (e) => {
+      if (e.matches && this.game && !this.paused && !this.finished && !this.ui.cineActive) this.togglePause();
+    });
+  }
+
+  /** Moves the camera with the screen-space motion of a drag. */
+  private panBy(dx: number, dy: number) {
+    if (!this.game) return;
+    const rig = this.engine.rig;
+    const k = (rig.dist / window.innerHeight) * 0.56;
+    rig.pan(-dx * k, -dy * k * 1.3);
+  }
+
+  // ---------- Touch ----------
+  // One finger drags the camera, and a tap acts like a click. Two fingers pinch to zoom, twist to
+  // rotate, and move together to pan.
+
+  private touchDown(e: PointerEvent) {
+    const p = this.pointer;
+    this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    p.inside = false;
+    if (this.touches.size === 1) {
+      p.x = p.sx = p.lx = e.clientX;
+      p.y = p.sy = p.ly = e.clientY;
+      p.moved = false;
+      p.drag = 1;
+      // Resting a finger on the map while a spell is chosen shows where it will land.
+      if (this.spell && this.game) this.aim = this.pick();
+    } else if (this.touches.size === 2) {
+      // A second finger turns this into a gesture, so neither finger can end as a tap.
+      p.moved = true;
+      p.drag = 0;
+      if (this.spell) this.aim = null;
+      this.gesture = this.measureGesture();
+    }
+  }
+
+  private touchMove(e: PointerEvent) {
+    const t = this.touches.get(e.pointerId);
+    if (!t) return;
+    t.x = e.clientX;
+    t.y = e.clientY;
+    const p = this.pointer;
+    if (this.touches.size >= 2) {
+      const prev = this.gesture;
+      const next = this.measureGesture();
+      if (!prev || !next) return;
+      this.gesture = next;
+      if (!this.game) return;
+      const rig = this.engine.rig;
+      if (next.dist > 0 && prev.dist > 0) rig.zoom(prev.dist / next.dist);
+      let turn = next.angle - prev.angle;
+      if (turn > Math.PI) turn -= Math.PI * 2;
+      else if (turn < -Math.PI) turn += Math.PI * 2;
+      rig.tYaw += turn;
+      this.panBy(next.mx - prev.mx, next.my - prev.my);
+      return;
+    }
+    if (!p.drag) return;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    const dx = e.clientX - p.lx;
+    const dy = e.clientY - p.ly;
+    p.lx = e.clientX;
+    p.ly = e.clientY;
+    if (!p.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > TAP_SLOP) {
+      p.moved = true;
+      // The finger is dragging the map after all, so it no longer aims a spell.
+      if (this.spell) this.aim = null;
+    }
+    if (p.moved) this.panBy(dx, dy);
+  }
+
+  private touchUp(e: PointerEvent, onCanvas: boolean) {
+    if (!this.touches.delete(e.pointerId)) return;
+    const p = this.pointer;
+    if (this.touches.size === 1) {
+      // Lifting one finger of a gesture leaves the other dragging the map.
+      const [rest] = this.touches.values();
+      this.gesture = null;
+      p.lx = rest.x;
+      p.ly = rest.y;
+      p.drag = 1;
+      p.moved = true;
+      return;
+    }
+    if (this.touches.size > 1) {
+      this.gesture = this.measureGesture();
+      return;
+    }
+    this.gesture = null;
+    const tapped = p.drag === 1 && !p.moved && onCanvas;
+    p.drag = 0;
+    if (this.spell) this.aim = null;
+    if (tapped) {
+      p.x = e.clientX;
+      p.y = e.clientY;
+      this.touchTap();
+    }
+  }
+
+  /** The distance, angle and midpoint between the first two fingers on the map. */
+  private measureGesture() {
+    const it = this.touches.values();
+    const a = it.next().value, b = it.next().value;
+    if (!a || !b) return null;
+    return { dist: Math.hypot(b.x - a.x, b.y - a.y), angle: Math.atan2(b.y - a.y, b.x - a.x), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  }
+
+  /** A tap on the map: place or confirm a tower, cast a spell, send the hero, or select a tower. */
+  private touchTap() {
+    const g = this.game;
+    if (!g || this.paused || this.finished) return;
+    const hit = this.pick();
+    if (this.heroMode) {
+      this.heroMode = false;
+      if (hit) this.orderHeroAt(hit);
+      return;
+    }
+    if (this.buildType) {
+      if (!hit) return;
+      const x = this.snap(hit.x), z = this.snap(hit.z);
+      // A second tap on the preview builds it. A tap anywhere else moves the preview there.
+      if (this.aim && Math.hypot(x - this.aim.x, z - this.aim.z) <= CONFIRM_RADIUS) {
+        this.confirmAction();
+        return;
+      }
+      this.aim = { x, z };
+      buzz(6);
+      return;
+    }
+    if (this.spell) {
+      if (!hit) return;
+      if (g.castSpell(this.spell, hit.x, hit.z)) {
+        this.spell = null;
+        buzz(12);
+      } else audio.play('error');
+      return;
+    }
+    this.selected = this.towerUnderPointer();
+    if (this.selected) audio.play('click');
+  }
+
+  // ---------- Touch action bar ----------
+
+  /** Builds the tower previewed on the map. */
+  confirmAction() {
+    const g = this.game;
+    const type = this.buildType;
+    const at = this.aim;
+    if (!g || !type || !at || this.paused) return;
+    const problem = g.canBuild(type, at.x, at.z);
+    if (problem) {
+      audio.play('error');
+      this.flashHint(problem);
+      return;
+    }
+    const built = g.build(type, at.x, at.z);
+    if (built) {
+      this.buildType = null;
+      this.aim = null;
+      this.selected = built;
+      buzz(14);
+    }
+  }
+
+  /** Leaves build, spell or hero mode. */
+  cancelAction() {
+    this.buildType = null;
+    this.spell = null;
+    this.heroMode = false;
+    this.aim = null;
+  }
+
+  /** Touch: the hero portrait arms a hero order, and the next tap on the map sends them. */
+  toggleHeroMode() {
+    const g = this.game;
+    if (!g || this.paused || this.finished) return;
+    if (this.heroMode) {
+      this.heroMode = false;
+      return;
+    }
+    if (g.hero.dead) {
+      audio.play('error');
+      this.flashHint(`Your hero returns in ${Math.ceil(g.heroRespawnT)}s`);
+      return;
+    }
+    this.buildType = null;
+    this.spell = null;
+    this.aim = null;
+    this.selected = null;
+    this.heroMode = true;
+    audio.play('click');
+  }
+
+  /** What the touch action bar should say, or null to hide it. */
+  private actionBar(): ActionBar | null {
+    const g = this.game;
+    if (!g || this.finished) return null;
+    if (this.heroMode) return { kind: 'hero', title: g.heroDef.name, text: 'Tap the map to send your hero there', confirm: null };
+    if (this.buildType) {
+      const s = towerStats(this.buildType, 0, 0);
+      const cost = g.costOf(s);
+      if (!this.aim) return { kind: 'build', title: s.name, text: `${cost} gold · tap open ground beside the road`, confirm: null };
+      const problem = g.placementProblem(this.aim.x, this.aim.z, this.buildType);
+      const poor = g.gold < cost;
+      const text = problem ?? (poor ? 'Not enough gold' : `Tap ✓ or the preview again to build for ${cost} gold`);
+      return { kind: 'build', title: s.name, text, bad: !!(problem || poor), confirm: problem || poor ? 'off' : 'Build' };
+    }
+    if (this.spell && !SPELLS[this.spell].instant) return { kind: 'spell', title: SPELLS[this.spell].name, text: 'Tap the map to cast', confirm: null };
+    return null;
   }
 
   private onKey(e: KeyboardEvent) {
@@ -637,12 +889,20 @@ class App implements AppActions {
       return;
     }
     const hit = this.pick();
-    if (hit && g.moveHero(hit.x, hit.z)) {
-      this.heroOrdered = true;
-      audio.play('order');
-      const v = this.view!;
-      v.rings.add(hit.x, g.world.height(hit.x, hit.z) + 0.4, hit.z, 1.5, new THREE.Color(1.2, 0.9, 0.35).multiplyScalar(2), 0.42);
+    if (hit) this.orderHeroAt(hit);
+  }
+
+  private orderHeroAt(hit: { x: number; z: number }) {
+    const g = this.game!;
+    if (!g.moveHero(hit.x, hit.z)) {
+      audio.play('error');
+      return;
     }
+    this.heroOrdered = true;
+    audio.play('order');
+    buzz(10);
+    const v = this.view!;
+    v.rings.add(hit.x, g.world.height(hit.x, hit.z) + 0.4, hit.z, 1.5, new THREE.Color(1.2, 0.9, 0.35).multiplyScalar(2), 0.42);
   }
 
   private towerUnderPointer(): Tower | null {
@@ -697,20 +957,27 @@ class App implements AppActions {
   private updateInteraction() {
     const g = this.game!;
     const v = this.view!;
-    const hit = this.pointer.inside ? this.pick() : null;
+    // With touch there is no hovering pointer, so previews sit where the player last tapped.
+    const touch = isTouch();
+    const hit = touch ? this.aim : this.pointer.inside ? this.pick() : null;
     if (this.selected && !g.towers.includes(this.selected)) this.selected = null;
 
     if (this.buildType) {
       v.setBuildOverlay(1);
+      if (touch) {
+        // The action bar explains placement problems, so the hint line only shows flashed messages.
+        if (this.hintTimer <= 0) this.ui.hint(null);
+      }
       if (hit) {
         const x = this.snap(hit.x), z = this.snap(hit.z);
         const problem = g.placementProblem(x, z, this.buildType);
         const poor = g.gold < g.costOf(towerStats(this.buildType, 0, 0));
         v.setGhost(this.buildType, x, z, !problem && !poor);
         v.setRangeRing(x, z, towerStats(this.buildType, 0, 0).range * (1 + g.rank('towerRange') * 0.03), problem || poor ? 0xff5a4a : 0xffe2a0, 1);
-        if (problem && this.hintTimer <= 0) this.ui.hint(problem, true);
-        else if (poor && this.hintTimer <= 0) this.ui.hint('Not enough gold', true);
-        else if (this.hintTimer <= 0) this.ui.hint(null);
+        if (touch || this.hintTimer > 0) { /* The action bar or a flashed hint covers this. */ }
+        else if (problem) this.ui.hint(problem, true);
+        else if (poor) this.ui.hint('Not enough gold', true);
+        else this.ui.hint(null);
       } else {
         v.setGhost(null, 0, 0, false);
         v.setRangeRing(0, 0, 0, 0xffffff, 0);
@@ -760,6 +1027,8 @@ class App implements AppActions {
     this.buildType = null;
     this.spell = null;
     this.selected = null;
+    this.heroMode = false;
+    this.aim = null;
     const won = g.state === 'won';
     audio.fanfare(won);
     const clearedBefore = this.save.cleared;
@@ -850,7 +1119,7 @@ class App implements AppActions {
       }
       this.updateInteraction();
       this.view.update(this.paused && !this.cine ? 0.0001 : dt * this.dilation, clamp(this.acc / FIXED_DT));
-      this.ui.update(g, { selected: this.selected, speed: SPEEDS[this.speedIdx], buildType: this.buildType, spell: this.spell, heroOrdered: this.heroOrdered, upgraded: this.upgraded });
+      this.ui.update(g, { selected: this.selected, speed: SPEEDS[this.speedIdx], buildType: this.buildType, spell: this.spell, heroOrdered: this.heroOrdered, upgraded: this.upgraded, heroMode: this.heroMode, action: this.paused ? null : this.actionBar() });
       this.ui.updateFloats(dt, this.project);
       const lantern = this.stage!.lanternPos;
       this.ui.updateLanternHp(g, this.project(lantern.x, lantern.y + LANTERN_HP_HEIGHT, lantern.z));

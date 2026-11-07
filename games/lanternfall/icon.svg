@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2246"/><stop offset="1" stop-color="#150d1d"/></linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#ffb24d" stop-opacity=".75"/><stop offset="1" stop-color="#ff8a3c" stop-opacity="0"/></radialGradient>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4d9"/><stop offset=".55" stop-color="#ffdc8a"/><stop offset="1" stop-color="#ff8a3c"/></linearGradient>
+  </defs>
+  <rect width="64" height="64" fill="url(#bg)"/>
+  <circle cx="32" cy="36" r="26" fill="url(#glow)"/>
+  <path d="M32 6a5 5 0 0 1 5 5" fill="none" stroke="#efbd55" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M24 17h16l-2-5H26z" fill="#c9862e" stroke="#2a1505" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M22 18h20l-2 26H24z" fill="#ffdc8a" fill-opacity=".22" stroke="#efbd55" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 22c2 5 6 7.5 6 13a6 6 0 0 1-12 0c0-3 1.5-4.6 2.8-6 .3 1.6 1 2.6 2.2 3.2C30.6 28.500 31 25 32 22z" fill="url(#flame)"/>
+  <path d="M21 44h22l-3 6H24z" fill="#c9862e" stroke="#2a1505" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M0 56c10-4 20-5 32-3s22 1 32-3v14H0z" fill="#0e0814"/>
+</svg>
