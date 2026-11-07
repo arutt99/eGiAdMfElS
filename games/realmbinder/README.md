@@ -23,7 +23,7 @@ Every copy you own is its own object, with a condition (Mint, Near Mint, Excelle
 
 ## Art
 
-All art is procedural SVG (`art.mjs`), seeded by the card, so the same card always draws the same picture. Each scene has a time of day, a faction palette, layered ridges, a faction landscape, the subject, particles and a vignette. Subjects come from the card's `subject` code in `data.mjs`:
+The approved visual direction and reference are in [ART_DIRECTION.md](ART_DIRECTION.md). All 130 cards use individual illustrated assets. The shopkeeper and other non-card subjects use procedural SVG (`art.mjs`). Procedural subjects come from the `subject` codes in `data.mjs`:
 
 - `hero:<race>:<gear>`: a portrait (elf, dwarf, human, orc, goblin, mage, halfling) with a weapon or item. Skin, hair, clothing, pose and scale vary. Rares get capes, Legendaries get crowns.
 - `beast:<shape>`: wolf, stag, owl, eagle, horse, ram, bear, troll, golem, treant, dragon, plus variants.
