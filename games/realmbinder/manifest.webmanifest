@@ -1,0 +1,11 @@
+{
+  "name": "Realmbinder",
+  "short_name": "Realmbinder",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#15100b",
+  "theme_color": "#15100b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
