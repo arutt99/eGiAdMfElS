@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.2, 1.6, 0.4, 1)",
+        "createdAt": "2026-11-06T03:24:13.962Z",
+        "reason": "Claude's judgment: the star-award pop on the victory screen is a game reward moment where overshoot is deliberate; not confirmed by the user"
+      },
+      {
+        "rule": "overused-font",
+        "value": "fraunces",
+        "createdAt": "2026-11-06T03:44:45.907Z",
+        "reason": "User confirmed: chose to keep Fraunces as Lanternfall's display font when asked"
+      }
+    ]
+  }
+}

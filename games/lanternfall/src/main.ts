@@ -1,0 +1,898 @@
+// Application shell: boot, the main loop, player input, and game flow.
+import './ui/style.css';
+import * as THREE from 'three';
+import { audio } from './audio/audio';
+import { FrameSmoother, ResolutionGovernor } from './core/pacing';
+import { Save } from './core/save';
+import { clamp } from './core/util';
+import type { EnemyId } from './data/enemies';
+import { MAPS, type MapDef } from './data/maps';
+import { CHAPTERS, EPILOGUE } from './data/story';
+import { SPELLS, SPELL_ORDER, type Difficulty, type SpellId } from './data/meta';
+import { TOWERS, TOWER_ORDER, towerStats, type TowerId } from './data/towers';
+import { Engine, type QualityId } from './render/engine';
+import { GameView } from './render/gameview';
+import { initMaterials, shared } from './render/materials';
+import { renderPortraits } from './render/portraits';
+import { Stage } from './render/stage';
+import { Game, TARGET_MODES, type Tower } from './sim/game';
+import { World, type RoadPath } from './sim/world';
+import { UI, type AppActions } from './ui/ui';
+
+const FIXED_DT = 1 / 60;
+/** Milliseconds between a battle ending and its results appearing, so the final moment can play out. */
+const END_DELAY_WON = 2600;
+const END_DELAY_LOST = 2300;
+/** How far above the lantern's base its health bar floats. */
+const LANTERN_HP_HEIGHT = 8.6;
+const SPEEDS = [1, 2, 3];
+
+function detectQuality(renderer: THREE.WebGLRenderer): QualityId {
+  const gl = renderer.getContext();
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)).toLowerCase() : '';
+  if (/swiftshader|llvmpipe|software|basic render/.test(name)) return 'low';
+  if (/intel(\(r\))? (hd|uhd) graphics|adreno|mali/.test(name)) return 'medium';
+  return 'high';
+}
+
+class App implements AppActions {
+  save = new Save();
+  engine: Engine;
+  ui: UI;
+  stage: Stage | null = null;
+  stageMapId = '';
+  game: Game | null = null;
+  view: GameView | null = null;
+  currentMap: MapDef = MAPS[0];
+  difficulty: Difficulty = 'normal';
+  endless = false;
+  paused = false;
+  speedIdx = 0;
+  private announcedWave = 0;
+  /** Slow motion: 1 is normal time, and it eases back to 1 at dilationRate per second. */
+  private dilation = 1;
+  private dilationRate = 1;
+  /** An in-game story scene moving the camera. A null road circles the lantern instead. */
+  private cine: { t: number; dur: number; road: RoadPath | null } | null = null;
+  private cineSample = { x: 0, z: 0, dx: 0, dz: 0 };
+  acc = 0;
+  last = performance.now();
+  time = 0;
+  menuOrbit = true;
+  private revealed = false;
+
+  buildType: TowerId | null = null;
+  spell: SpellId | null = null;
+  selected: Tower | null = null;
+  heroOrdered = false;
+  upgraded = false;
+  finished = false;
+
+  private pointer = { x: 0, y: 0, inside: false, drag: 0 as 0 | 1 | 2 | 3, sx: 0, sy: 0, moved: false, lx: 0, ly: 0 };
+  private keys = new Set<string>();
+  private raycaster = new THREE.Raycaster();
+  private ndc = new THREE.Vector2();
+  private rayDir = new THREE.Vector3();
+  private projectV = new THREE.Vector3();
+  private frameSmoother = new FrameSmoother();
+  private governor = new ResolutionGovernor();
+  private previewTimer = 0;
+
+  constructor() {
+    const canvas = document.getElementById('scene') as HTMLCanvasElement;
+    this.engine = new Engine(canvas);
+    this.ui = new UI(this.save, this);
+  }
+
+  async boot() {
+    const s = this.save.data.settings;
+    if (!this.save.data.qualityChosen) {
+      s.quality = detectQuality(this.engine.renderer);
+    }
+    this.engine.setQuality(s.quality);
+    this.applySettings();
+    this.ui.setLoading(0.05, 'Mixing the paints');
+    await tick();
+    initMaterials();
+    this.ui.setLoading(0.15, 'Carving the towers');
+    await renderPortraits((k) => this.ui.setLoading(0.15 + k * 0.5));
+    this.ui.setLoading(0.7, 'Raising the islands');
+    await tick();
+    const map = MAPS.find((m) => m.id === this.save.data.lastMap) ?? MAPS[0];
+    this.loadStage(map);
+    this.resetCameraForMenu();
+    this.engine.rig.snap();
+    this.ui.setLoading(1, 'Lighting the lantern');
+    this.bindInput();
+    this.ui.showTitle();
+    audio.setTheme(this.stage!.biome.music);
+    requestAnimationFrame((t) => this.frame(t));
+  }
+
+  private loadStage(map: MapDef) {
+    // A quality change during a battle keeps the old island until the next load, so compare quality too.
+    if (this.stageMapId === map.id && this.stage?.q === this.engine.quality) return;
+    this.stage?.dispose();
+    const dpr = this.engine.renderer.getPixelRatio();
+    this.stage = new Stage(World.get(map), this.engine.quality, dpr);
+    this.stage.bakeEnvironment(this.engine.renderer);
+    this.stageMapId = map.id;
+    this.engine.setScene(this.stage.scene, this.stage.biome);
+  }
+
+  private resetCameraForMenu() {
+    const rig = this.engine.rig;
+    rig.tTarget.set(0, 1, 0);
+    rig.tDist = 112;
+    rig.tPitch = 0.62;
+    rig.tYaw = 0.5;
+    this.menuOrbit = true;
+  }
+
+  private resetCameraForGame() {
+    const rig = this.engine.rig;
+    rig.tTarget.set(0, 1, 2);
+    rig.tDist = 110;
+    rig.tPitch = 0.95;
+    rig.tYaw = 0;
+    rig.boundsX = this.currentMap.halfW + 4;
+    rig.boundsZ = this.currentMap.halfH + 4;
+    this.menuOrbit = false;
+  }
+
+  // ---------- AppActions ----------
+
+  previewMap(map: MapDef) {
+    // Debounced so that clicking across maps stays responsive.
+    const wasPending = this.previewTimer !== 0;
+    clearTimeout(this.previewTimer);
+    this.previewTimer = 0;
+    if (map.id === this.stageMapId) {
+      // Returning to the loaded map cancels a pending preview, so undo the fade that preview began.
+      if (wasPending) this.engine.fadeTo(0);
+      return;
+    }
+    this.engine.fadeTo(1);
+    this.previewTimer = window.setTimeout(() => {
+      this.previewTimer = 0;
+      this.loadStage(map);
+      this.resetCameraForMenu();
+      audio.setTheme(this.stage!.biome.music);
+      this.engine.fadeTo(0);
+    }, 240);
+  }
+
+  startGame(map: MapDef, difficulty: Difficulty, endless: boolean) {
+    clearTimeout(this.previewTimer);
+    this.previewTimer = 0;
+    audio.unlock();
+    this.currentMap = map;
+    this.difficulty = difficulty;
+    this.endless = endless;
+    this.ui.setSelectedMap(map);
+    this.engine.fadeTo(1);
+    window.setTimeout(() => {
+      this.cleanupGame();
+      this.loadStage(map);
+      this.game = new Game({ map, difficulty, endless, meta: this.save.data.meta, cleared: this.save.cleared, hero: this.save.activeHero });
+      this.view = new GameView(this.game, this.stage!, this.engine);
+      const s = this.save.data.settings;
+      this.view.showNumbers = s.numbers;
+      this.view.shakeEnabled = s.shake;
+      this.view.onFloat = (x, y, z, text, cls) => this.ui.float(x, y, z, text, cls);
+      this.view.onCoin = (x, y, z, amount) => this.ui.flyCoin(x, y, z, amount);
+      this.view.onIncome = (amount) => this.ui.incomePop(amount);
+      this.view.onBoss = () => this.ui.alarm();
+      this.view.onBossDown = () => this.slowTime(0.3, 1.2);
+      this.buildType = null;
+      this.spell = null;
+      this.selected = null;
+      this.paused = false;
+      this.finished = false;
+      this.speedIdx = 0;
+      this.acc = 0;
+      this.dilation = 1;
+      this.cine = null;
+      this.heroOrdered = false;
+      this.upgraded = false;
+      this.engine.desat = 0;
+      this.resetCameraForGame();
+      this.engine.rig.snap();
+      this.ui.showHud(this.game);
+      audio.setTheme(this.stage!.biome.music);
+      audio.setIntensity(0);
+      this.engine.fadeTo(0);
+      const firstVisit = !endless && map.index >= this.save.cleared && !this.save.data.seenChapters.includes(map.id);
+      if (firstVisit) this.playChapterOpening(map);
+      else this.ui.banner(map.name, endless ? 'Endless Night' : map.subtitle);
+    }, 300);
+  }
+
+  /** Opens a chapter by following the road from the rift to the lantern while the narration plays. */
+  private playChapterOpening(map: MapDef) {
+    const g = this.game!;
+    this.save.data.seenChapters.push(map.id);
+    this.save.write();
+    this.paused = true;
+    const rig = this.engine.rig;
+    const road = g.world.roads[0];
+    road.sample(0, this.cineSample);
+    rig.tTarget.set(this.cineSample.x, 1, this.cineSample.z);
+    rig.tDist = 58;
+    rig.tPitch = 0.72;
+    rig.tYaw = 0;
+    rig.snap();
+    const dur = this.ui.playCinematic({ eyebrow: `Chapter ${map.index + 1}`, title: map.name, subtitle: map.subtitle, lines: CHAPTERS[map.id].opening }, () => {
+      this.cine = null;
+      this.paused = false;
+      this.resetCameraForGame();
+      this.ui.banner(map.name, map.subtitle);
+    });
+    this.cine = { t: 0, dur, road };
+  }
+
+  private updateCinematicCamera(dt: number) {
+    const c = this.cine!;
+    c.t += dt;
+    const rig = this.engine.rig;
+    if (!c.road) {
+      rig.tYaw += dt * 0.07;
+      return;
+    }
+    const k = clamp(c.t / c.dur);
+    c.road.sample(c.road.length * k * k * (3 - 2 * k), this.cineSample);
+    rig.tTarget.set(this.cineSample.x, 1, this.cineSample.z);
+  }
+
+  /** Slows time to the given rate, then eases back to normal over the given seconds. */
+  private slowTime(rate: number, seconds: number) {
+    this.dilation = Math.min(this.dilation, rate);
+    this.dilationRate = (1 - rate) / seconds;
+  }
+
+  private cleanupGame() {
+    this.view?.dispose();
+    this.view = null;
+    this.game = null;
+    this.selected = null;
+    this.buildType = null;
+    this.spell = null;
+    if (this.stage) {
+      const u = this.stage.uniforms;
+      u.uRing.value.w = 0;
+      u.uRing2.value.w = 0;
+      u.uBuildOn.value = 0;
+      this.stage.setLanternLife(1, 0);
+    }
+  }
+
+  quitToMenu() {
+    this.engine.fadeTo(1);
+    this.engine.desat = 0;
+    this.ui.hideHud();
+    window.setTimeout(() => {
+      this.cleanupGame();
+      this.paused = false;
+      this.resetCameraForMenu();
+      this.engine.rig.snap();
+      audio.setIntensity(0);
+      this.engine.fadeTo(0);
+    }, 280);
+    this.ui.menu.classList.remove('hidden');
+    this.ui.showMapSelect();
+  }
+
+  restart() {
+    this.ui.hideHud();
+    this.startGame(this.currentMap, this.difficulty, this.endless);
+  }
+
+  resume() {
+    this.paused = false;
+    this.ui.hideModal();
+  }
+
+  applySettings() {
+    const s = this.save.data.settings;
+    audio.setVolumes(s.music, s.sfx);
+    if (s.quality !== this.engine.qualityId) {
+      this.engine.setQuality(s.quality);
+      this.governor.reset();
+      // Geometry detail and foliage density depend on quality, so rebuild the island.
+      if (this.stage && !this.game) {
+        const map = MAPS.find((m) => m.id === this.stageMapId)!;
+        this.stageMapId = '';
+        this.loadStage(map);
+      } else if (this.stage) {
+        this.engine.setScene(this.stage.scene, this.stage.biome);
+      }
+    }
+    if (!s.autoRes && this.engine.renderScale !== 1) {
+      this.engine.setRenderScale(1);
+      this.governor.reset();
+    }
+    this.engine.setToggles(s.painterly, s.tilt);
+    if (this.view) {
+      this.view.showNumbers = s.numbers;
+      this.view.shakeEnabled = s.shake;
+    }
+  }
+
+  pickTower(t: TowerId) {
+    if (!this.game || this.paused) return;
+    if (!this.game.isTowerUnlocked(t)) return;
+    this.spell = null;
+    this.selected = null;
+    this.buildType = this.buildType === t ? null : t;
+    audio.play('click');
+  }
+
+  pickSpell(id: SpellId) {
+    const g = this.game;
+    if (!g || this.paused || !g.isSpellUnlocked(id)) return;
+    if (g.spellCd[id] > 0) {
+      audio.play('error');
+      return;
+    }
+    if (SPELLS[id].instant) {
+      if (g.castSpell(id, 0, 0)) audio.play('click');
+      this.spell = null;
+      return;
+    }
+    this.buildType = null;
+    this.selected = null;
+    this.spell = this.spell === id ? null : id;
+    audio.play('click');
+  }
+
+  callWave() {
+    const g = this.game;
+    if (!g || this.paused) return;
+    g.callNextWave();
+  }
+
+  /** Announces each new wave, whether the player called it or the timer did. */
+  private noteNewWave() {
+    const g = this.game!;
+    if (g.wave === this.announcedWave) return;
+    this.announcedWave = g.wave;
+    if (g.wave === 0) return;
+    const title = !g.endless && g.wave === g.totalWaves ? 'Final Wave' : `Wave ${g.wave}`;
+    if (g.waveHasBoss(g.wave - 1)) this.ui.banner(title, g.bossAnnouncement(g.wave - 1), 'boss');
+    else this.ui.banner(title);
+  }
+
+  cycleSpeed() {
+    this.speedIdx = (this.speedIdx + 1) % SPEEDS.length;
+  }
+
+  togglePause() {
+    if (!this.game || this.finished) return;
+    this.paused = !this.paused;
+    if (this.paused) {
+      const menu = () => {
+        this.ui.showPause(
+          () => this.ui.showSettings(menu),
+          () => this.ui.showCheats(this.game!, menu),
+        );
+      };
+      menu();
+    } else {
+      this.ui.hideModal();
+    }
+  }
+
+  /** Opens the cheat menu straight from play. Closing it resumes the battle. */
+  openCheats() {
+    if (!this.game || this.finished || this.paused) return;
+    this.paused = true;
+    this.ui.showCheats(this.game, () => this.resume());
+  }
+
+  useAbility(index: number) {
+    if (!this.game || this.paused) return;
+    if (!this.game.useAbility(index)) audio.play('error');
+  }
+
+  upgrade(branch: number) {
+    const g = this.game;
+    const t = this.selected;
+    if (!g || !t || this.paused) return;
+    if (g.upgrade(t, branch)) this.upgraded = true;
+    else audio.play('error');
+  }
+
+  sell() {
+    const g = this.game;
+    const t = this.selected;
+    if (!g || !t || this.paused) return;
+    g.sell(t);
+    this.selected = null;
+  }
+
+  setTargetMode(m: Tower['mode']) {
+    if (this.selected) this.selected.mode = m;
+  }
+
+  centerHero() {
+    const h = this.game?.hero;
+    if (!h || h.dead) return;
+    this.engine.rig.tTarget.x = h.x;
+    this.engine.rig.tTarget.z = h.z;
+  }
+
+  deselect() {
+    this.selected = null;
+  }
+
+  // ---------- Input ----------
+
+  private bindInput() {
+    const canvas = this.engine.renderer.domElement;
+    const p = this.pointer;
+    void audio.prepare();
+    window.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
+    window.addEventListener('keydown', () => audio.unlock(), { capture: true });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      p.x = p.sx = p.lx = e.clientX;
+      p.y = p.sy = p.ly = e.clientY;
+      p.inside = true;
+      p.moved = false;
+      p.drag = e.button === 0 ? 1 : e.button === 1 ? 3 : 2;
+    });
+    // Fires after pointerup, and also when a drag is cut short without one (touch cancel, focus loss).
+    canvas.addEventListener('lostpointercapture', () => { p.drag = 0; });
+    window.addEventListener('pointermove', (e) => {
+      p.x = e.clientX;
+      p.y = e.clientY;
+      p.inside = e.target === canvas;
+      if (!p.drag) return;
+      const dx = e.clientX - p.lx;
+      const dy = e.clientY - p.ly;
+      p.lx = e.clientX;
+      p.ly = e.clientY;
+      if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 5) p.moved = true;
+      if (!p.moved) return;
+      const rig = this.engine.rig;
+      if (p.drag === 2) {
+        rig.tYaw -= dx * 0.005;
+        rig.tPitch = Math.max(0.5, Math.min(1.35, rig.tPitch + dy * 0.003));
+        this.menuOrbit = false;
+      } else if ((p.drag === 1 && !this.buildType && !this.spell) || p.drag === 3) {
+        if (this.game) {
+          const k = (rig.dist / window.innerHeight) * 0.56;
+          rig.pan(-dx * k, -dy * k * 1.3);
+        }
+      }
+    });
+    window.addEventListener('pointerup', (e) => {
+      const drag = p.drag;
+      p.drag = 0;
+      if (!drag || p.moved || e.target !== canvas) return;
+      if (drag === 1) this.leftClick(e);
+      else if (drag === 2) this.rightClick();
+    });
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!this.game) return;
+      this.engine.rig.zoom(Math.exp(e.deltaY * 0.0011));
+    }, { passive: false });
+    window.addEventListener('keydown', (e) => this.onKey(e));
+    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('blur', () => this.keys.clear());
+    document.addEventListener('visibilitychange', () => {
+      audio.suspend(document.hidden);
+      this.last = performance.now();
+      if (document.hidden && this.game && !this.paused && !this.finished) this.togglePause();
+    });
+  }
+
+  private onKey(e: KeyboardEvent) {
+    if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'SELECT') return;
+    if (this.ui.cineActive) {
+      if (e.repeat) return;
+      if (e.code === 'Escape') this.ui.cineSkip();
+      else if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        this.ui.cineNext();
+      }
+      return;
+    }
+    this.keys.add(e.code);
+    const g = this.game;
+    if (!g || this.finished) return;
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (e.code === 'Escape' && (this.buildType || this.spell)) {
+        this.buildType = null;
+        this.spell = null;
+      } else if (e.code === 'Escape' && this.selected && !this.paused) {
+        this.selected = null;
+      } else {
+        this.togglePause();
+      }
+      return;
+    }
+    if (this.paused || e.repeat) return;
+    switch (e.code) {
+      case 'Space':
+        e.preventDefault();
+        this.callWave();
+        break;
+      case 'KeyF': this.cycleSpeed(); break;
+      case 'Backquote': this.openCheats(); break;
+      case 'KeyV': this.useAbility(0); break;
+      case 'KeyB': this.useAbility(1); break;
+      case 'KeyN': this.useAbility(2); break;
+      case 'KeyH': this.centerHero(); break;
+      case 'KeyR': {
+        const t = this.selected;
+        if (t && t.level !== 1) this.upgrade(t.branch);
+        else if (t) this.flashHint('Choose a specialization in the tower panel', false);
+        break;
+      }
+      case 'Delete':
+      case 'Backspace':
+        if (this.selected) this.sell();
+        break;
+      case 'KeyT': {
+        const t = this.selected;
+        if (t && !t.stats.aura && !t.stats.pulse && !t.stats.garrison) {
+          const i = TARGET_MODES.findIndex((m) => m.id === t.mode);
+          t.mode = TARGET_MODES[(i + 1) % TARGET_MODES.length].id;
+        }
+        break;
+      }
+      default: {
+        for (const id of TOWER_ORDER) {
+          if (e.code === `Digit${TOWERS[id].hotkey}` || e.code === `Numpad${TOWERS[id].hotkey}`) this.pickTower(id);
+        }
+        for (const id of SPELL_ORDER) {
+          if (e.code === `Key${SPELLS[id].hotkey}`) this.pickSpell(id);
+        }
+      }
+    }
+  }
+
+  /** Intersects the pointer ray with the terrain. */
+  private pick(): { x: number; z: number } | null {
+    const g = this.game;
+    if (!g) return null;
+    this.ndc.set((this.pointer.x / window.innerWidth) * 2 - 1, -(this.pointer.y / window.innerHeight) * 2 + 1);
+    this.raycaster.setFromCamera(this.ndc, this.engine.camera);
+    const ray = this.raycaster.ray;
+    const w = g.world;
+    this.rayDir.copy(ray.direction);
+    const o = ray.origin;
+    let t = 5;
+    let prevT = t;
+    for (let i = 0; i < 400; i++) {
+      const x = o.x + this.rayDir.x * t;
+      const y = o.y + this.rayDir.y * t;
+      const z = o.z + this.rayDir.z * t;
+      const inExt = Math.abs(x) < w.extW && Math.abs(z) < w.extH;
+      const h = inExt ? Math.max(w.height(x, z), w.hasWater ? w.waterLevel : -100) : -100;
+      if (y <= h) {
+        let a = prevT, b = t;
+        for (let k = 0; k < 8; k++) {
+          const m = (a + b) / 2;
+          const mx = o.x + this.rayDir.x * m, my = o.y + this.rayDir.y * m, mz = o.z + this.rayDir.z * m;
+          const mh = Math.max(w.height(mx, mz), w.hasWater ? w.waterLevel : -100);
+          if (my <= mh) b = m; else a = m;
+        }
+        return { x: o.x + this.rayDir.x * b, z: o.z + this.rayDir.z * b };
+      }
+      prevT = t;
+      t += 1.2;
+      if (y < -40) break;
+    }
+    return null;
+  }
+
+  private snap(v: number) {
+    return Math.round(v * 2) / 2;
+  }
+
+  private leftClick(e: PointerEvent) {
+    const g = this.game;
+    if (!g || this.paused || this.finished) return;
+    const hit = this.pick();
+    if (this.buildType) {
+      if (!hit) return;
+      const x = this.snap(hit.x), z = this.snap(hit.z);
+      const problem = g.canBuild(this.buildType, x, z);
+      if (problem) {
+        audio.play('error');
+        this.flashHint(problem);
+        return;
+      }
+      const built = g.build(this.buildType, x, z);
+      if (built && !e.shiftKey) {
+        this.buildType = null;
+        this.selected = built;
+      }
+      return;
+    }
+    if (this.spell) {
+      if (!hit) return;
+      const id = this.spell;
+      if (g.castSpell(id, hit.x, hit.z)) this.spell = null;
+      else audio.play('error');
+      return;
+    }
+    this.selected = this.towerUnderPointer();
+    if (this.selected) audio.play('click');
+  }
+
+  private rightClick() {
+    const g = this.game;
+    if (!g || this.paused || this.finished) return;
+    if (this.buildType || this.spell) {
+      this.buildType = null;
+      this.spell = null;
+      return;
+    }
+    const hit = this.pick();
+    if (hit && g.moveHero(hit.x, hit.z)) {
+      this.heroOrdered = true;
+      audio.play('order');
+      const v = this.view!;
+      v.rings.add(hit.x, g.world.height(hit.x, hit.z) + 0.4, hit.z, 1.5, new THREE.Color(1.2, 0.9, 0.35).multiplyScalar(2), 0.42);
+    }
+  }
+
+  private towerUnderPointer(): Tower | null {
+    const g = this.game;
+    if (!g || !this.view) return null;
+    let best: Tower | null = null;
+    let bestD = 46 * 46;
+    for (const t of g.towers) {
+      const v = this.view.towerViews.get(t.id);
+      if (!v) continue;
+      // Test against both the base and the top of the tower so tall models are easy to click.
+      for (const k of [0.25, 0.65, 1]) {
+        const s = this.project(t.x, v.y + v.model.height * k, t.z);
+        if (!s.visible) continue;
+        const d = (s.x - this.pointer.x) ** 2 + (s.y - this.pointer.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = t;
+        }
+      }
+    }
+    return best;
+  }
+
+  private hintTimer = 0;
+  private flashHint(text: string, bad = true) {
+    this.ui.hint(text, bad);
+    this.hintTimer = 1.6;
+  }
+
+  private project = (x: number, y: number, z: number) => {
+    const v = this.projectV.set(x, y, z).project(this.engine.camera);
+    return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight, visible: v.z < 1 };
+  };
+
+  // ---------- Frame ----------
+
+  private updateCameraKeys(dt: number) {
+    const rig = this.engine.rig;
+    const k = this.keys;
+    const speed = rig.dist * 0.75 * dt;
+    let px = 0, pz = 0;
+    if (k.has('KeyW') || k.has('ArrowUp')) pz -= speed;
+    if (k.has('KeyS') || k.has('ArrowDown')) pz += speed;
+    if (k.has('KeyA') || k.has('ArrowLeft')) px -= speed;
+    if (k.has('KeyD') || k.has('ArrowRight')) px += speed;
+    if (px || pz) rig.pan(px, pz);
+    if (k.has('KeyQ')) rig.tYaw += dt * 1.4;
+    if (k.has('KeyE')) rig.tYaw -= dt * 1.4;
+  }
+
+  private updateInteraction() {
+    const g = this.game!;
+    const v = this.view!;
+    const hit = this.pointer.inside ? this.pick() : null;
+    if (this.selected && !g.towers.includes(this.selected)) this.selected = null;
+
+    if (this.buildType) {
+      v.setBuildOverlay(1);
+      if (hit) {
+        const x = this.snap(hit.x), z = this.snap(hit.z);
+        const problem = g.placementProblem(x, z, this.buildType);
+        const poor = g.gold < g.costOf(towerStats(this.buildType, 0, 0));
+        v.setGhost(this.buildType, x, z, !problem && !poor);
+        v.setRangeRing(x, z, towerStats(this.buildType, 0, 0).range * (1 + g.rank('towerRange') * 0.03), problem || poor ? 0xff5a4a : 0xffe2a0, 1);
+        if (problem && this.hintTimer <= 0) this.ui.hint(problem, true);
+        else if (poor && this.hintTimer <= 0) this.ui.hint('Not enough gold', true);
+        else if (this.hintTimer <= 0) this.ui.hint(null);
+      } else {
+        v.setGhost(null, 0, 0, false);
+        v.setRangeRing(0, 0, 0, 0xffffff, 0);
+      }
+    } else {
+      v.setBuildOverlay(0);
+      v.setGhost(null, 0, 0, false);
+      if (this.selected) {
+        const t = this.selected;
+        v.setRangeRing(t.x, t.z, t.range, t.stats.aura ? 0x6effc8 : 0xffe2a0, 0.85);
+      } else {
+        v.setRangeRing(0, 0, 0, 0xffffff, 0);
+      }
+      if (this.hintTimer <= 0) this.ui.hint(null);
+    }
+    if (this.spell && hit) {
+      const color = SPELLS[this.spell].color;
+      if (this.spell === 'guards') {
+        const p = g.nearestRoadPoint(hit.x, hit.z);
+        v.setTargetRing(p.x, p.z, 2.4, color, 1);
+      } else {
+        v.setTargetRing(hit.x, hit.z, g.spellRadius(this.spell), color, 1);
+      }
+    } else {
+      v.setTargetRing(0, 0, 0, 0xffffff, 0);
+    }
+  }
+
+  private noteNewEnemies() {
+    const g = this.game!;
+    const seen = this.save.data.seen;
+    for (const e of g.enemies) {
+      const id = e.def.id;
+      if (!seen.includes(id)) {
+        seen.push(id);
+        this.save.write();
+        this.ui.announceEnemy(id as EnemyId);
+        break;
+      }
+    }
+  }
+
+  private checkEnd() {
+    const g = this.game!;
+    if (this.finished || g.state === 'playing') return;
+    this.finished = true;
+    this.buildType = null;
+    this.spell = null;
+    this.selected = null;
+    const won = g.state === 'won';
+    audio.fanfare(won);
+    const clearedBefore = this.save.cleared;
+    let gained = 0;
+    if (g.endless) gained = this.save.recordEndless(g.map.id, g.wave);
+    else if (won) gained = this.save.recordWin(g.map.id, g.difficulty, g.starsEarned());
+    if (!won) this.engine.desat = 0.55;
+    // The final moment plays in slow motion, with the camera closing in on what decided it.
+    this.slowTime(won ? 0.16 : 0.3, 2.2);
+    const rig = this.engine.rig;
+    const lantern = this.stage!.lanternPos;
+    if (won) {
+      rig.tTarget.set(g.lastKill.x, 1, g.lastKill.z);
+      this.view!.celebrate();
+    } else {
+      rig.tTarget.set(lantern.x, lantern.y + 2, lantern.z);
+      this.view!.extinguish();
+    }
+    rig.tDist = Math.min(rig.tDist, 64);
+    const clearedAfter = this.save.cleared;
+    const unlocks: string[] = [];
+    if (clearedAfter > clearedBefore) {
+      for (const id of TOWER_ORDER) if (TOWERS[id].unlockAfter === clearedAfter) unlocks.push(TOWERS[id].name);
+      for (const id of SPELL_ORDER) if (SPELLS[id].unlockAfter === clearedAfter) unlocks.push(SPELLS[id].name);
+      if (clearedAfter === 1) unlocks.push('Endless Night');
+      if (clearedAfter < MAPS.length) unlocks.push(MAPS[clearedAfter].name);
+      if (unlocks.length) audio.play('unlock');
+    }
+    const next = g.map.index + 1 < MAPS.length ? MAPS[g.map.index + 1] : null;
+    const results = () => this.ui.showEnd(g, won, gained, next, () => {
+      this.ui.hideHud();
+      this.startGame(next!, this.difficulty, false);
+    }, unlocks);
+    const finishedCampaign = won && !g.endless && !next && clearedBefore < MAPS.length;
+    window.setTimeout(() => {
+      if (this.game !== g) return;
+      if (!finishedCampaign) {
+        results();
+        return;
+      }
+      rig.tTarget.set(lantern.x, lantern.y + 2, lantern.z);
+      rig.tDist = 60;
+      rig.tPitch = 0.55;
+      const dur = this.ui.playCinematic(EPILOGUE, () => {
+        this.ui.showCredits(() => {
+          this.cine = null;
+          results();
+        });
+      });
+      this.cine = { t: 0, dur, road: null };
+    }, won ? END_DELAY_WON : END_DELAY_LOST);
+  }
+
+  private frame(now: number) {
+    requestAnimationFrame((t) => this.frame(t));
+    const rawDt = (now - this.last) / 1000;
+    this.last = now;
+    if (rawDt <= 0) return;
+    const dt = this.frameSmoother.next(rawDt);
+    this.time += dt;
+    shared.uTime.value = this.time;
+    if (this.dilation < 1) this.dilation = Math.min(1, this.dilation + dt * this.dilationRate);
+
+    const g = this.game;
+    if (g && this.view) {
+      if (this.cine) this.updateCinematicCamera(dt);
+      else this.updateCameraKeys(dt);
+      if (this.hintTimer > 0) this.hintTimer -= dt;
+      if (!this.paused && !this.finished) {
+        const speed = SPEEDS[this.speedIdx];
+        const rate = speed * this.dilation;
+        this.acc += dt * rate;
+        g.timeScale = rate;
+        let steps = 0;
+        while (this.acc >= FIXED_DT && steps < 16) {
+          g.step(FIXED_DT);
+          this.acc -= FIXED_DT;
+          steps++;
+        }
+        if (steps === 16) this.acc = 0;
+        this.noteNewWave();
+        this.noteNewEnemies();
+        this.checkEnd();
+        const fighting = g.enemies.length > 0 || g.spawnQueue.length > 0;
+        const bossHere = g.enemies.some((e) => e.def.boss);
+        const desperate = fighting && (bossHere || g.lives / g.maxLives < 0.4 || (!g.endless && g.wave >= g.totalWaves));
+        audio.setIntensity(desperate ? 2 : fighting ? 1 : 0);
+      }
+      this.updateInteraction();
+      this.view.update(this.paused && !this.cine ? 0.0001 : dt * this.dilation, clamp(this.acc / FIXED_DT));
+      this.ui.update(g, { selected: this.selected, speed: SPEEDS[this.speedIdx], buildType: this.buildType, spell: this.spell, heroOrdered: this.heroOrdered, upgraded: this.upgraded });
+      this.ui.updateFloats(dt, this.project);
+      const lantern = this.stage!.lanternPos;
+      this.ui.updateLanternHp(g, this.project(lantern.x, lantern.y + LANTERN_HP_HEIGHT, lantern.z));
+    } else if (this.menuOrbit) {
+      this.engine.rig.tYaw += dt * 0.035;
+    }
+    this.stage?.update(this.time);
+    this.engine.render(dt, this.time);
+    if (!this.revealed) {
+      // The first frame compiles every shader, so the loading screen stays up until it has drawn.
+      this.revealed = true;
+      this.ui.hideLoading();
+    }
+    this.watchPerformance(Math.min(0.1, rawDt));
+  }
+
+  private watchPerformance(dt: number) {
+    if (!this.save.data.settings.autoRes || document.hidden) return;
+    const scale = this.governor.sample(dt, this.engine.renderScale, this.engine.rig.settled);
+    if (scale !== null) this.engine.setRenderScale(scale);
+  }
+}
+
+const tick = () => new Promise<void>((res) => setTimeout(res, 16));
+
+function showFatal(message: string) {
+  const el = document.createElement('div');
+  el.className = 'fatal';
+  el.innerHTML = `<h1>Lanternfall could not start</h1><p>${message}</p><p>This game needs a browser with WebGL 2 enabled, such as a current version of Chrome, Edge, or Firefox. If you are using one, check that hardware acceleration is turned on in the browser's settings.</p>`;
+  document.body.appendChild(el);
+  document.getElementById('loading')?.remove();
+}
+
+try {
+  const app = new App();
+  // A debugging handle, available only when previewing from the development server.
+  if (location.hostname === 'localhost') Object.assign(window, { __lanternfall: app, __audio: audio });
+  app.boot().catch((err) => {
+    console.error(err);
+    showFatal(String(err?.message ?? err));
+  });
+} catch (err) {
+  console.error(err);
+  showFatal(String((err as Error)?.message ?? err));
+}

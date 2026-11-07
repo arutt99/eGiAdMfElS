@@ -1,0 +1,23 @@
+{
+  "name": "lanternfall",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lanternfall - a stylized fantasy 3D tower defense game for the browser",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "balance": "node scripts/balance.mjs"
+  },
+  "dependencies": {
+    "@fontsource/alegreya-sans": "^5.3.0",
+    "@fontsource/fraunces": "^5.3.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.187.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
