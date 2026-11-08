@@ -12,7 +12,7 @@ Lanternfall is played in landscape. Held upright, a phone shows a "turn sideways
 - **Hero:** tap the hero portrait, then tap the map to send them there.
 - **Spells:** tap a spell, then tap the map to cast. On small screens the spell panel folds away with its book button.
 - **Touch and hold** a tower card, spell, enemy or tech node to open its card. It stays open after you lift your finger, and closes with its **×** or your next touch anywhere else.
-- **Tower panel:** on phones, a selected tower's panel shows its upgrade choices, prices, targeting and sell without scrolling. The spells move into a strip beside it so they stay in reach, and the tower cards return when the panel closes. The **ⓘ** button shows the full descriptions and current stats.
+- **Tower panel:** a newly built tower stays unselected; tap it to open its panel. On phones, a selected tower's panel shows its upgrade choices, prices, targeting and sell without scrolling. The spells move into a strip beside it so they stay in reach, and the tower cards return when the panel closes. The **ⓘ** button shows the full descriptions and current stats.
 
 Hero powers and spells are at least 44 pixels across on touch screens.
 

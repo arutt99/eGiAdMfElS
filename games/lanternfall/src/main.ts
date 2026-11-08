@@ -755,9 +755,10 @@ class App implements AppActions {
     }
     const built = g.build(type, at.x, at.z);
     if (built) {
+      // Building leaves the new tower unselected; tapping it opens its panel.
       this.buildType = null;
       this.aim = null;
-      this.selected = built;
+      this.selected = null;
       buzz(14);
     }
   }
@@ -946,7 +947,7 @@ class App implements AppActions {
       const built = g.build(this.buildType, x, z);
       if (built && !e.shiftKey) {
         this.buildType = null;
-        this.selected = built;
+        this.selected = null;
       }
       return;
     }

@@ -157,6 +157,24 @@ async function blockedControls(page) {
     assert.deepEqual(rig, { x: 0, z: 2, d: 110, yaw: 0 });
     console.log('ok - Fit battlefield restores the whole-map view');
 
+    // 2e. Building a tower leaves it unselected, so its panel only opens when the tower is tapped.
+    const afterBuild = await page.evaluate(() => {
+      const a = window.__lanternfall, g = a.game, w = g.world;
+      for (let x = -w.halfW; x <= w.halfW; x++) for (let z = -w.halfH; z <= w.halfH; z++) {
+        if (!g.canBuild('roost', x, z)) {
+          const before = g.towers.length;
+          a.pickTower('roost');
+          a.aim = { x, z };
+          a.confirmAction();
+          return { built: g.towers.length - before, selected: !!a.selected };
+        }
+      }
+    });
+    await page.waitForTimeout(200);
+    assert.deepEqual(afterBuild, { built: 1, selected: false });
+    assert.ok(!(await page.isVisible('#h-panel')), 'the tower panel should stay closed after building');
+    console.log('ok - building a tower does not open its panel');
+
     // 3. Picking a chapter half past the rail's edge brings it fully into view.
     await page.setViewportSize({ width: 844, height: 390 });
     await page.evaluate(() => window.__lanternfall.quitToMenu());
