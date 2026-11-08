@@ -28,9 +28,10 @@ async function blockedControls(page) {
       if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue;
       const bar = el.closest('.tower-bar');
       if (bar) {
-        // A card scrolled out of a scrolling bar is reached by scrolling, not hidden.
+        // A card scrolled out of a scrolling bar, even partly, is reached by scrolling, not hidden.
         const b = bar.getBoundingClientRect();
-        if (r.right <= b.left || r.left >= b.right) continue;
+        const cx = r.left + r.width / 2;
+        if (cx <= b.left || cx >= b.right) continue;
       }
       const x = Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1);
       const y = Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1);
@@ -68,12 +69,58 @@ async function blockedControls(page) {
     await context.close();
   }
 
+  // 2. On short screens no HUD panel overlaps another, with every power unlocked and a five-digit gold count.
+  {
+    const context = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
+    const page = await context.newPage();
+    watch(page);
+    await startBattle(page);
+    await page.evaluate(() => window.__lanternfall.game.setGold(99999));
+    for (const [w, h] of [[568, 320], [667, 375], [844, 390], [932, 430], [1180, 540]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(400);
+      const overlaps = await page.evaluate(() => {
+        const sel = { gold: '.top-left', wave: '.wave-box', speed: '.top-right', hero: '.bottom-left', towers: '#h-towers', spells: '#h-spells' };
+        const rects = Object.entries(sel).map(([k, s]) => [k, document.querySelector(s).getBoundingClientRect()]);
+        const out = [];
+        for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+          const [ka, a] = rects[i], [kb, b] = rects[j];
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5) out.push(`${ka}/${kb}`);
+        }
+        return out;
+      });
+      assert.deepEqual(overlaps, [], `${w}x${h}: ${overlaps.join(', ')}`);
+      assert.deepEqual(await blockedControls(page), [], `${w}x${h}`);
+    }
+    console.log('ok - compact HUD panels never overlap');
+
+    // 3. Picking a chapter half past the rail's edge brings it fully into view.
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.evaluate(() => window.__lanternfall.quitToMenu());
+    await page.waitForSelector('.map-rail');
+    await page.waitForTimeout(600);
+    for (const i of [5, 0, 4]) {
+      const shown = await page.evaluate(async (i) => {
+        const r = document.querySelector('.map-rail');
+        const c = r.children[i];
+        r.scrollLeft = c.offsetLeft - r.clientWidth + c.offsetWidth / 2;
+        c.click();
+        await new Promise((res) => setTimeout(res, 300));
+        const rr = r.getBoundingClientRect(), cr = r.querySelector('.map-card.on').getBoundingClientRect();
+        return cr.left >= rr.left - 1 && cr.right <= rr.right + 1;
+      }, i);
+      assert.ok(shown, `chapter ${i + 1} stayed partly hidden after picking it`);
+    }
+    console.log('ok - a picked chapter is shown whole in the map rail');
+    await context.close();
+  }
+
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   watch(page);
   await startBattle(page);
 
-  // 2. Losing the graphics stops the battle and explains what happened; getting them back opens the pause menu.
+  // 4. Losing the graphics stops the battle and explains what happened; getting them back opens the pause menu.
   await page.evaluate(() => window.__lanternfall.game.callNextWave());
   await page.waitForTimeout(500);
   await page.evaluate(() => {
@@ -93,7 +140,7 @@ async function blockedControls(page) {
   assert.ok(await page.evaluate(() => window.__lanternfall.game.time) > lostAt, 'the battle should run again after resuming');
   console.log('ok - graphics loss pauses the battle and recovers');
 
-  // 3. A battle survives a reload, from the start of the wave in progress.
+  // 5. A battle survives a reload, from the start of the wave in progress.
   await startBattle(page);
   const built = await page.evaluate(() => {
     const g = window.__lanternfall.game;
@@ -115,7 +162,7 @@ async function blockedControls(page) {
   assert.deepEqual(resumed, { towers: ['roost:1'], wave: 0, gold: built.gold, views: 1 });
   console.log('ok - a reloaded battle resumes from the start of its wave');
 
-  // 4. Changing the art style mid-battle waits until the battle is left.
+  // 6. Changing the art style mid-battle waits until the battle is left.
   await page.evaluate(() => { window.__marker = 1; window.__lanternfall.ui.showSettings(); });
   await page.click('[data-art]');
   await page.waitForTimeout(500);

@@ -120,6 +120,12 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .play-btn.small { width: auto; padding: 10px 28px; font-size: 18px; }
 /* pointer-events: the UI layer turns them off, and iOS will not scroll an element that has none. */
 .map-rail { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+/* Too narrow for every chapter (a small window or an upright tablet): the rail scrolls instead of running off the screen. */
+@media (max-width: 760px) and (min-height: 541px) {
+  .map-rail { max-width: calc(100% - 28px); padding-top: 9px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .map-rail::-webkit-scrollbar { display: none; }
+  .map-rail > * { flex: none; }
+}
 .map-card { position: relative; width: clamp(112px, 12.5vw, 178px); height: 92px; padding: 10px 12px; border-radius: 13px; overflow: hidden; text-align: left; border: 1.5px solid rgba(255, 255, 255, 0.18); background: linear-gradient(170deg, var(--a), var(--b) 55%, var(--c) 58%); box-shadow: var(--shadow); transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.18s; }
 .map-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(20, 10, 28, 0.78), rgba(20, 10, 28, 0.1) 70%); }
 .map-card > * { position: relative; z-index: 1; }
@@ -633,7 +639,8 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .res b { font-size: 19px; }
   .res .ic { font-size: 18px; }
   .life-bar { display: none; }
-  .top-center { top: calc(6px + var(--st)); left: calc(var(--sl) + 178px); right: calc(var(--sr) + 100px); transform: none; gap: 5px; }
+  /* The --*-x edges are measured by UI.layoutTowerBar; the fallbacks fit a fresh battle. */
+  .top-center { top: calc(6px + var(--st)); left: calc(var(--tl-x, calc(var(--sl) + 170px)) + 8px); right: calc(var(--tr-x, calc(var(--sr) + 92px)) + 8px); transform: none; gap: 5px; }
   /* Wave box: a fold button, the wave details, and the call button. Folded, it is one short line. */
   .wave-box { grid-template-columns: auto minmax(0, auto) auto; max-width: 100%; padding: 3px 5px 3px 3px; column-gap: 7px; row-gap: 0; border-radius: 12px; }
   .wave-toggle { display: grid; place-items: center; grid-row: 1 / span 2; align-self: stretch; width: 26px; border-radius: 8px; color: var(--cream-dim); background: rgba(255, 255, 255, 0.05); }
@@ -684,7 +691,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .bottom-right.collapsed .skill { display: none; }
   .bottom-right.collapsed .spell-toggle { height: 36px; }
 
-  .tower-bar { left: calc(var(--sl) + var(--gap) + var(--hero-w) + 6px); right: calc(var(--sr) + var(--gap) + var(--spells-w) + 6px); bottom: calc(var(--gap) + var(--sb) - 8px); transform: none; gap: 5px; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
+  .tower-bar { left: calc(var(--bl-x, calc(var(--sl) + var(--gap) + var(--hero-w))) + 6px); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 6px); bottom: calc(var(--gap) + var(--sb) - 8px); transform: none; gap: 5px; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
   .tower-bar::-webkit-scrollbar { display: none; }
   .tower-bar > :first-child { margin-left: auto; }
   .tower-bar > :last-child { margin-right: auto; }
@@ -716,7 +723,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .banner h2 { font-size: 40px; }
   .banner p { font-size: 16px; }
   .hint-line { bottom: calc(80px + var(--sb)); font-size: 13.5px; padding: 4px 12px; }
-  .action-bar { left: calc(var(--sl) + var(--gap)); right: calc(var(--sr) + var(--gap) + var(--spells-w) + 8px); bottom: calc(76px + var(--sb)); transform: none; width: fit-content; max-width: none; margin: 0 auto; padding: 5px 5px 5px 12px; }
+  .action-bar { left: calc(var(--sl) + var(--gap)); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 8px); bottom: calc(76px + var(--sb)); transform: none; width: fit-content; max-width: none; margin: 0 auto; padding: 5px 5px 5px 12px; }
   .act-title { font-size: 14.5px; }
   .act-text { font-size: 13px; }
   .act-ok { height: 40px; min-width: 76px; font-size: 15px; }

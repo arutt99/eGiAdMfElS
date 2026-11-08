@@ -35,7 +35,7 @@ In demo mode, Endless Night lets you pick any map and the wave to start at. Skip
 npm install
 npm run build     # writes index.html and SoundTest.html
 npm run typecheck
-npm test          # simulation tests (barracks bonuses, saving and restoring a battle)
+npm test          # simulation tests (damage bonuses, statistics, Endless rewards, saved battles)
 npm run balance   # plays every map and difficulty with a headless bot
 npm run serve     # previews at http://localhost:4173
 ```
@@ -44,6 +44,6 @@ The source is in `src`. The simulation in `src/sim` runs without rendering, whic
 Touch input lives in `src/main.ts` (gestures, taps, the build preview) and `src/ui/touch.ts` (which input is in use).
 The phone layout is the `max-height: 540px` section at the end of `src/ui/style.css`. On other screens `UI.layoutTowerBar` keeps the tower cards clear of the hero and spell panels: it shifts the bar between them, closes up the cards, or raises the bar above them on tablets held upright.
 
-`tests/lanternfall.browser.cjs` at the repository root checks HUD hit-testing at tablet, laptop and phone sizes, graphics context loss, resuming after a reload and the art style switch. Run it with `npm run build && npm run serve` going, from the repository root: `node tests/lanternfall.browser.cjs`.
+`tests/lanternfall.browser.cjs` at the repository root checks HUD hit-testing at tablet, laptop and phone sizes, compact HUD overlaps, the map rail, graphics context loss, resuming after a reload and the art style switch. Run it with `npm run build && npm run serve` going, from the repository root: `node tests/lanternfall.browser.cjs`.
 
 Open `SoundTest.html` to hear every sound effect, compare takes, and run a battle stress test. Sound designs are in `src/audio/sfx-recipes.ts`.

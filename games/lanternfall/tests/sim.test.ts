@@ -116,3 +116,123 @@ test('calling a wave keeps a checkpoint of the moment before', () => {
   assert.equal(back.wave, g.wave - 1);
   assert.ok(back.canCallWave);
 });
+
+// ---------- Damage bonuses and statistics ----------
+
+/** A fresh battle with every tower unlocked and plenty of gold. */
+function sandbox(meta: MetaRanks = {}, endless = false) {
+  const g = new Game({ map: MAP, difficulty: 'normal', endless, meta: { techBarracks: 1, ...meta }, cleared: 6, seed: 5 });
+  g.setGold(999999);
+  return g;
+}
+
+/** Builds a tower and upgrades it to the top, along the branch that has the given feature if any. */
+function topTower(g: Game, type: TowerId, want?: (b: number) => boolean) {
+  const at = spot(g, type);
+  const t = g.build(type, at.x, at.z)!;
+  const branch = [0, 1].find((b) => !want || want(b)) ?? 0;
+  while (t.level < 3) assert.ok(g.upgrade(t, branch));
+  return t;
+}
+
+/** Plays until the tower deals damage of its own, and returns the first amount it was credited with. */
+function firstHitBy(g: Game, t: Tower, filter: (type: string, silent: boolean) => boolean = () => true) {
+  g.hero.dead = true;
+  g.heroRespawnT = Infinity;
+  let hit = 0;
+  const damage = g.damage.bind(g);
+  g.damage = (e, amount, type, opts = {}) => {
+    if (!hit && opts.tower === t && filter(type, !!opts.silent)) hit = amount;
+    damage(e, amount, type, opts);
+  };
+  g.callNextWave();
+  for (let i = 0; i < 60 * 240 && !hit; i++) g.step(1 / 60);
+  assert.ok(hit > 0, `${t.type} never dealt damage`);
+  return hit;
+}
+
+test('Masterwork boosts the Sunforge beam and Barracks soldiers', () => {
+  for (const type of ['sunforge', 'barracks', 'roost'] as TowerId[]) {
+    const plain = sandbox();
+    const base = firstHitBy(plain, topTower(plain, type));
+    const crafted = sandbox({ masterwork: 1 });
+    const boosted = firstHitBy(crafted, topTower(crafted, type));
+    assert.ok(Math.abs(boosted / base - 1.1) < 1e-6, `${type}: expected +10%, got ${boosted / base}`);
+  }
+});
+
+test('mortar fire pools are credited to the mortar that made them', () => {
+  const g = sandbox();
+  const mortar = topTower(g, 'mortar', (b) => !!towerStats('mortar', 3, b).pool);
+  assert.ok(mortar.stats.pool);
+  assert.ok(firstHitBy(g, mortar, (type, silent) => type === 'fire' && silent) > 0);
+});
+
+/** Plays until an enemy is on the road. */
+function firstEnemy(g: Game) {
+  g.hero.dead = true;
+  g.heroRespawnT = Infinity;
+  g.callNextWave();
+  for (let i = 0; i < 600 && !g.enemies.length; i++) g.step(1 / 60);
+  return g.enemies[0];
+}
+
+test('tower statistics leave out overkill', () => {
+  const g = sandbox();
+  const t = topTower(g, 'roost');
+  const e = firstEnemy(g);
+  e.hp = 10;
+  e.shield = 0;
+  g.damage(e, 500, 'pierce', { tower: t, trueHit: true });
+  assert.ok(e.dead);
+  assert.equal(t.dealt, 10);
+});
+
+test('Sundering Hex adds the advertised 35% even against resisted damage', () => {
+  const g = sandbox();
+  const e = firstEnemy(g);
+  e.def = { ...e.def, resist: { pierce: 0.8 } };
+  e.shield = 0;
+  e.hp = e.maxHp = 1e9;
+  const hitFor = () => { const before = e.hp; g.damage(e, 100, 'pierce', { silent: true }); return before - e.hp; };
+  const plain = hitFor();
+  e.vuln = 0.35;
+  e.vulnT = 8;
+  const hexed = hitFor();
+  assert.ok(Math.abs(plain - 20) < 1e-6);
+  assert.ok(Math.abs(hexed / plain - 1.35) < 1e-6, `expected +35%, got ${hexed / plain}`);
+});
+
+// ---------- Endless rewards ----------
+
+/** Lets every enemy on the road reach the lantern, with the lantern at one life. */
+function loseCurrentWave(g: Game) {
+  g.lives = 1;
+  for (let i = 0; i < 60 * 600 && g.state === 'playing'; i++) g.step(1 / 60);
+  assert.equal(g.state, 'lost');
+}
+
+test('Endless counts only waves fought to the end', () => {
+  const g = sandbox({}, true);
+  firstEnemy(g);
+  loseCurrentWave(g);
+  assert.equal(g.wave, 1);
+  assert.equal(g.wavesCompleted, 0, 'dying in wave 1 completes nothing');
+
+  const h = sandbox({}, true);
+  h.hero.dead = true;
+  h.heroRespawnT = Infinity;
+  for (let w = 0; w < 5; w++) {
+    h.callNextWave();
+    for (let i = 0; i < 60 * 600 && !h.betweenWaves; i++) {
+      h.step(1 / 60);
+      for (const e of h.enemies) h.damage(e, 1e9, 'pierce', { trueHit: true, silent: true });
+    }
+  }
+  assert.equal(h.wavesCompleted, 5);
+  h.callNextWave();
+  for (let i = 0; i < 600 && !h.enemies.length; i++) h.step(1 / 60);
+  loseCurrentWave(h);
+  assert.equal(h.wave, 6);
+  assert.equal(h.wavesCompleted, 5, 'reaching wave 6 is not finishing it');
+});

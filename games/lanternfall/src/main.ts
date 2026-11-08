@@ -1109,7 +1109,7 @@ class App implements AppActions {
     audio.fanfare(won);
     const clearedBefore = this.save.cleared;
     let gained = 0;
-    if (g.endless) gained = this.save.recordEndless(g.map.id, g.wave);
+    if (g.endless) gained = this.save.recordEndless(g.map.id, g.wavesCompleted);
     else if (won) gained = this.save.recordWin(g.map.id, g.difficulty, g.starsEarned());
     if (!won) this.engine.desat = 0.55;
     // The final moment plays in slow motion, with the camera closing in on what decided it.

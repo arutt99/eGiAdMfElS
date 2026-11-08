@@ -59,6 +59,8 @@ export interface Enemy {
   engaged: Unit | null;
   attackT: number;
   dead: boolean;
+  /** The wave (1-based) this enemy came with. */
+  wave: number;
   hitAt: number;
   /** When a distinct blow last landed, for the recoil animation. */
   kickAt: number;
@@ -152,7 +154,7 @@ export interface Projectile {
   dead: boolean;
 }
 
-export interface Pool { x: number; z: number; radius: number; dps: number; t: number; dur: number; type: AttackType }
+export interface Pool { x: number; z: number; radius: number; dps: number; t: number; dur: number; type: AttackType; tower: Tower | null }
 
 export type FxKind = 'pulse' | 'hex' | 'rally' | 'rift' | 'golden' | 'mark' | 'snipe';
 
@@ -408,6 +410,19 @@ export class Game {
 
   rank(id: MetaId) {
     return this.meta[id] ?? 0;
+  }
+
+  /** The wave whose enemy put the lantern out. */
+  private fallenWave = Infinity;
+
+  /**
+   * Waves fought to the end: every enemy they sent is gone, and none of them put the lantern out.
+   * Endless rewards count these, so dying the moment a wave starts never earns it.
+   */
+  get wavesCompleted() {
+    let open = Math.min(this.fallenWave, this.spawnQueue.length ? this.wave : Infinity);
+    for (const e of this.enemies) if (!e.dead && e.wave < open) open = e.wave;
+    return Math.max(this.firstWave, open === Infinity ? this.wave : open - 1);
   }
 
   /** True once the player has called a wave in this battle. */
@@ -683,7 +698,7 @@ export class Game {
       // Bosses keep to the middle of the road.
       offset: offset ?? (def.boss ? 0 : (this.rng() - 0.5) * (PATH_WIDTH * 0.62)), x: 0, z: 0, px: 0, pz: 0, dirX: 1, dirZ: 0,
       slow: 0, slowT: 0, stunT: 0, frozenT: 0, rootT: 0, poisonDps: 0, poisonT: 0, poisonTower: null, shred: 0, vuln: 0, vulnT: 0, noteAt: -9,
-      specialT: 2 + this.rng() * 2, shield: 0, hasteT: 0, hasteMult: 1, reborn: false, engaged: null, attackT: 0.5, dead: false, hitAt: -9, kickAt: -9, attackAt: -9,
+      specialT: 2 + this.rng() * 2, shield: 0, hasteT: 0, hasteMult: 1, reborn: false, engaged: null, attackT: 0.5, dead: false, wave: this.wave, hitAt: -9, kickAt: -9, attackAt: -9,
       scale: def.size * (elite && !def.boss ? 1.3 : 1), animPhase: this.rng() * 6.28,
     };
     this.placeEnemy(e);
@@ -713,19 +728,26 @@ export class Game {
       // Cracked plate only helps against things that have to get through plate.
       if (type === 'pierce' || type === 'blast') r = Math.max(0, r - e.shred);
     }
-    return r - (e.vulnT > 0 ? e.vuln : 0);
+    return r;
+  }
+
+  /** Extra damage taken from hexes, marks and withering venom, as a multiplier on what gets through. */
+  vulnerability(e: Enemy) {
+    return e.vulnT > 0 ? 1 + e.vuln : 1;
   }
 
   damage(e: Enemy, amount: number, type: AttackType, opts: { pierce?: number; crit?: boolean; tower?: Tower; silent?: boolean; trueHit?: boolean } = {}) {
     if (e.dead) return;
     const res = opts.trueHit ? 0 : this.resistance(e, type, opts.pierce ?? 0);
-    const dealt = amount * (1 - res);
+    const dealt = amount * (1 - res) * this.vulnerability(e);
     const absorbed = Math.min(e.shield, Math.max(0, dealt));
+    const hpBefore = Math.max(0, e.hp);
     e.shield -= absorbed;
     e.hp -= dealt - absorbed;
     e.hitAt = this.time;
     if (opts.tower) {
-      opts.tower.dealt += dealt;
+      // Credit only the damage that did something: what the shield soaked and the health actually lost, not overkill.
+      opts.tower.dealt += absorbed + Math.min(hpBefore, Math.max(0, dealt - absorbed));
       // Tells the player when a tower is the wrong tool, or the right one. Poison ticks and beams count too.
       if (this.time - e.noteAt > 2.2 && (res >= 0.5 || res <= -0.2)) {
         e.noteAt = this.time;
@@ -776,6 +798,7 @@ export class Game {
       for (let i = 0; i < 4; i++) {
         const c = this.spawn('gloomling', false, Math.max(0, idx), Math.max(0, e.dist - 0.5 + i * 0.4));
         c.bounty *= 0.5;
+        c.wave = e.wave;
       }
     }
   }
@@ -821,13 +844,13 @@ export class Game {
       this.events.push({ e: 'impact', kind, x: primary.x, z: primary.z, radius: 0, stats });
     }
     if (stats.pool) {
-      this.pools.push({ x, z, radius: stats.pool.radius, dps: stats.pool.dps * tower.damageMult, t: stats.pool.dur, dur: stats.pool.dur, type: 'fire' });
+      this.pools.push({ x, z, radius: stats.pool.radius, dps: stats.pool.dps * this.towerPower(tower), t: stats.pool.dur, dur: stats.pool.dur, type: 'fire', tower });
     }
   }
 
   private applyEffects(stats: TowerStats, e: Enemy, tower?: Tower) {
     if (stats.poison) {
-      const dps = stats.poison.dps * (tower?.damageMult ?? 1);
+      const dps = stats.poison.dps * (tower ? this.towerPower(tower) : 1);
       if (e.poisonT <= 0 || dps >= e.poisonDps) {
         e.poisonDps = dps;
         e.poisonTower = tower ?? null;
@@ -885,9 +908,17 @@ export class Game {
     return out;
   }
 
+  /**
+   * Everything that scales a tower's damage: Tech Tree, shrines, the hero, and Masterwork on fully
+   * upgraded towers. Used for every way a tower hurts enemies, so no bonus misses an attack type.
+   */
+  towerPower(t: Tower) {
+    return t.damageMult * (t.level === 3 ? 1 + this.rank('masterwork') * 0.1 : 1);
+  }
+
   private rollDamage(t: Tower) {
     const s = t.stats;
-    let damage = s.damage * t.damageMult * (t.level === 3 ? 1 + this.rank('masterwork') * 0.1 : 1);
+    let damage = s.damage * this.towerPower(t);
     let crit = false;
     const metaCrit = this.rank('towerCrit') * 0.03;
     if (s.crit && this.rng() < s.crit) {
@@ -999,7 +1030,7 @@ export class Game {
     }
     t.beamRamp = Math.min(b.rampTime, t.beamRamp + dt);
     t.aim = Math.atan2(primary.x - t.x, primary.z - t.z);
-    const dps = s.damage * t.damageMult * t.rateMult * (1 + b.ramp * (t.beamRamp / b.rampTime));
+    const dps = s.damage * this.towerPower(t) * t.rateMult * (1 + b.ramp * (t.beamRamp / b.rampTime));
     if (b.mode === 'line') {
       const dx = primary.x - t.x, dz = primary.z - t.z;
       const l = Math.hypot(dx, dz) || 1;
@@ -1075,7 +1106,7 @@ export class Game {
             if (e.dead || dist2(e.x, e.z, x, z) > radius * radius) continue;
             this.damage(e, def.power * power * growth, 'radiant', {});
           }
-          this.pools.push({ x, z, radius: radius * 0.7, dps: 30 * power, t: 3, dur: 3, type: 'radiant' });
+          this.pools.push({ x, z, radius: radius * 0.7, dps: 30 * power, t: 3, dur: 3, type: 'radiant', tower: null });
         },
       });
     } else if (id === 'winter') {
@@ -1195,7 +1226,7 @@ export class Game {
         this.damage(e, dmg, fx.type, {});
         if (fx.shove && !e.dead && !e.flying) this.shove(e, fx.shove);
       }
-      if (fx.pool) this.pools.push({ x: h.x, z: h.z, radius: fx.radius * 0.8, dps: fx.pool.dps * power, t: fx.pool.dur, dur: fx.pool.dur, type: fx.type });
+      if (fx.pool) this.pools.push({ x: h.x, z: h.z, radius: fx.radius * 0.8, dps: fx.pool.dps * power, t: fx.pool.dur, dur: fx.pool.dur, type: fx.type, tower: null });
     } else if (fx.kind === 'ward') {
       this.wardT = fx.duration;
       this.wardRadius = fx.radius;
@@ -1371,7 +1402,7 @@ export class Game {
       const ranged = u.range > 4;
       this.events.push({ e: 'unitAttack', unit: u, flying: best.flying, ranged, tx: best.x, tz: best.z });
       const wasDead = best.dead;
-      this.damage(best, u.damage * (o ? o.damageMult : 1) * (best.flying && !ranged ? 0.7 : 1), u.dtype, { tower: o ?? undefined });
+      this.damage(best, u.damage * (o ? this.towerPower(o) : 1) * (best.flying && !ranged ? 0.7 : 1), u.dtype, { tower: o ?? undefined });
       if (u.kind === 'hero' && !wasDead) this.gainXp(0.25);
     }
   }
@@ -1503,6 +1534,7 @@ export class Game {
           this.leaks += loss;
           this.events.push({ e: 'leak', enemy: e });
           if (this.lives <= 0) {
+            this.fallenWave = e.wave;
             this.state = 'lost';
             this.events.push({ e: 'lost' });
             return;
@@ -1562,6 +1594,7 @@ export class Game {
       for (let i = 0; i < 3; i++) {
         const c = this.spawn('gloomling', false, road, Math.max(0, e.dist - 1.2 + i * 0.6));
         c.bounty *= 0.4;
+        c.wave = e.wave;
       }
       skill(3);
     } else if (ability === 'ward') {
@@ -1606,7 +1639,7 @@ export class Game {
           for (let i = 0; i < Math.min(s.roots.count, candidates.length); i++) {
             const e = candidates[i];
             e.rootT = Math.max(e.rootT, e.def.boss ? s.roots.dur * 0.4 : s.roots.dur);
-            e.poisonDps = Math.max(e.poisonT > 0 ? e.poisonDps : 0, s.roots.dps * t.damageMult);
+            e.poisonDps = Math.max(e.poisonT > 0 ? e.poisonDps : 0, s.roots.dps * this.towerPower(t));
             e.poisonTower = t;
             e.poisonT = Math.max(e.poisonT, s.roots.dur + 2);
             this.events.push({ e: 'root', x: e.x, z: e.z, enemy: e });
@@ -1683,7 +1716,7 @@ export class Game {
       for (let j = 0; j < this.enemies.length; j++) {
         const e = this.enemies[j];
         if (e.dead || e.flying) continue;
-        if (dist2(e.x, e.z, p.x, p.z) < r2) this.damage(e, p.dps * dt, p.type, { silent: true });
+        if (dist2(e.x, e.z, p.x, p.z) < r2) this.damage(e, p.dps * dt, p.type, { silent: true, tower: p.tower ?? undefined });
       }
     }
   }
