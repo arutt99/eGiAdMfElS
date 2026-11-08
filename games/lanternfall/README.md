@@ -8,10 +8,13 @@ It runs from `index.html`, which needs no install or internet connection.
 Lanternfall is played in landscape. Held upright, a phone shows a "turn sideways" screen and the battle pauses.
 
 - **Tap** a tower card, then tap open ground to place a preview. Tap **✓ Build** (or the preview again) to build it, or **✕** to cancel.
-- **Drag** to move the camera, **pinch** to zoom, and **twist two fingers** to rotate.
+- **Drag** to move the camera, **pinch** to zoom, and **twist two fingers** to rotate. The **Fit battlefield** button (top right, or Home on a keyboard) brings back the whole map.
 - **Hero:** tap the hero portrait, then tap the map to send them there.
 - **Spells:** tap a spell, then tap the map to cast. On small screens the spell panel folds away with its book button.
-- **Touch and hold** a tower card, spell, enemy or tech node to see what it does.
+- **Touch and hold** a tower card, spell, enemy or tech node to open its card. It stays open after you lift your finger, and closes with its **×** or your next touch anywhere else.
+- **Tower panel:** a newly built tower stays unselected; tap it to open its panel. On phones, a selected tower's panel shows its upgrade choices, prices, targeting and sell without scrolling. The spells move into a strip beside it so they stay in reach, and the tower cards return when the panel closes. The **ⓘ** button shows the full descriptions and current stats.
+
+Hero powers and spells are at least 44 pixels across on touch screens.
 
 On computers the mouse and keyboard work as before. The interface switches to touch wording whenever the most recent input was a finger.
 
@@ -44,6 +47,6 @@ The source is in `src`. The simulation in `src/sim` runs without rendering, whic
 Touch input lives in `src/main.ts` (gestures, taps, the build preview) and `src/ui/touch.ts` (which input is in use).
 The phone layout is the `max-height: 540px` section at the end of `src/ui/style.css`. On other screens `UI.layoutTowerBar` keeps the tower cards clear of the hero and spell panels: it shifts the bar between them, closes up the cards, or raises the bar above them on tablets held upright.
 
-`tests/lanternfall.browser.cjs` at the repository root checks HUD hit-testing at tablet, laptop and phone sizes, compact HUD overlaps, the map rail, graphics context loss, resuming after a reload and the art style switch. Run it with `npm run build && npm run serve` going, from the repository root: `node tests/lanternfall.browser.cjs`.
+`tests/lanternfall.browser.cjs` at the repository root checks HUD hit-testing at tablet, laptop and phone sizes, compact HUD overlaps, touch target sizes, the phone tower panel, long-press cards, Fit battlefield, the map rail, graphics context loss, resuming after a reload and the art style switch. Run it with `npm run build && npm run serve` going, from the repository root: `node tests/lanternfall.browser.cjs`.
 
 Open `SoundTest.html` to hear every sound effect, compare takes, and run a battle stress test. Sound designs are in `src/audio/sfx-recipes.ts`.

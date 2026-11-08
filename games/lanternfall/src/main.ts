@@ -162,10 +162,7 @@ class App implements AppActions {
 
   private resetCameraForGame() {
     const rig = this.engine.rig;
-    rig.tTarget.set(0, 1, 2);
-    rig.tDist = 110;
-    rig.tPitch = 0.95;
-    rig.tYaw = 0;
+    this.fitBattlefield();
     rig.boundsX = this.currentMap.halfW + 4;
     rig.boundsZ = this.currentMap.halfH + 4;
     this.menuOrbit = false;
@@ -497,6 +494,15 @@ class App implements AppActions {
     if (this.selected) this.selected.mode = m;
   }
 
+  /** The whole map, square on, as a battle starts. Undoes any pan, zoom or twist. */
+  fitBattlefield() {
+    const rig = this.engine.rig;
+    rig.tTarget.set(0, 1, 2);
+    rig.tDist = 110;
+    rig.tPitch = 0.95;
+    rig.tYaw = 0;
+  }
+
   centerHero() {
     const h = this.game?.hero;
     if (!h || h.dead) return;
@@ -749,9 +755,10 @@ class App implements AppActions {
     }
     const built = g.build(type, at.x, at.z);
     if (built) {
+      // Building leaves the new tower unselected; tapping it opens its panel.
       this.buildType = null;
       this.aim = null;
-      this.selected = built;
+      this.selected = null;
       buzz(14);
     }
   }
@@ -842,6 +849,7 @@ class App implements AppActions {
       case 'KeyB': this.useAbility(1); break;
       case 'KeyN': this.useAbility(2); break;
       case 'KeyH': this.centerHero(); break;
+      case 'Home': this.fitBattlefield(); break;
       case 'KeyR': {
         const t = this.selected;
         if (t && t.level !== 1) this.upgrade(t.branch);
@@ -939,7 +947,7 @@ class App implements AppActions {
       const built = g.build(this.buildType, x, z);
       if (built && !e.shiftKey) {
         this.buildType = null;
-        this.selected = built;
+        this.selected = null;
       }
       return;
     }

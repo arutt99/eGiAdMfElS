@@ -94,6 +94,87 @@ async function blockedControls(page) {
     }
     console.log('ok - compact HUD panels never overlap');
 
+    // 2b. Phones: hero powers and spells are finger-sized, and a selected tower's panel shows its choices,
+    // prices, close button and the spells together without scrolling or covering anything.
+    const small = await page.evaluate(() => [...document.querySelectorAll('#hud .skill')]
+      .map((b) => b.getBoundingClientRect()).filter((r) => r.width && (r.width < 44 || r.height < 44)).length);
+    assert.equal(small, 0, 'hero powers and spells should be at least 44px on touch');
+    await page.evaluate(() => {
+      const a = window.__lanternfall, g = a.game, w = g.world;
+      for (let x = 10 - w.halfW; x <= w.halfW; x++) for (let z = 5 - w.halfH; z <= w.halfH; z++) {
+        if (!g.canBuild('roost', x, z)) { const t = g.build('roost', x, z); g.upgrade(t); a.selected = t; return; }
+      }
+    });
+    for (const [w, h] of [[844, 390], [750, 342], [667, 375], [568, 320]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(400);
+      const state = await page.evaluate(() => {
+        const p = document.querySelector('#h-panel');
+        const rect = (s) => document.querySelector(s).getBoundingClientRect();
+        const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+        const panel = rect('#h-panel'), spells = rect('#h-spells'), hero = rect('.bottom-left');
+        return {
+          scrolls: p.scrollHeight > p.clientHeight + 1,
+          ups: p.querySelectorAll('[data-up]').length,
+          overlaps: [hit(panel, spells) && 'panel/spells', hit(spells, hero) && 'spells/hero', hit(panel, hero) && 'panel/hero'].filter(Boolean),
+          width: panel.width / innerWidth,
+        };
+      });
+      assert.equal(state.ups, 2, `${w}x${h}: both specializations should be offered`);
+      assert.ok(!state.scrolls, `${w}x${h}: the tower panel should not need scrolling`);
+      assert.deepEqual(state.overlaps, [], `${w}x${h}`);
+      assert.deepEqual(await blockedControls(page), [], `${w}x${h} with the tower panel open`);
+    }
+    await page.evaluate(() => { window.__lanternfall.selected = null; });
+    console.log('ok - phone tower panel fits beside the spells without scrolling');
+
+    // 2c. A long press opens a card that stays after the finger lifts, and the next touch elsewhere closes it.
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.waitForTimeout(300);
+    const press = (sel, ms) => page.evaluate(async ([sel, ms]) => {
+      const el = document.querySelector(sel), r = el.getBoundingClientRect();
+      const o = { pointerType: 'touch', pointerId: 7, bubbles: true, isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+      el.dispatchEvent(new PointerEvent('pointerdown', o));
+      await new Promise((res) => setTimeout(res, ms));
+      el.dispatchEvent(new PointerEvent('pointerup', o));
+      el.click();
+    }, [sel, ms]);
+    await press('#h-spells .skill', 600);
+    await page.waitForTimeout(200);
+    assert.ok(await page.isVisible('#tooltip.pinned'), 'the spell card should stay open after the finger lifts');
+    assert.equal(await page.evaluate(() => window.__lanternfall.spell), null, 'looking at a spell should not pick it');
+    await press('#h-gold', 40);
+    assert.ok(!(await page.isVisible('#tooltip')), 'touching elsewhere should close the card');
+    await press('#h-spells .skill', 600);
+    await page.click('#tooltip .tip-close');
+    assert.ok(!(await page.isVisible('#tooltip')), 'the card\'s close button should close it');
+    console.log('ok - long-press cards stay open until dismissed');
+
+    // 2d. Fit battlefield undoes panning, zooming and twisting.
+    await page.evaluate(() => { const r = window.__lanternfall.engine.rig; r.pan(20, 10); r.zoom(0.4); r.tYaw = 1.2; });
+    await page.click('#h-fit');
+    const rig = await page.evaluate(() => { const r = window.__lanternfall.engine.rig; return { x: r.tTarget.x, z: r.tTarget.z, d: r.tDist, yaw: r.tYaw }; });
+    assert.deepEqual(rig, { x: 0, z: 2, d: 110, yaw: 0 });
+    console.log('ok - Fit battlefield restores the whole-map view');
+
+    // 2e. Building a tower leaves it unselected, so its panel only opens when the tower is tapped.
+    const afterBuild = await page.evaluate(() => {
+      const a = window.__lanternfall, g = a.game, w = g.world;
+      for (let x = -w.halfW; x <= w.halfW; x++) for (let z = -w.halfH; z <= w.halfH; z++) {
+        if (!g.canBuild('roost', x, z)) {
+          const before = g.towers.length;
+          a.pickTower('roost');
+          a.aim = { x, z };
+          a.confirmAction();
+          return { built: g.towers.length - before, selected: !!a.selected };
+        }
+      }
+    });
+    await page.waitForTimeout(200);
+    assert.deepEqual(afterBuild, { built: 1, selected: false });
+    assert.ok(!(await page.isVisible('#h-panel')), 'the tower panel should stay closed after building');
+    console.log('ok - building a tower does not open its panel');
+
     // 3. Picking a chapter half past the rail's edge brings it fully into view.
     await page.setViewportSize({ width: 844, height: 390 });
     await page.evaluate(() => window.__lanternfall.quitToMenu());
