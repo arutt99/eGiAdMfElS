@@ -32,6 +32,8 @@ const SPEEDS = [1, 2, 3];
 const TAP_SLOP = 10;
 /** A second tap this close to a tower preview, in world units, builds it. */
 const CONFIRM_RADIUS = 1.1;
+/** How far from a tower's center, in world units, a click still lands on its model. */
+const TOWER_PICK_RADIUS = 1.4;
 /** Phones held upright show a "turn sideways" screen, so a battle pauses behind it. */
 const PORTRAIT_PHONE = '(orientation: portrait) and (max-width: 600px) and (hover: none)';
 /** Real seconds between saves of a battle that sits between waves. */
@@ -823,14 +825,14 @@ class App implements AppActions {
 
   /**
    * A tap or click with nothing armed: select the tower there, or open the tower picker on open ground.
-   * With a tower panel already open it only closes the panel, so a tap away never builds by surprise.
+   * A tower panel that is already open closes, and the picker opens in the same click, so building
+   * beside a selected tower doesn't take a second click. The picker itself never builds without a choice.
    */
   private selectOrOpenSite(hit: { x: number; z: number } | null) {
-    const had = this.selected;
     this.selected = this.towerUnderPointer();
     if (this.selected) audio.play('click');
     else if (this.pointerOnLantern()) this.ui.toggleLanternHp();
-    else if (!had && hit) this.openSite(hit);
+    else if (hit) this.openSite(hit);
   }
 
   // ---------- Touch action bar ----------
@@ -1112,23 +1114,38 @@ class App implements AppActions {
     v.rings.add(hit.x, g.world.height(hit.x, hit.z) + 0.4, hit.z, 1.5, new THREE.Color(1.2, 0.9, 0.35).multiplyScalar(2), 0.42);
   }
 
+  /**
+   * The tower whose model is under the pointer. The hit area is the tower's own silhouette on screen
+   * (a capsule from its base to its top, as wide as its footprint), so it shrinks and grows with the
+   * zoom and a click on the ground beside a tower, or inside its range ring, never selects it.
+   */
   private towerUnderPointer(): Tower | null {
     const g = this.game;
     if (!g || !this.view) return null;
+    // Fingers are less precise than a mouse, so touch gets a slightly larger minimum target.
+    const minPx = isTouch() ? 18 : 8;
+    const cam = this.engine.camera;
+    const right = this.projectV.set(1, 0, 0).applyQuaternion(cam.quaternion);
+    const rx = right.x, rz = right.z;
+    const rl = Math.hypot(rx, rz) || 1;
     let best: Tower | null = null;
-    let bestD = 46 * 46;
+    let bestD = Infinity;
     for (const t of g.towers) {
       const v = this.view.towerViews.get(t.id);
       if (!v) continue;
-      // Test against both the base and the top of the tower so tall models are easy to click.
-      for (const k of [0.25, 0.65, 1]) {
-        const s = this.project(t.x, v.y + v.model.height * k, t.z);
-        if (!s.visible) continue;
-        const d = (s.x - this.pointer.x) ** 2 + (s.y - this.pointer.y) ** 2;
-        if (d < bestD) {
-          bestD = d;
-          best = t;
-        }
+      const b = this.project(t.x, v.y, t.z);
+      const top = this.project(t.x, v.y + v.model.height, t.z);
+      if (!b.visible && !top.visible) continue;
+      const side = this.project(t.x + (rx / rl) * TOWER_PICK_RADIUS, v.y, t.z + (rz / rl) * TOWER_PICK_RADIUS);
+      const r = Math.max(minPx, Math.hypot(side.x - b.x, side.y - b.y));
+      // The distance from the pointer to the base-to-top segment on screen.
+      const dx = top.x - b.x, dy = top.y - b.y;
+      const len2 = dx * dx + dy * dy;
+      const k = len2 ? Math.min(1, Math.max(0, ((this.pointer.x - b.x) * dx + (this.pointer.y - b.y) * dy) / len2)) : 0;
+      const d = Math.hypot(this.pointer.x - (b.x + dx * k), this.pointer.y - (b.y + dy * k));
+      if (d <= r && d / r < bestD) {
+        bestD = d / r;
+        best = t;
       }
     }
     return best;
