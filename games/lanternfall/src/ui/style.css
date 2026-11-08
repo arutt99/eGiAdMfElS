@@ -394,6 +394,15 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 256px; }
 
 .tower-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
+/* Set by UI.layoutTowerBar when the centered bar would run under the hero or spell panel. */
+.tower-bar[data-fit='shift'] { left: var(--tb-x); transform: none; }
+.tower-bar.tight { gap: 4px; }
+.tower-bar[data-fit='raise'] { bottom: var(--tb-bottom) !important; }
+.tower-bar[data-fit='scroll'] { left: var(--tb-x); right: var(--tb-r); transform: none; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
+.tower-bar[data-fit='scroll']::-webkit-scrollbar { display: none; }
+.tower-bar[data-fit='scroll'] > * { flex: none; }
+.tower-bar[data-fit='scroll'] > :first-child { margin-left: auto; }
+.tower-bar[data-fit='scroll'] > :last-child { margin-right: auto; }
 .tower-card { position: relative; width: clamp(56px, 5.5vw, 88px); aspect-ratio: 1 / 1.15; border-radius: 13px; background: linear-gradient(180deg, rgba(60, 43, 74, 0.94), rgba(27, 18, 36, 0.96)); border: 1.5px solid var(--line-2); box-shadow: var(--shadow); transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.15s, filter 0.15s; overflow: hidden; }
 .tower-card img { position: absolute; left: 0; right: 0; top: 2%; width: 100%; height: 76%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55)); }
 .tower-card kbd { position: absolute; top: 5px; left: 5px; z-index: 2; }
@@ -405,7 +414,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .tower-card.locked { cursor: not-allowed; }
 .tower-card.locked img { filter: brightness(0) opacity(0.5); }
 
-.tower-panel { position: absolute; top: 72px; right: 14px; bottom: 96px; width: 322px; padding: 14px 15px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both; scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; max-height: calc(100vh - 170px); height: fit-content; }
+.tower-panel { position: absolute; top: 72px; right: 14px; bottom: calc(96px + var(--tb-lift, 0px)); width: 322px; padding: 14px 15px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both; scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; max-height: calc(100vh - 170px); height: fit-content; }
 .tower-panel header { display: flex; gap: 10px; align-items: center; }
 .tower-panel header img { width: 66px; height: 66px; object-fit: contain; flex: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5)); }
 .tower-panel header > div { flex: 1; }
@@ -478,7 +487,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 @keyframes foeOut { to { opacity: 0; transform: translateX(-16px); } }
 @keyframes foePing { to { box-shadow: 0 0 0 9px rgba(255, 106, 90, 0); } }
 
-.hint-line { position: absolute; left: 50%; bottom: 124px; transform: translateX(-50%); padding: 5px 13px; border-radius: 99px; background: rgba(27, 18, 36, 0.86); font-weight: 700; font-size: 15px; }
+.hint-line { position: absolute; left: 50%; bottom: calc(124px + var(--tb-lift, 0px)); transform: translateX(-50%); padding: 5px 13px; border-radius: 99px; background: rgba(27, 18, 36, 0.86); font-weight: 700; font-size: 15px; }
 .hint-line.bad { color: #ffb3a8; }
 
 #tooltip { position: fixed; top: 0; left: 0; width: 268px; padding: 10px 12px; border-radius: 11px; background: rgba(20, 12, 28, 0.97); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 30; pointer-events: none; }
@@ -507,6 +516,9 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .fatal { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; background: var(--ink); z-index: 100; }
 .fatal h1 { font: 900 38px var(--display); color: var(--gold-hi); }
 .fatal p { max-width: 560px; line-height: 1.4; }
+#gfx-lost { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; background: radial-gradient(circle at 50% 42%, #3a2240, #150d1d 72%); color: var(--cream); z-index: 900; }
+#gfx-lost h1 { font: 900 34px/1.1 var(--display); color: var(--gold-hi); }
+#gfx-lost p { max-width: 520px; line-height: 1.4; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .top-center .coach { animation-name: fade; }
@@ -540,7 +552,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .map-info h2 { font-size: 34px; }
   .story { margin: 8px 0; font-size: 15px; }
   .map-card { height: 76px; }
-  .tower-panel { bottom: 90px; top: 64px; max-height: calc(100vh - 152px); }
+  .tower-panel { bottom: calc(90px + var(--tb-lift, 0px)); top: 64px; max-height: calc(100vh - 152px); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01s !important; transition-duration: 0.01s !important; }
@@ -574,7 +586,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 @keyframes heroCall { 50% { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 6px rgba(255, 200, 90, 0.25); } }
 
 /* The bar that explains what a tap will do, with build and cancel buttons. Touch only. */
-.action-bar { position: absolute; left: 50%; bottom: calc(126px + var(--sb)); transform: translateX(-50%); display: none; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100% - 28px)); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.action-bar { position: absolute; left: 50%; bottom: calc(126px + var(--sb) + var(--tb-lift, 0px)); transform: translateX(-50%); display: none; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100% - 28px)); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .touch .action-bar { display: flex; }
 .touch .action-bar.hidden { display: none !important; }
 .act-body { display: flex; flex-direction: column; min-width: 0; }
@@ -586,7 +598,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .act-ok:disabled { opacity: 0.4; filter: saturate(0.3); }
 .act-x { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line-2); }
 .act-x svg { width: 20px; height: 20px; }
-.touch #hud.acting .hint-line { bottom: calc(186px + var(--sb)); }
+.touch #hud.acting .hint-line { bottom: calc(186px + var(--sb) + var(--tb-lift, 0px)); }
 
 /* Touch has no keyboard, hover or right-click, so drop their hints and give fingers room. */
 .touch kbd { display: none !important; }

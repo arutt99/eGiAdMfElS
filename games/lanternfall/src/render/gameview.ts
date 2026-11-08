@@ -266,6 +266,9 @@ export class GameView {
 
     this.ghostValidMat = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.72, emissive: 0x58482a, roughness: 0.8 });
     this.ghostBadMat = new THREE.MeshStandardMaterial({ color: 0xff7468, vertexColors: true, transparent: true, opacity: 0.55, emissive: 0x7a1408, roughness: 0.8 });
+
+    // A resumed battle starts with its towers already standing.
+    for (const t of game.towers) this.addTowerView(t);
   }
 
   private makeHuman(geo: HumanoidGeo, withLight: boolean): HumanView {

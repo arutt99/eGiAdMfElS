@@ -194,6 +194,45 @@ interface SpawnEntry { at: number; type: EnemyId; elite: boolean; road: number }
 
 export interface WavePreview { type: EnemyId; count: number; elite: boolean }
 
+/**
+ * A battle saved between waves, so it can be resumed after the page reloads. Nothing is in
+ * flight between waves, so towers, the hero, timers and the random seed are the whole state.
+ */
+export interface BattleSnapshot {
+  v: 1;
+  map: string;
+  difficulty: Difficulty;
+  endless: boolean;
+  startWave: number;
+  hero: HeroId;
+  meta: MetaRanks;
+  cleared: number;
+  rng: number;
+  nextId: number;
+  time: number;
+  gold: number;
+  lives: number;
+  wave: number;
+  waveTimer: number;
+  kills: number;
+  goldEarned: number;
+  leaks: number;
+  score: number;
+  heroLevel: number;
+  heroXp: number;
+  heroRespawnT: number;
+  heroUnit: { x: number; z: number; hp: number; dead: boolean };
+  abilityCd: number[];
+  spellCd: Record<SpellId, number>;
+  timers: { ward: number; wardRadius: number; wardRate: number; wardReduction: number; wardBlock: number; rally: number; golden: number };
+  endlessCache: string[];
+  towers: {
+    type: TowerId; level: number; branch: number; x: number; z: number; invested: number; mode: TargetMode; kills: number; dealt: number;
+    /** Health of each soldier as a fraction of full. */
+    squad: number[];
+  }[];
+}
+
 export interface GameOptions {
   map: MapDef;
   difficulty: Difficulty;
@@ -320,6 +359,9 @@ export class Game {
   spellCd: Record<SpellId, number> = { starfall: 0, winter: 0, guards: 0, hex: 0, rally: 0, rift: 0, golden: 0 };
   delayed: { at: number; fn: () => void }[] = [];
   events: GameEvent[] = [];
+  private readonly seedStartWave: number;
+  /** The battle as it stood just before the latest wave was called. */
+  checkpoint: BattleSnapshot | null = null;
 
   kills = 0;
   goldEarned = 0;
@@ -335,6 +377,7 @@ export class Game {
     this.cleared = opts.cleared;
     this.rng = makeRng(opts.seed ?? 1234);
     this.heroDef = HEROES[opts.hero ?? 'ember'];
+    this.seedStartWave = opts.startWave ?? 1;
     const diff = DIFFICULTY[opts.difficulty];
     this.gold = Math.round(opts.map.startGold * (diff.gold * 0.5 + 0.5) * (1 + this.rank('startGold') * 0.06));
     this.maxLives = diff.lives + this.rank('lives') * 2;
@@ -485,18 +528,23 @@ export class Game {
 
   build(type: TowerId, x: number, z: number): Tower | null {
     if (this.canBuild(type, x, z) || this.state !== 'playing') return null;
-    const stats = towerStats(type, 0, 0);
-    const cost = this.costOf(stats);
+    const cost = this.costOf(towerStats(type, 0, 0));
     this.gold -= cost;
+    const t = this.addTower(type, x, z, 0, 0, cost);
+    this.refreshAuras();
+    this.events.push({ e: 'build', tower: t });
+    return t;
+  }
+
+  private addTower(type: TowerId, x: number, z: number, level: number, branch: number, invested: number): Tower {
+    const stats = towerStats(type, level, branch);
     const t: Tower = {
-      id: this.nextId++, type, level: 0, branch: 0, x, z, invested: cost, stats, mode: 'first', cooldown: 0.2,
+      id: this.nextId++, type, level, branch, x, z, invested, stats, mode: 'first', cooldown: 0.2,
       aim: 0, firedAt: -9, damageMult: 1, rangeMult: 1, rateMult: 1, range: stats.range, beamTargets: [], beamEnd: null,
       beamRamp: 0, beamLock: 0, rootT: 2, kills: 0, dealt: 0, rally: null, squad: [], garrisonT: 0,
     };
     if (stats.garrison) t.rally = this.rallyPoint(x, z, stats.range);
     this.towers.push(t);
-    this.refreshAuras();
-    this.events.push({ e: 'build', tower: t });
     return t;
   }
 
@@ -595,6 +643,7 @@ export class Game {
 
   callNextWave(): boolean {
     if (!this.canCallWave) return false;
+    if (this.betweenWaves) this.checkpoint = this.serialize();
     const early = this.earlyBonus;
     const bonus = this.started ? Math.round((22 + this.wave * 5) * DIFFICULTY[this.difficulty].gold) : 0;
     let income = bonus + early;
@@ -1195,7 +1244,13 @@ export class Game {
     const taken = new Set(t.squad.map((u) => u.tx));
     let index = 0;
     for (let i = 0; i < g.count; i++) if (!taken.has(this.soldierSpot(t, i, g.count).x)) { index = i; break; }
-    const spot = this.soldierSpot(t, index, g.count);
+    this.makeSoldier(t, this.soldierSpot(t, index, g.count));
+    t.firedAt = this.time;
+  }
+
+  /** A soldier leaving the barracks for its spot on the road. */
+  private makeSoldier(t: Tower, spot: { x: number; z: number }): Unit {
+    const g = t.stats.garrison!;
     const u: Unit = {
       id: this.nextId++, kind: 'guard', x: t.x, z: t.z, px: t.x, pz: t.z, tx: spot.x, tz: spot.z, dirX: 1, dirZ: 0,
       hp: g.hp, maxHp: g.hp, damage: g.damage, dtype: t.stats.dmgType, rate: g.rate, range: 2.2, speed: 5, cooldown: 0,
@@ -1203,7 +1258,7 @@ export class Game {
     };
     t.squad.push(u);
     this.units.push(u);
-    t.firedAt = this.time;
+    return u;
   }
 
   /** New orders after an upgrade. The soldiers keep the same fraction of their health. */
@@ -1304,7 +1359,9 @@ export class Game {
         if (d <= r * r && d < bestD) { best = e; bestD = d; }
       }
       if (!best) continue;
-      u.cooldown = 1 / u.rate;
+      // Soldiers fight with their barracks' bonuses: Tech Tree upgrades, shrines, the hero and spells.
+      const o = u.owner;
+      u.cooldown = 1 / (u.rate * (o ? o.rateMult : 1));
       u.attackAt = this.time;
       if (!u.moving) {
         const l = Math.sqrt(bestD) || 1;
@@ -1314,7 +1371,7 @@ export class Game {
       const ranged = u.range > 4;
       this.events.push({ e: 'unitAttack', unit: u, flying: best.flying, ranged, tx: best.x, tz: best.z });
       const wasDead = best.dead;
-      this.damage(best, u.damage * (best.flying && !ranged ? 0.7 : 1), u.dtype, { tower: u.owner ?? undefined });
+      this.damage(best, u.damage * (o ? o.damageMult : 1) * (best.flying && !ranged ? 0.7 : 1), u.dtype, { tower: o ?? undefined });
       if (u.kind === 'hero' && !wasDead) this.gainXp(0.25);
     }
   }
@@ -1629,6 +1686,85 @@ export class Game {
         if (dist2(e.x, e.z, p.x, p.z) < r2) this.damage(e, p.dps * dt, p.type, { silent: true });
       }
     }
+  }
+
+  // ---------- Saving a battle ----------
+
+  /** True when nothing is on the road or in the air, so the battle can be saved exactly. */
+  get betweenWaves() {
+    return this.state === 'playing' && this.spawnQueue.length === 0 && this.enemies.length === 0 &&
+      this.projectiles.length === 0 && this.delayed.length === 0;
+  }
+
+  /** The battle as it stands now. Only call this between waves. */
+  serialize(): BattleSnapshot {
+    const h = this.hero;
+    return {
+      v: 1, map: this.map.id, difficulty: this.difficulty, endless: this.endless, startWave: this.seedStartWave,
+      hero: this.heroDef.id, meta: { ...this.meta }, cleared: this.cleared, rng: this.rng.state, nextId: this.nextId,
+      time: this.time, gold: this.gold, lives: this.lives, wave: this.wave, waveTimer: this.waveTimer,
+      kills: this.kills, goldEarned: this.goldEarned, leaks: this.leaks, score: this.score,
+      heroLevel: this.heroLevel, heroXp: this.heroXp, heroRespawnT: this.heroRespawnT,
+      heroUnit: { x: h.x, z: h.z, hp: h.hp, dead: h.dead },
+      abilityCd: [...this.abilityCd], spellCd: { ...this.spellCd },
+      timers: { ward: this.wardT, wardRadius: this.wardRadius, wardRate: this.wardRate, wardReduction: this.wardReduction, wardBlock: this.wardBlock, rally: this.rallyT, golden: this.goldenT },
+      endlessCache: [...this.endlessCache],
+      towers: this.towers.map((t) => ({
+        type: t.type, level: t.level, branch: t.branch, x: t.x, z: t.z, invested: t.invested, mode: t.mode, kills: t.kills, dealt: t.dealt,
+        squad: t.squad.filter((u) => !u.dead).map((u) => u.hp / u.maxHp),
+      })),
+    };
+  }
+
+  /** Rebuilds a saved battle. The map must be the one the snapshot was taken on. */
+  static restore(map: MapDef, snap: BattleSnapshot): Game {
+    const g = new Game({ map, difficulty: snap.difficulty, endless: snap.endless, meta: snap.meta, cleared: snap.cleared, hero: snap.hero, startWave: snap.startWave });
+    g.rng.state = snap.rng;
+    g.endlessCache = [...snap.endlessCache];
+    g.time = g.prevTime = snap.time;
+    g.gold = snap.gold;
+    g.lives = snap.lives;
+    g.wave = snap.wave;
+    g.waveTimer = snap.waveTimer;
+    g.kills = snap.kills;
+    g.goldEarned = snap.goldEarned;
+    g.leaks = snap.leaks;
+    g.score = snap.score;
+    g.heroXp = snap.heroXp;
+    g.heroLevel = snap.heroLevel;
+    g.applyHeroStats();
+    const h = g.hero, s = snap.heroUnit;
+    h.x = h.px = h.tx = s.x;
+    h.z = h.pz = h.tz = s.z;
+    h.hp = Math.min(h.maxHp, s.hp);
+    h.dead = s.dead;
+    g.heroRespawnT = snap.heroRespawnT;
+    g.abilityCd = [...snap.abilityCd];
+    g.spellCd = { ...g.spellCd, ...snap.spellCd };
+    const tm = snap.timers;
+    g.wardT = tm.ward; g.wardRadius = tm.wardRadius; g.wardRate = tm.wardRate; g.wardReduction = tm.wardReduction; g.wardBlock = tm.wardBlock;
+    g.rallyT = tm.rally; g.goldenT = tm.golden;
+    for (const st of snap.towers) {
+      const t = g.addTower(st.type, st.x, st.z, st.level, st.branch, st.invested);
+      t.mode = st.mode;
+      t.kills = st.kills;
+      t.dealt = st.dealt;
+      const gar = t.stats.garrison;
+      if (gar && t.rally) {
+        for (let i = 0; i < Math.min(gar.count, st.squad.length); i++) {
+          const spot = g.soldierSpot(t, i, gar.count);
+          const u = g.makeSoldier(t, spot);
+          u.x = u.px = spot.x;
+          u.z = u.pz = spot.z;
+          u.hp = u.maxHp * st.squad[i];
+        }
+        t.garrisonT = gar.respawn;
+      }
+    }
+    g.nextId = Math.max(g.nextId, snap.nextId);
+    g.refreshAuras();
+    g.checkpoint = snap;
+    return g;
   }
 
   starsEarned() {

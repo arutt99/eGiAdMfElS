@@ -15,6 +15,14 @@ Lanternfall is played in landscape. Held upright, a phone shows a "turn sideways
 
 On computers the mouse and keyboard work as before. The interface switches to touch wording whenever the most recent input was a finger.
 
+## Saved battles
+
+A battle is saved between waves, and again the moment each wave is called. If the page reloads or closes mid-battle, the title screen offers **Resume Battle**, which picks up from the start of the wave that was in progress. Leaving a battle, winning or losing clears the save.
+
+Changing the art style in Settings reloads the game, so during a battle the switch waits until you return to the map.
+
+If the browser resets the graphics (low memory or a driver restart), the battle pauses behind a notice and continues from the pause menu once the picture is back. If it doesn't come back, the notice's reload button resumes the battle.
+
 ## Demo mode
 
 **Demo Mode** on the title screen reloads the game with `?demo` in the address. It plays from a separate save with every map cleared and the whole Tech Tree bought, so every tower, spell and hero is ready. Your real save is untouched, and **Leave Demo Mode** goes back to it.
@@ -27,12 +35,15 @@ In demo mode, Endless Night lets you pick any map and the wave to start at. Skip
 npm install
 npm run build     # writes index.html and SoundTest.html
 npm run typecheck
+npm test          # simulation tests (barracks bonuses, saving and restoring a battle)
 npm run balance   # plays every map and difficulty with a headless bot
 npm run serve     # previews at http://localhost:4173
 ```
 
 The source is in `src`. The simulation in `src/sim` runs without rendering, which lets the balance bot use the real game rules.
 Touch input lives in `src/main.ts` (gestures, taps, the build preview) and `src/ui/touch.ts` (which input is in use).
-The phone layout is the `max-height: 540px` section at the end of `src/ui/style.css`.
+The phone layout is the `max-height: 540px` section at the end of `src/ui/style.css`. On other screens `UI.layoutTowerBar` keeps the tower cards clear of the hero and spell panels: it shifts the bar between them, closes up the cards, or raises the bar above them on tablets held upright.
+
+`tests/lanternfall.browser.cjs` at the repository root checks HUD hit-testing at tablet, laptop and phone sizes, graphics context loss, resuming after a reload and the art style switch. Run it with `npm run build && npm run serve` going, from the repository root: `node tests/lanternfall.browser.cjs`.
 
 Open `SoundTest.html` to hear every sound effect, compare takes, and run a battle stress test. Sound designs are in `src/audio/sfx-recipes.ts`.

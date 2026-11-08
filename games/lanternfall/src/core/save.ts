@@ -2,6 +2,7 @@
 import { MAPS } from '../data/maps';
 import { DIFFICULTY, ENDLESS_WAVES_PER_STARLIGHT, FIRST_CLEAR_BONUS, heroAvailable, META, META_BY_ID, type Difficulty, type HeroId, type MetaId, type MetaRanks } from '../data/meta';
 import type { QualityId } from '../render/engine';
+import type { BattleSnapshot } from '../sim/game';
 
 /** Opening the game with ?demo in the URL plays from a separate, fully unlocked save. */
 export const DEMO = new URLSearchParams(location.search).has('demo');
@@ -36,6 +37,8 @@ export interface SaveData {
 }
 
 const KEY = DEMO ? 'lanternfall.demo.v1' : 'lanternfall.save.v1';
+/** The battle in progress, kept apart from progress so a bad snapshot can never harm the save. */
+const BATTLE_KEY = `${KEY}.battle`;
 
 const blank = (): SaveData => ({
   v: 1,
@@ -85,6 +88,31 @@ export class Save {
     } catch {
       this.persisted = false;
     }
+  }
+
+  /** The battle that was in progress when the page closed, if any. */
+  get battle(): BattleSnapshot | null {
+    try {
+      const raw = localStorage.getItem(BATTLE_KEY);
+      if (!raw) return null;
+      const snap = JSON.parse(raw) as BattleSnapshot;
+      if (snap?.v !== 1 || !MAPS.some((m) => m.id === snap.map) || !Array.isArray(snap.towers)) return null;
+      return snap;
+    } catch {
+      return null;
+    }
+  }
+
+  writeBattle(snap: BattleSnapshot) {
+    try {
+      localStorage.setItem(BATTLE_KEY, JSON.stringify(snap));
+    } catch { /* Storage is full or blocked. The battle just can't be resumed. */ }
+  }
+
+  clearBattle() {
+    try {
+      localStorage.removeItem(BATTLE_KEY);
+    } catch { /* Nothing to clear. */ }
   }
 
   write() {

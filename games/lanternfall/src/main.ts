@@ -15,7 +15,8 @@ import { GameView } from './render/gameview';
 import { initMaterials, shared } from './render/materials';
 import { renderPortraits } from './render/portraits';
 import { Stage } from './render/stage';
-import { Game, TARGET_MODES, type Tower } from './sim/game';
+import { applyArtStyle, artStylePending } from './render/style';
+import { Game, TARGET_MODES, type BattleSnapshot, type Tower } from './sim/game';
 import { World, type RoadPath } from './sim/world';
 import { buzz, isTouch } from './ui/touch';
 import { UI, type ActionBar, type AppActions } from './ui/ui';
@@ -33,6 +34,10 @@ const TAP_SLOP = 10;
 const CONFIRM_RADIUS = 1.1;
 /** Phones held upright show a "turn sideways" screen, so a battle pauses behind it. */
 const PORTRAIT_PHONE = '(orientation: portrait) and (max-width: 600px) and (hover: none)';
+/** Real seconds between saves of a battle that sits between waves. */
+const BATTLE_SAVE_INTERVAL = 2;
+/** How long to wait for lost graphics to come back before suggesting a reload. */
+const GFX_RESTORE_WAIT_MS = 4000;
 
 function detectQuality(renderer: THREE.WebGLRenderer): QualityId {
   const gl = renderer.getContext();
@@ -97,6 +102,11 @@ class App implements AppActions {
   private frameSmoother = new FrameSmoother();
   private governor = new ResolutionGovernor();
   private previewTimer = 0;
+  /** The graphics context is gone. Nothing draws, so the battle must not move either. */
+  private gfxLost = false;
+  private gfxTimer = 0;
+  private battleSaveT = 0;
+  private savedCheckpoint: BattleSnapshot | null = null;
 
   constructor() {
     const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -124,6 +134,7 @@ class App implements AppActions {
     this.engine.rig.snap();
     this.ui.setLoading(1, 'Lighting the lantern');
     this.bindInput();
+    this.watchGraphics();
     this.ui.showTitle();
     audio.setTheme(this.stage!.biome.music);
     requestAnimationFrame((t) => this.frame(t));
@@ -183,6 +194,25 @@ class App implements AppActions {
   }
 
   startGame(map: MapDef, difficulty: Difficulty, endless: boolean, startWave = 1) {
+    this.beginBattle(map, difficulty, endless, startWave, null);
+  }
+
+  resumeBattle() {
+    const snap = this.save.battle;
+    const map = snap && MAPS.find((m) => m.id === snap.map);
+    if (!snap || !map) {
+      this.save.clearBattle();
+      this.ui.showTitle();
+      return;
+    }
+    this.ui.menu.classList.add('hidden');
+    this.beginBattle(map, snap.difficulty, snap.endless, snap.startWave, snap);
+  }
+
+  /** Starts a new battle, or rebuilds a saved one when given a snapshot. */
+  private beginBattle(map: MapDef, difficulty: Difficulty, endless: boolean, startWave: number, snap: BattleSnapshot | null) {
+    // A new battle replaces any saved one.
+    if (!snap) this.save.clearBattle();
     clearTimeout(this.previewTimer);
     this.previewTimer = 0;
     audio.unlock();
@@ -195,7 +225,19 @@ class App implements AppActions {
     window.setTimeout(() => {
       this.cleanupGame();
       this.loadStage(map);
-      this.game = new Game({ map, difficulty, endless, meta: this.save.data.meta, cleared: this.save.cleared, hero: this.save.activeHero, startWave: this.startWave });
+      let game: Game | null = null;
+      if (snap) {
+        try {
+          game = Game.restore(map, snap);
+        } catch (err) {
+          console.error('Could not resume the saved battle', err);
+          this.save.clearBattle();
+        }
+      }
+      this.game = game ?? new Game({ map, difficulty, endless, meta: this.save.data.meta, cleared: this.save.cleared, hero: this.save.activeHero, startWave: this.startWave });
+      this.announcedWave = this.game.wave;
+      this.savedCheckpoint = this.game.checkpoint;
+      this.battleSaveT = 0;
       this.view = new GameView(this.game, this.stage!, this.engine);
       const s = this.save.data.settings;
       this.view.showNumbers = s.numbers;
@@ -224,7 +266,11 @@ class App implements AppActions {
       audio.setIntensity(0);
       this.engine.fadeTo(0);
       const firstVisit = !endless && map.index >= this.save.cleared && !this.save.data.seenChapters.includes(map.id);
-      if (firstVisit) this.playChapterOpening(map);
+      if (game) {
+        // A resumed battle opens paused, so the player can get their bearings first.
+        this.ui.banner(map.name, `Battle resumed · wave ${game.wave + 1}`);
+        this.togglePause();
+      } else if (firstVisit) this.playChapterOpening(map);
       else this.ui.banner(map.name, endless ? (this.startWave > 1 ? `Endless Night · from wave ${this.startWave}` : 'Endless Night') : map.subtitle);
     }, 300);
   }
@@ -292,6 +338,14 @@ class App implements AppActions {
   }
 
   quitToMenu() {
+    this.save.clearBattle();
+    // The battle is over, so leaving the page during the fade must not save it again.
+    this.finished = true;
+    // A new art style waits for the battle to end, and switching it reloads the page.
+    if (artStylePending()) {
+      applyArtStyle();
+      return;
+    }
     this.engine.fadeTo(1);
     this.engine.desat = 0;
     this.ui.hideHud();
@@ -526,7 +580,10 @@ class App implements AppActions {
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+    // The page may never come back from the background, so save the battle on the way out.
+    window.addEventListener('pagehide', () => this.persistBattle());
     document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.persistBattle();
       audio.suspend(document.hidden);
       this.last = performance.now();
       if (document.hidden && this.game && !this.paused && !this.finished) this.togglePause();
@@ -1042,6 +1099,7 @@ class App implements AppActions {
     const g = this.game!;
     if (this.finished || g.state === 'playing') return;
     this.finished = true;
+    this.save.clearBattle();
     this.buildType = null;
     this.spell = null;
     this.selected = null;
@@ -1100,11 +1158,64 @@ class App implements AppActions {
     }, won ? END_DELAY_WON : END_DELAY_LOST);
   }
 
+  /** Saves the battle so a reload can resume it: as it stands between waves, or from the start of the current wave. */
+  private persistBattle() {
+    const g = this.game;
+    if (!g || this.finished || g.state !== 'playing') return;
+    const snap = g.betweenWaves ? g.serialize() : g.checkpoint;
+    if (snap) this.save.writeBattle(snap);
+  }
+
+  private autosaveBattle(dt: number) {
+    const g = this.game!;
+    if (g.checkpoint !== this.savedCheckpoint) {
+      // A wave was just called: keep the battle as it stood the moment before.
+      this.savedCheckpoint = g.checkpoint;
+      this.persistBattle();
+      return;
+    }
+    this.battleSaveT -= dt;
+    if (this.battleSaveT > 0 || !g.betweenWaves) return;
+    this.battleSaveT = BATTLE_SAVE_INTERVAL;
+    this.persistBattle();
+  }
+
+  /** Pauses everything while the browser has taken the graphics away, and rebuilds what it lost when they return. */
+  private watchGraphics() {
+    const canvas = this.engine.renderer.domElement;
+    canvas.addEventListener('webglcontextlost', (e) => {
+      // Without this the browser never offers the context back.
+      e.preventDefault();
+      if (this.gfxLost) return;
+      this.gfxLost = true;
+      this.persistBattle();
+      audio.suspend(true);
+      this.ui.showGfxLost(() => {
+        this.persistBattle();
+        location.reload();
+      });
+      clearTimeout(this.gfxTimer);
+      this.gfxTimer = window.setTimeout(() => this.ui.gfxLostStalled(), GFX_RESTORE_WAIT_MS);
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      clearTimeout(this.gfxTimer);
+      // three.js uploads meshes and textures again by itself. The baked sky lighting was drawn on the GPU, so redraw it.
+      this.stage?.rebakeEnvironment(this.engine.renderer);
+      this.governor.reset();
+      this.gfxLost = false;
+      this.last = performance.now();
+      this.ui.hideGfxLost();
+      audio.suspend(document.hidden);
+      // Hand control back through the pause menu rather than dropping the player into a running battle.
+      if (this.game && !this.finished && !this.paused && !this.cine) this.togglePause();
+    });
+  }
+
   private frame(now: number) {
     requestAnimationFrame((t) => this.frame(t));
     const rawDt = (now - this.last) / 1000;
     this.last = now;
-    if (rawDt <= 0) return;
+    if (rawDt <= 0 || this.gfxLost) return;
     const dt = this.frameSmoother.next(rawDt);
     this.time += dt;
     shared.uTime.value = this.time;
@@ -1130,6 +1241,7 @@ class App implements AppActions {
         this.noteNewWave();
         this.noteNewEnemies();
         this.checkEnd();
+        this.autosaveBattle(dt);
         const fighting = g.enemies.length > 0 || g.spawnQueue.length > 0;
         const bossHere = g.enemies.some((e) => e.def.boss);
         const desperate = fighting && (bossHere || g.lives / g.maxLives < 0.4 || (!g.endless && g.wave >= g.totalWaves));

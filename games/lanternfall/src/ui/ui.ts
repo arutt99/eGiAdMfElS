@@ -1,6 +1,6 @@
 // All menus and the in-game HUD.
 import { audio } from '../audio/audio';
-import { INK, setArtStyle } from '../render/style';
+import { artStylePending, INK, setArtStyle } from '../render/style';
 import { BIOMES } from '../render/biomes';
 import { DEMO, type Save } from '../core/save';
 import { ENDLESS_WAVES_PER_STARLIGHT, FIRST_CLEAR_BONUS } from '../data/meta';
@@ -20,6 +20,8 @@ import { clamp } from '../core/util';
 export interface AppActions {
   previewMap(map: MapDef): void;
   startGame(map: MapDef, difficulty: Difficulty, endless: boolean, startWave?: number): void;
+  /** Picks up the battle that was in progress when the page last closed. */
+  resumeBattle(): void;
   quitToMenu(): void;
   restart(): void;
   resume(): void;
@@ -186,6 +188,12 @@ const CINE_TITLE_SECONDS = 3.6;
 const CINE_SECONDS_PER_WORD = 0.34;
 const CINE_MIN_LINE_SECONDS = 3.4;
 const CREDITS_SECONDS = 26;
+/** Matches the compact layout at the end of style.css. */
+const COMPACT_LAYOUT = '(max-height: 540px)';
+/** Space kept between the tower bar and the panels beside it, and from the screen's edges. */
+const TOWER_BAR_GAP = 8;
+const TOWER_BAR_EDGE = 14;
+const TOWER_BAR_TIGHT_GAP = 4;
 const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
 export class UI {
@@ -221,6 +229,7 @@ export class UI {
   private abilityBtns: (HTMLElement | null)[] = [];
   private tutorialStep = -1;
   private inGame = false;
+  private barObserver: ResizeObserver | null = null;
 
   constructor(public save: Save, public app: AppActions) {
     this.root = $('#ui');
@@ -404,13 +413,16 @@ export class UI {
     this.hud.classList.add('hidden');
     const cleared = this.save.cleared;
     const avail = this.save.availableStarlight;
+    const battle = this.save.battle;
+    const battleMap = battle ? MAPS.find((m) => m.id === battle.map) : undefined;
     this.menu.innerHTML = `
       <div class="title-screen">
         <div class="title-block">
           <p class="eyebrow">A tale of light and the long dark</p>
           <h1 class="wordmark">Lanternfall</h1>
           <nav class="title-nav">
-            <button class="nav-btn primary" data-a="play">${cleared > 0 ? 'Continue the Campaign' : 'Begin the Campaign'}</button>
+            ${battleMap ? `<button class="nav-btn primary" data-a="resume">Resume Battle<small>${battleMap.name} · ${battle!.endless ? 'Endless Night · ' : ''}wave ${battle!.wave + 1}</small></button>` : ''}
+            <button class="nav-btn ${battleMap ? '' : 'primary'}" data-a="play">${cleared > 0 ? 'Continue the Campaign' : 'Begin the Campaign'}</button>
             <button class="nav-btn" data-a="endless" ${cleared < ENDLESS_UNLOCK_AFTER ? 'disabled' : ''}>Endless Night${cleared < ENDLESS_UNLOCK_AFTER ? '<small>Clear Aldergreen to unlock</small>' : ''}</button>
             <button class="nav-btn" data-a="upgrades">Tech Tree${avail > 0 ? `<em class="pill">${avail} to spend</em>` : ''}</button>
             <button class="nav-btn" data-a="chronicle">The Chronicle</button>
@@ -428,7 +440,10 @@ export class UI {
     this.menu.classList.remove('hidden');
     this.menu.onclick = (e) => {
       const a = (e.target as HTMLElement).closest<HTMLElement>('[data-a]')?.dataset.a;
-      if (a === 'play') {
+      if (a === 'resume') {
+        audio.unlock();
+        this.app.resumeBattle();
+      } else if (a === 'play') {
         this.endless = false;
         if (cleared === 0 && !this.save.data.seenPrologue) {
           this.save.data.seenPrologue = true;
@@ -768,7 +783,7 @@ export class UI {
               <select data-s="quality">${(Object.keys(QUALITY) as QualityId[]).map((q) => `<option value="${q}" ${q === s.quality ? 'selected' : ''}>${QUALITY[q].label}</option>`).join('')}</select>
             </label>
             <label class="check"><input type="checkbox" data-s="autoRes" ${s.autoRes ? 'checked' : ''}><span>Lower resolution automatically to keep things smooth</span></label>
-            <label class="check"><input type="checkbox" data-art ${INK ? 'checked' : ''}><span>Inked storybook art (restarts the game)</span></label>
+            <label class="check"><input type="checkbox" data-art ${INK !== artStylePending() ? 'checked' : ''}><span>Inked storybook art <small id="art-note">${this.artNote()}</small></span></label>
             ${INK ? '' : `<label class="check"><input type="checkbox" data-s="painterly" ${s.painterly ? 'checked' : ''}><span>Painterly filter (High and Ultra)</span></label>
             <label class="check"><input type="checkbox" data-s="tilt" ${s.tilt ? 'checked' : ''}><span>Miniature tilt-shift blur</span></label>`}
             <label class="check"><input type="checkbox" data-s="shake" ${s.shake ? 'checked' : ''}><span>Screen shake</span></label>
@@ -813,7 +828,10 @@ export class UI {
     this.modal.oninput = (e) => {
       const t = e.target as HTMLInputElement;
       if (t.dataset.art !== undefined) {
-        setArtStyle(t.checked);
+        // Switching styles reloads the page, so during a battle it waits until the battle is left.
+        setArtStyle(t.checked, !this.inGame);
+        const note = this.modal.querySelector('#art-note');
+        if (note) note.textContent = this.artNote();
         return;
       }
       const key = t.dataset.s as keyof typeof s | undefined;
@@ -845,6 +863,39 @@ export class UI {
         }
       }
     };
+  }
+
+  /** Covers the screen while the graphics card is reset. The battle is paused underneath. */
+  showGfxLost(onReload: () => void) {
+    let el = document.getElementById('gfx-lost');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gfx-lost';
+      el.setAttribute('role', 'alertdialog');
+      el.setAttribute('aria-labelledby', 'gfx-lost-title');
+      document.body.appendChild(el);
+    }
+    el.innerHTML = `
+      <h1 id="gfx-lost-title">The picture went dark</h1>
+      <p>Your browser reset the graphics, which can happen when the device is short on memory or the graphics driver restarts. The battle is paused and nothing is lost.</p>
+      <p class="dim" id="gfx-lost-status">Trying to bring it back…</p>
+      <button class="play-btn small" id="gfx-lost-reload">Reload and resume the battle</button>`;
+    el.querySelector<HTMLElement>('#gfx-lost-reload')!.onclick = onReload;
+  }
+
+  /** Changes the overlay once the browser has given up on restoring the graphics by itself. */
+  gfxLostStalled() {
+    const status = document.getElementById('gfx-lost-status');
+    if (status) status.textContent = 'The graphics did not come back by themselves. Reloading will restore your battle from the start of the current wave.';
+  }
+
+  hideGfxLost() {
+    document.getElementById('gfx-lost')?.remove();
+  }
+
+  private artNote() {
+    if (!this.inGame) return '(reloads the game)';
+    return artStylePending() ? '(switches when you return to the map)' : '(waits until you return to the map)';
   }
 
   // ---------- In-game HUD ----------
@@ -975,9 +1026,64 @@ export class UI {
       if (btn) btn.onclick = () => this.app.useAbility(i);
     });
     this.tutorialStep = this.save.data.tutorialDone || game.map.index !== 0 || game.endless ? -1 : 0;
+    // The hero and spell panels change size with unlocks, the spellbook toggle and the screen, so the tower bar follows them.
+    this.barObserver?.disconnect();
+    this.barObserver = new ResizeObserver(() => this.layoutTowerBar());
+    this.barObserver.observe(this.hud);
+    this.barObserver.observe(this.hud.querySelector('.bottom-left')!);
+    this.barObserver.observe(spells);
+    this.layoutTowerBar();
+  }
+
+  /**
+   * Keeps the tower cards clear of the hero panel and the spells, so a tap always lands on what it shows.
+   * The bar stays centered when it fits. Otherwise it shifts into the gap between the panels, rises above
+   * them (tablets held upright), or, if even that is too narrow, scrolls between them.
+   */
+  layoutTowerBar() {
+    const bar = this.hud.querySelector<HTMLElement>('#h-towers');
+    const left = this.hud.querySelector<HTMLElement>('.bottom-left');
+    const right = this.hud.querySelector<HTMLElement>('#h-spells');
+    if (!bar || !left || !right) return;
+    delete bar.dataset.fit;
+    bar.classList.remove('tight');
+    this.hud.style.removeProperty('--tb-lift');
+    // Short screens have their own fixed layout in the stylesheet.
+    if (this.hud.classList.contains('hidden') || matchMedia(COMPACT_LAYOUT).matches) return;
+    const hud = this.hud.getBoundingClientRect();
+    const l = left.getBoundingClientRect();
+    const r = right.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    const minX = l.right - hud.left + TOWER_BAR_GAP;
+    const maxX = r.left - hud.left - TOWER_BAR_GAP;
+    const width = b.width;
+    const x = b.left - hud.left;
+    if (x >= minX && x + width <= maxX) return;
+    // Closing up the gaps between cards is often all it takes to fit between the panels.
+    const gaps = Math.max(0, bar.children.length - 1) * (parseFloat(getComputedStyle(bar).columnGap) - TOWER_BAR_TIGHT_GAP);
+    const tight = width - Math.max(0, gaps);
+    if (tight <= maxX - minX) {
+      bar.dataset.fit = 'shift';
+      if (width > maxX - minX) bar.classList.add('tight');
+      const w = width > maxX - minX ? tight : width;
+      bar.style.setProperty('--tb-x', `${Math.round(minX + (maxX - minX - w) / 2)}px`);
+      return;
+    }
+    if (width <= hud.width - 2 * TOWER_BAR_EDGE) {
+      const lift = Math.ceil(hud.bottom - Math.min(l.top, r.top) + TOWER_BAR_GAP);
+      bar.dataset.fit = 'raise';
+      bar.style.setProperty('--tb-bottom', `${lift}px`);
+      this.hud.style.setProperty('--tb-lift', `${lift - (hud.bottom - b.bottom)}px`);
+      return;
+    }
+    bar.dataset.fit = 'scroll';
+    bar.style.setProperty('--tb-x', `${Math.round(minX)}px`);
+    bar.style.setProperty('--tb-r', `${Math.round(hud.width - maxX)}px`);
   }
 
   hideHud() {
+    this.barObserver?.disconnect();
+    this.barObserver = null;
     this.hud.classList.add('hidden');
     this.hud.innerHTML = '';
     this.game = null;

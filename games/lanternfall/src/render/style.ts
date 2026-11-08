@@ -1,4 +1,5 @@
-// Art style switch for the inked storybook test. Read once at load; changing it reloads the page.
+// Art style switch for the inked storybook test. Read once at load; changing it takes a reload,
+// which waits until the player leaves any battle in progress.
 const KEY = 'lanternfall.artStyle';
 
 function read() {
@@ -14,9 +15,28 @@ function read() {
 /** True when the inked storybook look is active. */
 export const INK = read();
 
-export function setArtStyle(ink: boolean) {
+/** The art style to use from the next load. */
+let wanted = INK;
+
+/** Chooses the art style. It takes a reload, so pass reload: false during a battle and reload later. */
+export function setArtStyle(ink: boolean, reload = true) {
+  wanted = ink;
   try {
     localStorage.setItem(KEY, ink ? 'ink' : 'classic');
   } catch { /* Storage may be unavailable; the choice then lasts only until reload. */ }
-  location.reload();
+  if (reload) applyArtStyle();
+}
+
+/** True when a new art style was chosen and waits for a reload. */
+export function artStylePending() {
+  return wanted !== INK;
+}
+
+export function applyArtStyle() {
+  // A ?style= in the address would override the choice, so drop it.
+  const url = new URL(location.href);
+  if (url.searchParams.has('style')) {
+    url.searchParams.delete('style');
+    location.replace(url.href);
+  } else location.reload();
 }
