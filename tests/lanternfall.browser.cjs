@@ -19,27 +19,20 @@ async function startBattle(page) {
   await page.waitForTimeout(400);
 }
 
-/** Every HUD control must be the thing a tap at its center lands on. */
-async function blockedControls(page) {
-  return page.evaluate(() => {
+/** Every HUD control (or every control inside `scope`) must be the thing a tap at its center lands on. */
+async function blockedControls(page, scope = '#hud') {
+  return page.evaluate((scope) => {
     const bad = [];
-    for (const el of document.querySelectorAll('#hud button')) {
+    for (const el of document.querySelectorAll(`${scope} button`)) {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue;
-      const bar = el.closest('.tower-bar');
-      if (bar) {
-        // A card scrolled out of a scrolling bar, even partly, is reached by scrolling, not hidden.
-        const b = bar.getBoundingClientRect();
-        const cx = r.left + r.width / 2;
-        if (cx <= b.left || cx >= b.right) continue;
-      }
       const x = Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1);
       const y = Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1);
       const hit = document.elementFromPoint(x, y);
       if (!hit || !el.contains(hit)) bad.push(`${el.getAttribute('aria-label') || el.id || el.className} is covered by ${hit?.closest('button')?.getAttribute('aria-label') || hit?.className || hit?.tagName}`);
     }
     return bad;
-  });
+  }, scope);
 }
 
 (async () => {
@@ -64,8 +57,7 @@ async function blockedControls(page) {
     await startBattle(page);
     const bad = await blockedControls(page);
     assert.deepEqual(bad, [], `${name}: ${bad.join('; ')}`);
-    const fit = await page.locator('#h-towers').getAttribute('data-fit');
-    console.log(`ok - HUD controls clear at ${name} (tower bar: ${fit ?? 'centered'})`);
+    console.log(`ok - HUD controls clear at ${name}`);
     await context.close();
   }
 
@@ -80,7 +72,7 @@ async function blockedControls(page) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForTimeout(400);
       const overlaps = await page.evaluate(() => {
-        const sel = { gold: '.top-left', wave: '.wave-box', speed: '.top-right', hero: '.bottom-left', towers: '#h-towers', spells: '#h-spells' };
+        const sel = { gold: '.top-left', wave: '.wave-box', speed: '.top-right', hero: '.bottom-left', spells: '#h-spells' };
         const rects = Object.entries(sel).map(([k, s]) => [k, document.querySelector(s).getBoundingClientRect()]);
         const out = [];
         for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
@@ -174,6 +166,51 @@ async function blockedControls(page) {
     assert.deepEqual(afterBuild, { built: 1, selected: false });
     assert.ok(!(await page.isVisible('#h-panel')), 'the tower panel should stay closed after building');
     console.log('ok - building a tower does not open its panel');
+
+    // 2f. Tapping open ground opens the tower picker there. The first tap on a card previews it, the second builds.
+    for (const [w, h] of [[844, 390], [568, 320]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.click('#h-fit');
+      await page.waitForTimeout(500);
+      const spot = await page.evaluate(() => {
+        const a = window.__lanternfall, g = a.game, wd = g.world;
+        let best = null;
+        for (let x = -wd.halfW; x <= wd.halfW; x++) for (let z = -wd.halfH; z <= wd.halfH; z++) {
+          if (g.placementProblem(x, z)) continue;
+          const s = a.project(x, wd.height(x, z), z);
+          // A tap this close to a tower selects the tower instead.
+          if (g.towers.some((t) => { const p = a.project(t.x, wd.height(t.x, t.z), t.z); return Math.hypot(p.x - s.x, p.y - s.y) < 70; })) continue;
+          const d = Math.hypot(s.x - innerWidth / 2, s.y - innerHeight / 2);
+          if (!best || d < best.d) best = { d, x: s.x, y: s.y };
+        }
+        return best;
+      });
+      await page.touchscreen.tap(spot.x, spot.y);
+      await page.waitForTimeout(300);
+      assert.ok(await page.isVisible('#h-build'), `${w}x${h}: tapping open ground should open the tower picker`);
+      const inside = await page.evaluate(() => {
+        const r = document.querySelector('#h-build').getBoundingClientRect();
+        return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+      });
+      assert.ok(inside, `${w}x${h}: the tower picker should stay on screen`);
+      // The picker may cover other controls until it closes, but nothing may cover the picker's own buttons.
+      assert.deepEqual(await blockedControls(page, '#h-build'), [], `${w}x${h} with the tower picker open`);
+      const site = await page.evaluate(() => {
+        const r = document.querySelector('#h-build').getBoundingClientRect();
+        return r;
+      });
+      assert.ok(spot.y < site.top || spot.y > site.bottom, `${w}x${h}: the picker should not cover the spot it builds on`);
+      const before = await page.evaluate(() => window.__lanternfall.game.towers.length);
+      const card = page.locator('#h-towers .tower-card').first();
+      await card.tap();
+      await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(() => window.__lanternfall.game.towers.length), before, 'the first tap on a card only previews it');
+      await card.tap();
+      await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(() => window.__lanternfall.game.towers.length), before + 1, 'the second tap builds');
+      assert.ok(!(await page.isVisible('#h-build')), 'building closes the picker');
+    }
+    console.log('ok - the tower picker opens where open ground is tapped and builds on the second tap');
 
     // 3. Picking a chapter half past the rail's edge brings it fully into view.
     await page.setViewportSize({ width: 844, height: 390 });

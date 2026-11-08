@@ -27,6 +27,8 @@ export interface AppActions {
   resume(): void;
   applySettings(): void;
   pickTower(t: TowerId): void;
+  /** Mouse only: the tower picker card under the pointer, or null when it leaves. */
+  hoverTower(t: TowerId | null): void;
   pickSpell(s: SpellId): void;
   callWave(): void;
   cycleSpeed(): void;
@@ -44,7 +46,21 @@ export interface AppActions {
   fitBattlefield(): void;
 }
 
-/** The bar shown above the tower cards on touch screens while building, casting or sending the hero. */
+/** The tower picker that floats beside the spot the player chose to build on. */
+export interface BuildPicker {
+  /** The build site on screen, in CSS pixels. */
+  x: number;
+  y: number;
+  title: string;
+  text: string;
+  bad: boolean;
+  /** Towers that can't stand on this spot (a garrison too far from the road). */
+  blocked: TowerId[];
+  /** Touch: the tower previewed at the site, which a second tap builds. */
+  armed: TowerId | null;
+}
+
+/** The bar shown on touch screens while casting a spell, sending the hero, or placing a tower from the keyboard. */
 export interface ActionBar {
   kind: 'build' | 'spell' | 'hero';
   title: string;
@@ -70,7 +86,6 @@ const ICONS = {
   star: '<svg viewBox="0 0 24 24"><path d="M12 2.600l2.900 6.200 6.800.8-5 4.600 1.300 6.700-6-3.300-6 3.300 1.300-6.700-5-4.600 6.800-.8z"/></svg>',
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 11 8-7 8 7"/><path d="M6.500 10v9h11v-9M10 19v-5h4v5"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
-  spellbook: '<svg viewBox="0 0 24 24"><path d="M5 4.500A2.500 2.500 0 0 1 7.500 2H19v16H7.500A2.500 2.500 0 0 0 5 20.500z"/><path d="M5 20.500A2.500 2.500 0 0 0 7.500 23H19v-3" fill="none" stroke="currentColor" stroke-width="1.600"/><path d="M12 6l1.200 2.800L16 10l-2.800 1.200L12 14l-1.200-2.800L8 10l2.800-1.200z" fill="#2a1d36"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.600" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5.5A1.500 1.500 0 0 1 5.500 4H9M15 4h3.500A1.500 1.500 0 0 1 20 5.500V9M20 15v3.500a1.500 1.500 0 0 1-1.500 1.500H15M9 20H5.500A1.500 1.500 0 0 1 4 18.500V15"/><circle cx="12" cy="12" r="2.200" fill="currentColor" stroke="none"/></svg>',
@@ -208,9 +223,8 @@ const CREDITS_SECONDS = 26;
 /** Matches the compact layout at the end of style.css. */
 const COMPACT_LAYOUT = '(max-height: 540px)';
 /** Space kept between the tower bar and the panels beside it, and from the screen's edges. */
-const TOWER_BAR_GAP = 8;
-const TOWER_BAR_EDGE = 14;
-const TOWER_BAR_TIGHT_GAP = 4;
+/** The least room kept between the hero panel and the spells. */
+const HUD_GAP = 8;
 /**
  * Scrolls a horizontal rail so the card is fully in view, or centered. It moves only the rail itself:
  * scrollIntoView would also scroll the page and other ancestors, and misbehaves in iOS Safari.
@@ -852,20 +866,20 @@ export class UI {
           <section>
             <h3>Controls</h3>
             ${isTouch() ? `<dl class="keys">
-              <dt>Tap</dt><dd>Choose and place a tower, select a tower, cast a spell</dd>
-              <dt>Tap ✓</dt><dd>Build the tower you placed (or tap it again)</dd>
+              <dt>Tap open ground</dt><dd>Choose a tower to build there. Tap it once to see its range, again to build</dd>
+              <dt>Tap</dt><dd>Select a tower, cast a spell</dd>
               <dt>Drag</dt><dd>Move the camera</dd>
               <dt>Pinch</dt><dd>Zoom</dd>
               <dt>Twist two fingers</dt><dd>Rotate the camera</dd>
               <dt>Hero portrait</dt><dd>Tap it, then tap the map to send your hero</dd>
               <dt>Touch and hold</dt><dd>See what a tower, spell or enemy does</dd>
             </dl>` : `<dl class="keys">
-              <dt>Left-click</dt><dd>Build, select a tower, cast a spell</dd>
+              <dt>Left-click</dt><dd>Open ground: choose a tower to build there. Also selects towers and casts spells</dd>
               <dt>Right-click</dt><dd>Send the hero / cancel</dd>
               <dt>Right-drag, Q / E</dt><dd>Rotate the camera</dd>
               <dt>Left-drag, WASD</dt><dd>Move the camera</dd>
               <dt>Scroll</dt><dd>Zoom</dd>
-              <dt>1 – 9</dt><dd>Choose a tower (hold Shift to build several)</dd>
+              <dt>1 – 9</dt><dd>Build that tower where the picker is open, or place it anywhere (hold Shift to build several)</dd>
               <dt>Z X C G Y U J</dt><dd>Cast spells</dd>
               <dt>V B N</dt><dd>Hero powers</dd>
               <dt>H</dt><dd>Center on the hero</dd>
@@ -1010,9 +1024,12 @@ export class UI {
         </div>
       </div>
       <div class="vignette" id="h-vignette"></div>
-      <div class="tower-bar" id="h-towers"></div>
+      <div class="build-picker panel hidden" id="h-build" role="dialog" aria-label="Build a tower">
+        <div class="bp-head"><b class="bp-title"></b><span class="bp-text"></span><button class="bp-x" aria-label="Close">${ICONS.close}</button></div>
+        <div class="bp-cards" id="h-towers"></div>
+      </div>
       <div class="lantern-hp" id="h-lantern-hp" role="img" aria-label="Lantern health"><b></b><div class="lantern-hp-bar"><i></i></div></div>
-      <div class="bottom-right panel slim" id="h-spells"><button class="spell-toggle" id="h-spell-toggle" aria-label="Hide spells" aria-expanded="true">${ICONS.spellbook}</button></div>
+      <div class="bottom-right panel slim" id="h-spells"></div>
       <div class="action-bar hidden" id="h-action" role="status">
         <div class="act-body"><b class="act-title"></b><span class="act-text"></span></div>
         <button class="act-ok" data-act="ok"></button>
@@ -1026,16 +1043,17 @@ export class UI {
     const towers = $('#h-towers');
     for (const id of TOWER_ORDER) {
       const def = TOWERS[id];
-      const unlocked = game.isTowerUnlocked(id);
-      // Towers from the tech tree only take up room once they've been bought.
-      if (def.tech && !unlocked) continue;
+      // The picker only offers towers that can be built.
+      if (!game.isTowerUnlocked(id)) continue;
       const b = document.createElement('button');
-      b.className = `tower-card ${unlocked ? '' : 'locked'}`;
+      b.className = 'tower-card';
       b.dataset.tip = 'tower';
       b.dataset.id = id;
       b.setAttribute('aria-label', def.name);
-      b.innerHTML = `<img src="${towerPortrait(id, 0, 0)}" alt=""><kbd>${def.hotkey}</kbd><span class="t-cost">${unlocked ? game.costOf(towerStats(id, 0, 0)) : ''}</span>`;
-      b.onclick = () => unlocked && this.app.pickTower(id);
+      b.innerHTML = `<img src="${towerPortrait(id, 0, 0)}" alt=""><kbd>${def.hotkey}</kbd><span class="t-cost">${game.costOf(towerStats(id, 0, 0))}</span>`;
+      b.onclick = () => this.app.pickTower(id);
+      b.onpointerenter = (e) => e.pointerType === 'mouse' && this.app.hoverTower(id);
+      b.onpointerleave = (e) => e.pointerType === 'mouse' && this.app.hoverTower(null);
       towers.appendChild(b);
       this.cards.set(id, b);
     }
@@ -1055,6 +1073,7 @@ export class UI {
       spells.appendChild(b);
       this.spellBtns.set(id, b);
     }
+    $('.bp-x').onclick = () => this.app.cancelAction();
     $('#h-call').onclick = () => this.app.callWave();
     $('#h-speed').onclick = () => this.app.cycleSpeed();
     $('#h-fit').onclick = () => this.app.fitBattlefield();
@@ -1066,7 +1085,6 @@ export class UI {
       if (act === 'ok') this.app.confirmAction();
       else if (act === 'cancel') this.app.cancelAction();
     };
-    const toggle = $('#h-spell-toggle');
     const waveToggle = $('#h-wave-toggle');
     waveToggle.onclick = () => {
       this.waveCollapsed = waveToggle.parentElement!.classList.toggle('collapsed');
@@ -1076,86 +1094,49 @@ export class UI {
     // On phones the lantern's health bar starts hidden. Tapping the lives counter or the lantern shows or hides it.
     this.hud.classList.remove('lantern-on');
     $('#h-lives').parentElement!.addEventListener('click', () => this.toggleLanternHp());
-    toggle.onclick = () => {
-      const collapsed = spells.classList.toggle('collapsed');
-      toggle.setAttribute('aria-expanded', String(!collapsed));
-      toggle.setAttribute('aria-label', collapsed ? 'Show spells' : 'Hide spells');
-    };
     this.abilityBtns = game.heroDef.abilities.map((_, i) => this.hud.querySelector<HTMLElement>(`#h-ability-${i}`));
     this.abilityBtns.forEach((btn, i) => {
       if (btn) btn.onclick = () => this.app.useAbility(i);
     });
     this.tutorialStep = this.save.data.tutorialDone || game.map.index !== 0 || game.endless ? -1 : 0;
-    // The hero and spell panels change size with unlocks, the spellbook toggle and the screen, so the tower bar follows them.
+    // The panels change size with unlocks and the screen, so the compact layout measures the room they leave.
     this.barObserver?.disconnect();
-    this.barObserver = new ResizeObserver(() => this.layoutTowerBar());
+    this.barObserver = new ResizeObserver(() => this.layoutHud());
     this.barObserver.observe(this.hud);
     for (const sel of ['.bottom-left', '.top-left', '.top-right']) this.barObserver.observe(this.hud.querySelector(sel)!);
     this.barObserver.observe(spells);
-    this.layoutTowerBar();
+    this.layoutHud();
   }
 
   /**
-   * Keeps the tower cards clear of the hero panel and the spells, so a tap always lands on what it shows.
-   * The bar stays centered when it fits. Otherwise it shifts into the gap between the panels, rises above
-   * them (tablets held upright), or, if even that is too narrow, scrolls between them.
+   * Short screens only: fits the wave box between the top corners, and keeps the spells clear of the hero
+   * panel. The spells sit in one row, fold into two when that row would reach the hero, and step above the
+   * hero panel when a tower panel leaves too little room beside it.
    */
-  layoutTowerBar() {
-    const bar = this.hud.querySelector<HTMLElement>('#h-towers');
+  layoutHud() {
     const left = this.hud.querySelector<HTMLElement>('.bottom-left');
     const right = this.hud.querySelector<HTMLElement>('#h-spells');
-    if (!bar || !left || !right) return;
-    delete bar.dataset.fit;
-    bar.classList.remove('tight');
-    this.hud.style.removeProperty('--tb-lift');
-    this.hud.classList.remove('spells-up');
-    if (this.hud.classList.contains('hidden')) return;
+    if (!left || !right) return;
+    this.hud.classList.remove('spells-up', 'spells-fold');
+    if (this.hud.classList.contains('hidden') || !matchMedia(COMPACT_LAYOUT).matches) return;
     const hud = this.hud.getBoundingClientRect();
+    const tl = this.hud.querySelector<HTMLElement>('.top-left')!.getBoundingClientRect();
+    const tr = this.hud.querySelector<HTMLElement>('.top-right')!.getBoundingClientRect();
+    const set = (name: string, px: number) => this.hud.style.setProperty(name, `${Math.ceil(px)}px`);
+    set('--tl-x', tl.right - hud.left);
+    set('--tr-x', hud.right - tr.left);
     const l = left.getBoundingClientRect();
-    const r = right.getBoundingClientRect();
-    if (matchMedia(COMPACT_LAYOUT).matches) {
-      // Short screens keep everything on one row each. The panels' sizes depend on unlocks, gold and
-      // the spellbook toggle, so the bar and the wave box fit the room the panels actually leave.
-      const tl = this.hud.querySelector<HTMLElement>('.top-left')!.getBoundingClientRect();
-      const tr = this.hud.querySelector<HTMLElement>('.top-right')!.getBoundingClientRect();
-      const set = (name: string, px: number) => this.hud.style.setProperty(name, `${Math.ceil(px)}px`);
-      set('--bl-x', l.right - hud.left);
-      set('--br-x', hud.right - r.left);
-      set('--tl-x', tl.right - hud.left);
-      set('--tr-x', hud.right - tr.left);
+    let r = right.getBoundingClientRect();
+    set('--bl-h', hud.bottom - l.top);
+    if (this.hud.classList.contains('panel-open')) {
       // With a tower panel open the spells sit beside it, unless that would put them over the hero panel.
-      if (this.hud.classList.contains('panel-open') && r.left < l.right + TOWER_BAR_GAP) {
-        set('--bl-h', hud.bottom - l.top);
-        this.hud.classList.add('spells-up');
-      }
-      return;
+      if (r.left < l.right + HUD_GAP) this.hud.classList.add('spells-up');
+    } else if (r.left < l.right + HUD_GAP) {
+      this.hud.classList.add('spells-fold');
+      r = right.getBoundingClientRect();
+      if (r.left < l.right + HUD_GAP) this.hud.classList.add('spells-up');
     }
-    const b = bar.getBoundingClientRect();
-    const minX = l.right - hud.left + TOWER_BAR_GAP;
-    const maxX = r.left - hud.left - TOWER_BAR_GAP;
-    const width = b.width;
-    const x = b.left - hud.left;
-    if (x >= minX && x + width <= maxX) return;
-    // Closing up the gaps between cards is often all it takes to fit between the panels.
-    const gaps = Math.max(0, bar.children.length - 1) * (parseFloat(getComputedStyle(bar).columnGap) - TOWER_BAR_TIGHT_GAP);
-    const tight = width - Math.max(0, gaps);
-    if (tight <= maxX - minX) {
-      bar.dataset.fit = 'shift';
-      if (width > maxX - minX) bar.classList.add('tight');
-      const w = width > maxX - minX ? tight : width;
-      bar.style.setProperty('--tb-x', `${Math.round(minX + (maxX - minX - w) / 2)}px`);
-      return;
-    }
-    if (width <= hud.width - 2 * TOWER_BAR_EDGE) {
-      const lift = Math.ceil(hud.bottom - Math.min(l.top, r.top) + TOWER_BAR_GAP);
-      bar.dataset.fit = 'raise';
-      bar.style.setProperty('--tb-bottom', `${lift}px`);
-      this.hud.style.setProperty('--tb-lift', `${lift - (hud.bottom - b.bottom)}px`);
-      return;
-    }
-    bar.dataset.fit = 'scroll';
-    bar.style.setProperty('--tb-x', `${Math.round(minX)}px`);
-    bar.style.setProperty('--tb-r', `${Math.round(hud.width - maxX)}px`);
+    set('--br-x', hud.right - right.getBoundingClientRect().left);
   }
 
   hideHud() {
@@ -1253,14 +1234,14 @@ export class UI {
       return;
     }
     const touchSteps: [string, () => boolean][] = [
-      ["<b>Build a tower.</b> Tap the Archer's Roost below, tap open ground beside the road, then tap ✓ to build it.", () => game.towers.length >= 1],
+      ["<b>Build a tower.</b> Tap open ground beside the road, tap the Archer's Roost, then tap it again to build.", () => game.towers.length >= 1],
       ['<b>Build another, then start the fight.</b> Try the Arcane Spire, then tap <b>Start wave 1</b> at the top.', () => game.wave >= 1],
       ["<b>Send your hero.</b> Tap your hero's portrait, then tap the road. Your hero stops enemies and fights them, and also strengthens nearby towers.", () => heroOrdered],
       ['<b>Upgrade.</b> Tap any tower to open its panel. After level 2, each tower can specialize in one of two forms.', () => upgraded],
       ['<b>Use your spells.</b> Tap Starfall, then tap a crowded stretch of road. Touch and hold anything to see what it does.', () => game.spellCd.starfall > 5],
     ];
     const mouseSteps: [string, () => boolean][] = [
-      ["<b>Build a tower.</b> Press <kbd>1</kbd> for the Archer's Roost, then click open ground beside the road.", () => game.towers.length >= 1],
+      ["<b>Build a tower.</b> Click open ground beside the road, then choose the Archer's Roost.", () => game.towers.length >= 1],
       ['<b>Build another, then start the fight.</b> Try the Arcane Spire <kbd>2</kbd>, then press <kbd>Space</kbd> to call the first wave.', () => game.wave >= 1],
       ['<b>Send your hero.</b> Right-click the road. Your hero stops enemies and fights them, and also strengthens nearby towers.', () => heroOrdered],
       ['<b>Upgrade.</b> Click any tower to open its panel. After level 2, each tower can specialize in one of two forms.', () => upgraded],
@@ -1293,7 +1274,7 @@ export class UI {
     }
   }
 
-  update(game: Game, ctx: { selected: Tower | null; speed: number; buildType: TowerId | null; spell: SpellId | null; heroOrdered: boolean; upgraded: boolean; heroMode: boolean; action: ActionBar | null }) {
+  update(game: Game, ctx: { selected: Tower | null; speed: number; buildType: TowerId | null; spell: SpellId | null; heroOrdered: boolean; upgraded: boolean; heroMode: boolean; action: ActionBar | null; picker: BuildPicker | null }) {
     const c = this.cache;
     const hudRoot = this.hud;
     if (!hudRoot.firstChild) return;
@@ -1334,12 +1315,7 @@ export class UI {
         : '<span class="dim">Clear the road to win</span>';
     }
 
-    for (const [id, card] of this.cards) {
-      if (card.classList.contains('locked')) continue;
-      const afford = game.gold >= game.costOf(towerStats(id, 0, 0));
-      card.classList.toggle('poor', !afford);
-      card.classList.toggle('active', ctx.buildType === id);
-    }
+    this.updatePicker(game, ctx.picker);
     const setCd = (el: HTMLElement, frac: number, label: string) => {
       const cd = el.querySelector('.cd') as HTMLElement;
       const v = frac.toFixed(3);
@@ -1379,6 +1355,69 @@ export class UI {
     this.updateCoach(game, ctx.heroOrdered, ctx.upgraded);
   }
 
+  private pickerOpen = false;
+  /** Shows the tower picker beside its build site, above it when there's room and below it otherwise. */
+  private updatePicker(game: Game, p: BuildPicker | null) {
+    const el = $('#h-build');
+    if (!p) {
+      if (this.pickerOpen) {
+        this.pickerOpen = false;
+        el.classList.add('hidden');
+      }
+      return;
+    }
+    if (!this.pickerOpen) {
+      this.pickerOpen = true;
+      el.classList.remove('hidden');
+      // Restart the pop-in animation for each new site.
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    }
+    for (const [id, card] of this.cards) {
+      const blocked = p.blocked.includes(id);
+      card.classList.toggle('poor', game.gold < game.costOf(towerStats(id, 0, 0)));
+      card.classList.toggle('blocked', blocked);
+      card.classList.toggle('active', p.armed === id);
+    }
+    this.cache.set($('.bp-title', el), p.title);
+    const text = $('.bp-text', el);
+    this.cache.set(text, p.text);
+    text.classList.toggle('bad', p.bad);
+    const hud = this.hud.getBoundingClientRect();
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const edge = 8;
+    const top = this.hud.querySelector<HTMLElement>('.top-center')!.getBoundingClientRect().bottom - hud.top + edge;
+    const x = p.x - hud.left, y = p.y - hud.top;
+    const bottom = Math.min(...['.bottom-left', '#h-spells'].map((sel) => this.hud.querySelector<HTMLElement>(sel)!.getBoundingClientRect().top - hud.top)) - edge;
+    // The top-left panel sits just inside the notch, so its top edge is the highest the picker may go.
+    const screenTop = this.hud.querySelector<HTMLElement>('.top-left')!.getBoundingClientRect().top - hud.top;
+    // It never covers the site. In order: above the site under the top bar, below it above the bottom panels,
+    // and on the shortest screens above it over the wave box. The picker only stays open until it's used.
+    let py = y - 26 - h;
+    let below = false;
+    if (py >= top) { /* Above, with room to spare. */ }
+    else if (y - 10 - h >= top) py = y - 10 - h;
+    else if (y + 26 + h <= bottom) {
+      py = y + 26;
+      below = true;
+    } else if (y - 10 - h >= screenTop) py = y - 10 - h;
+    else {
+      py = y + 26;
+      below = true;
+    }
+    py = Math.max(screenTop, Math.min(hud.height - h - edge, py));
+    const px = Math.max(edge, Math.min(hud.width - w - edge, x - w / 2));
+    const key = `${Math.round(px)},${Math.round(py)},${below}`;
+    if (el.dataset.at !== key) {
+      el.dataset.at = key;
+      el.style.left = `${Math.round(px)}px`;
+      el.style.top = `${Math.round(py)}px`;
+      el.classList.toggle('below', below);
+      el.style.setProperty('--tip-x', `${Math.round(Math.max(16, Math.min(w - 16, x - px)))}px`);
+    }
+  }
+
   private lastActionKey = '';
   private updateActionBar(a: ActionBar | null) {
     const bar = $('#h-action');
@@ -1406,7 +1445,7 @@ export class UI {
         panel.classList.add('hidden');
         this.lastTowerPanelKey = '';
         this.hud.classList.remove('panel-open');
-        this.layoutTowerBar();
+        this.layoutHud();
       }
       return;
     }
@@ -1451,7 +1490,7 @@ export class UI {
       if (!this.hud.classList.contains('panel-open')) {
         // On short screens the spells step aside for the panel instead of hiding under it.
         this.hud.classList.add('panel-open');
-        this.layoutTowerBar();
+        this.layoutHud();
       }
       panel.onclick = (e) => {
         const el = e.target as HTMLElement;

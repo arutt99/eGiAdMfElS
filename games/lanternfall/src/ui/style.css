@@ -397,30 +397,35 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .skill.locked { filter: grayscale(1) brightness(0.45); cursor: not-allowed; }
 .cd { position: absolute; inset: 0; display: grid; place-items: center; font: 900 18px var(--display); color: #fff; text-shadow: 0 1px 4px #000; pointer-events: none; background: conic-gradient(rgba(10, 4, 18, 0.74) var(--cd, 0deg), transparent 0); }
 .small .cd { font-size: 14px; }
-.bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 256px; }
+.bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: calc(100% - 360px); }
 
-.tower-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
-/* Set by UI.layoutTowerBar when the centered bar would run under the hero or spell panel. */
-.tower-bar[data-fit='shift'] { left: var(--tb-x); transform: none; }
-.tower-bar.tight { gap: 4px; }
-.tower-bar[data-fit='raise'] { bottom: var(--tb-bottom) !important; }
-.tower-bar[data-fit='scroll'] { left: var(--tb-x); right: var(--tb-r); transform: none; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
-.tower-bar[data-fit='scroll']::-webkit-scrollbar { display: none; }
-.tower-bar[data-fit='scroll'] > * { flex: none; }
-.tower-bar[data-fit='scroll'] > :first-child { margin-left: auto; }
-.tower-bar[data-fit='scroll'] > :last-child { margin-right: auto; }
+/* The tower picker floats beside the spot the player tapped, with a small arrow pointing at it. UI.updatePicker places it. */
+.build-picker { position: absolute; left: 0; top: 0; z-index: 3; display: flex; flex-direction: column; gap: 7px; padding: 8px 10px 10px; max-width: calc(100% - 16px); border-color: var(--line-2); animation: pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.build-picker::after { content: ''; position: absolute; left: var(--tip-x, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -7px; background: var(--panel); border: solid var(--line-2); border-width: 0 1px 1px 0; transform: rotate(45deg); }
+.build-picker.below::after { bottom: auto; top: -7px; transform: rotate(225deg); }
+/* The caption takes the width the cards give it, so a long message never widens the picker. */
+.bp-head { position: relative; width: 0; min-width: 100%; display: flex; align-items: baseline; gap: 8px; padding-right: 30px; }
+.bp-title { flex: none; font: 600 16px/1.2 var(--display); color: var(--gold-hi); white-space: nowrap; }
+.bp-text { min-width: 0; font-size: 13.5px; color: var(--cream-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-text.bad { color: #ffb3a8; }
+.bp-x { position: absolute; top: -5px; right: -6px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--cream-dim); }
+.bp-x:hover { color: var(--cream); background: rgba(255, 255, 255, 0.07); }
+.bp-x svg { width: 16px; height: 16px; }
+.touch .bp-x { width: 40px; height: 40px; top: -10px; right: -9px; }
+.bp-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+.build-picker .tower-card { flex: none; width: 66px; }
 .tower-card { position: relative; width: clamp(56px, 5.5vw, 88px); aspect-ratio: 1 / 1.15; border-radius: 13px; background: linear-gradient(180deg, rgba(60, 43, 74, 0.94), rgba(27, 18, 36, 0.96)); border: 1.5px solid var(--line-2); box-shadow: var(--shadow); transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.15s, filter 0.15s; overflow: hidden; }
 .tower-card img { position: absolute; left: 0; right: 0; top: 2%; width: 100%; height: 76%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55)); }
 .tower-card kbd { position: absolute; top: 5px; left: 5px; z-index: 2; }
 .t-cost { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font: 900 16px var(--display); color: var(--gold-hi); font-variant-numeric: tabular-nums; }
-.tower-card:hover:not(.locked) { transform: translateY(-5px); border-color: var(--gold-hi); }
+.tower-card:hover { transform: translateY(-5px); border-color: var(--gold-hi); }
 .tower-card.active { transform: translateY(-7px); border-color: var(--gold-hi); box-shadow: 0 0 0 2px var(--gold-hi), 0 0 26px rgba(255, 200, 90, 0.55); }
 .tower-card.poor .t-cost { color: var(--danger); }
 .tower-card.poor img { filter: saturate(0.4) brightness(0.72); }
-.tower-card.locked { cursor: not-allowed; }
-.tower-card.locked img { filter: brightness(0) opacity(0.5); }
+.tower-card.blocked img { filter: grayscale(1) brightness(0.55); }
+.tower-card.blocked .t-cost { color: var(--cream-dim); }
 
-.tower-panel { position: absolute; top: 72px; right: 14px; bottom: calc(96px + var(--tb-lift, 0px)); width: 322px; padding: 14px 15px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both; scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; max-height: calc(100vh - 170px); height: fit-content; }
+.tower-panel { position: absolute; top: 72px; right: 14px; bottom: calc(96px); width: 322px; padding: 14px 15px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both; scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; max-height: calc(100vh - 170px); height: fit-content; }
 .tower-panel header { display: flex; gap: 10px; align-items: center; }
 .tower-panel header img { width: 66px; height: 66px; object-fit: contain; flex: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5)); }
 .tower-panel header > div { flex: 1; }
@@ -493,7 +498,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 @keyframes foeOut { to { opacity: 0; transform: translateX(-16px); } }
 @keyframes foePing { to { box-shadow: 0 0 0 9px rgba(255, 106, 90, 0); } }
 
-.hint-line { position: absolute; left: 50%; bottom: calc(124px + var(--tb-lift, 0px)); transform: translateX(-50%); padding: 5px 13px; border-radius: 99px; background: rgba(27, 18, 36, 0.86); font-weight: 700; font-size: 15px; }
+.hint-line { position: absolute; left: 50%; bottom: calc(124px); transform: translateX(-50%); padding: 5px 13px; border-radius: 99px; background: rgba(27, 18, 36, 0.86); font-weight: 700; font-size: 15px; }
 .hint-line.bad { color: #ffb3a8; }
 
 #tooltip { position: fixed; top: 0; left: 0; width: 268px; padding: 10px 12px; border-radius: 11px; background: rgba(20, 12, 28, 0.97); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 30; pointer-events: none; }
@@ -553,7 +558,6 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 }
 
 @media (max-width: 1180px) {
-  .tower-card { width: 47px; }
   .mini-bar { width: 90px; }
   .wave-box { min-width: 0; }
   .up-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
@@ -564,7 +568,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .map-info h2 { font-size: 34px; }
   .story { margin: 8px 0; font-size: 15px; }
   .map-card { height: 76px; }
-  .tower-panel { bottom: calc(90px + var(--tb-lift, 0px)); top: 64px; max-height: calc(100vh - 152px); }
+  .tower-panel { bottom: calc(90px); top: 64px; max-height: calc(100vh - 152px); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01s !important; transition-duration: 0.01s !important; }
@@ -579,7 +583,6 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .top-right { top: calc(14px + var(--st)); right: calc(14px + var(--sr)); }
 .bottom-left { left: calc(14px + var(--sl)); bottom: calc(14px + var(--sb)); }
 .bottom-right { right: calc(14px + var(--sr)); bottom: calc(14px + var(--sb)); }
-.tower-bar { bottom: calc(14px + var(--sb)); }
 .tower-panel { right: calc(14px + var(--sr)); }
 .foe-alerts { left: calc(14px + var(--sl)); }
 .back { left: calc(26px + var(--sl)); }
@@ -591,14 +594,12 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .home-link:hover { background: var(--ink-3); }
 .home-link svg { width: 18px; height: 18px; }
 
-/* Spells fold away on small screens. The toggle only shows there. */
-.spell-toggle { display: none; }
 .wave-toggle, #h-wave-short, #h-call-short { display: none; }
 .hero-portrait.active { border-color: var(--gold-hi); box-shadow: 0 0 0 2px var(--gold-hi), 0 0 18px rgba(255, 200, 90, 0.6); animation: heroCall 1.1s ease-in-out infinite; }
 @keyframes heroCall { 50% { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 6px rgba(255, 200, 90, 0.25); } }
 
 /* The bar that explains what a tap will do, with build and cancel buttons. Touch only. */
-.action-bar { position: absolute; left: 50%; bottom: calc(126px + var(--sb) + var(--tb-lift, 0px)); transform: translateX(-50%); display: none; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100% - 28px)); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.action-bar { position: absolute; left: 50%; bottom: calc(126px + var(--sb)); transform: translateX(-50%); display: none; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100% - 28px)); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .touch .action-bar { display: flex; }
 .touch .action-bar.hidden { display: none !important; }
 .act-body { display: flex; flex-direction: column; min-width: 0; }
@@ -610,15 +611,15 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .act-ok:disabled { opacity: 0.4; filter: saturate(0.3); }
 .act-x { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line-2); }
 .act-x svg { width: 20px; height: 20px; }
-.touch #hud.acting .hint-line { bottom: calc(186px + var(--sb) + var(--tb-lift, 0px)); }
+.touch #hud.acting .hint-line { bottom: calc(186px + var(--sb)); }
 
 /* Touch has no keyboard, hover or right-click, so drop their hints and give fingers room. */
 .touch kbd { display: none !important; }
 .touch .close { top: 2px; right: 4px; padding: 8px 10px; font-size: 27px; }
 .touch .seg button { padding: 8px 2px; }
-.touch .tower-card:active:not(.locked), .touch .skill:active:not(.locked), .touch .icon-btn:active, .touch .act-ok:active:not(:disabled), .touch .act-x:active { transform: scale(0.93); }
+.touch .tower-card:active, .touch .skill:active:not(.locked), .touch .icon-btn:active, .touch .act-ok:active:not(:disabled), .touch .act-x:active { transform: scale(0.93); }
 @media (hover: none) {
-  .nav-btn:hover:not(:disabled), .play-btn:hover, .tower-card:hover:not(.locked), .skill:hover:not(.locked), .map-card:hover:not(:disabled), .node.buyable:hover, .up-card:hover, .up-row:hover:not(:disabled), .wave-btn:hover:not(:disabled) { transform: none; }
+  .nav-btn:hover:not(:disabled), .play-btn:hover, .tower-card:hover, .skill:hover:not(.locked), .map-card:hover:not(:disabled), .node.buyable:hover, .up-card:hover, .up-row:hover:not(:disabled), .wave-btn:hover:not(:disabled) { transform: none; }
   .tower-card.active { transform: translateY(-5px); }
   .map-card.on { transform: translateY(-5px); }
 }
@@ -637,7 +638,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 
 /* ---------- Compact layout: phones in landscape and other short screens ---------- */
 @media (max-height: 540px) {
-  :root { --gap: 8px; --hero-w: 146px; --spells-w: 90px; }
+  :root { --gap: 8px; }
 
   /* HUD, top row */
   .top-left { top: calc(6px + var(--st)); left: calc(var(--gap) + var(--sl)); gap: 12px; padding: 5px 10px; }
@@ -645,7 +646,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .res b { font-size: 19px; }
   .res .ic { font-size: 18px; }
   .life-bar { display: none; }
-  /* The --*-x edges are measured by UI.layoutTowerBar; the fallbacks fit a fresh battle. */
+  /* The --*-x edges are measured by UI.layoutHud; the fallbacks fit a fresh battle. */
   .top-center { top: calc(6px + var(--st)); left: calc(var(--tl-x, calc(var(--sl) + 170px)) + 8px); right: calc(var(--tr-x, calc(var(--sr) + 92px)) + 8px); transform: none; gap: 5px; }
   /* Wave box: a fold button, the wave details, and the call button. Folded, it is one short line. */
   .wave-box { grid-template-columns: auto minmax(0, auto) auto; max-width: 100%; padding: 3px 5px 3px 3px; column-gap: 7px; row-gap: 0; border-radius: 12px; }
@@ -675,55 +676,46 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .icon-btn { width: 42px; height: 42px; border-radius: 11px; }
   .icon-btn svg { width: 19px; height: 19px; }
 
-  /* HUD, bottom row: hero on the left, towers in the middle, spells on the right */
-  .bottom-left { left: calc(var(--gap) + var(--sl)); bottom: calc(var(--gap) + var(--sb)); gap: 6px; padding: 4px 6px 4px 4px; border-radius: 12px; }
+  /* HUD, bottom row: the hero on the left and the spells on the right, both one row as tall as a tower card.
+     The middle stays clear for the map; towers are chosen from the picker that opens where you tap. */
+  .bottom-left { left: calc(var(--gap) + var(--sl)); bottom: calc(var(--gap) + var(--sb)); gap: 6px; padding: 5px 6px 5px 5px; border-radius: 12px; }
   .hero-portrait { width: 44px; height: 44px; border-radius: 9px; }
   .lvl { left: 2px; bottom: 2px; font-size: 11px; min-width: 15px; padding: 0 3px; border-radius: 5px; }
   .respawn { font-size: 19px; }
   .hero-name { display: none; }
-  .hero-side { gap: 2px; }
-  .mini-bar { width: 80px; height: 5px; }
+  /* Health and experience stack beside the portrait, with the hero powers to their right. */
+  .hero-side { display: grid; grid-template-columns: auto auto; grid-template-rows: 1fr 1fr; column-gap: 6px; row-gap: 3px; align-items: center; }
+  .hero-side .mini-bar.hp { grid-area: 1 / 1; align-self: end; }
+  .hero-side .mini-bar.xp { grid-area: 2 / 1; align-self: start; }
+  .mini-bar { width: 56px; height: 5px; }
   .mini-bar.xp { height: 3px; }
-  .abilities { gap: 4px; margin-top: 2px; }
-  .skill.small { width: 30px; height: 30px; padding: 4px; border-radius: 8px; }
-  .small .cd { font-size: 12px; }
+  .abilities { grid-column: 2; grid-row: 1 / span 2; gap: 4px; margin-top: 0; }
+  .skill.small { width: 36px; height: 36px; padding: 5px; border-radius: 9px; }
+  .small .cd { font-size: 13px; }
   /* Fingers need about 44px: hero powers and spells grow to that on touch. */
   .touch .skill.small { width: 44px; height: 44px; padding: 6px; border-radius: 10px; }
   .touch .small .cd { font-size: 15px; }
-  .touch .abilities { gap: 5px; margin-top: 3px; }
+  .touch .abilities { gap: 5px; }
 
-  .bottom-right { right: calc(var(--gap) + var(--sr)); bottom: calc(var(--gap) + var(--sb)); display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; max-width: none; padding: 5px; }
+  .bottom-right { right: calc(var(--gap) + var(--sr)); bottom: calc(var(--gap) + var(--sb)); display: grid; grid-auto-flow: column; grid-template-rows: auto; gap: 5px; max-width: none; padding: 5px; border-radius: 12px; }
   .bottom-right .skill { width: 36px; height: 36px; padding: 5px; border-radius: 9px; }
   .bottom-right .cd { font-size: 13px; }
-  .spell-toggle { grid-column: 1 / -1; display: grid; place-items: center; height: 24px; border-radius: 7px; color: var(--gold-hi); background: rgba(255, 255, 255, 0.05); }
-  .spell-toggle svg { width: 16px; height: 16px; fill: currentColor; }
-  .bottom-right.collapsed { grid-template-columns: 36px; }
-  .bottom-right.collapsed .skill { display: none; }
-  .bottom-right.collapsed .spell-toggle { height: 36px; }
-  .touch .bottom-right { grid-template-columns: repeat(2, 44px); gap: 6px; }
+  .touch .bottom-right { gap: 6px; }
   .touch .bottom-right .skill { width: 44px; height: 44px; padding: 6px; border-radius: 10px; }
   .touch .bottom-right .cd { font-size: 15px; }
-  .touch .spell-toggle { height: 30px; }
-  .touch .bottom-right.collapsed { grid-template-columns: 44px; }
-  .touch .bottom-right.collapsed .spell-toggle { height: 44px; }
+  /* Too little room for one row beside the hero (small phones): the spells fold into two. */
+  #hud.spells-fold .bottom-right { grid-template-rows: repeat(2, auto); }
   /* With a tower selected the spells step left of its panel as a two-row strip, so emergency spells stay in
-     reach beside the upgrades. The tower cards make way until the panel closes. */
-  #hud.panel-open .bottom-right { right: calc(var(--gap) + var(--sr) + var(--panel-w) + 6px); grid-template-columns: 24px repeat(4, 36px); padding: 5px; }
-  /* Too narrow for the strip beside the hero (small phones): it sits above the hero panel instead. */
-  #hud.panel-open.spells-up .bottom-right { right: auto; left: calc(var(--gap) + var(--sl)); bottom: calc(var(--bl-h, 80px) + 6px); }
-  #hud.panel-open .spell-toggle { grid-column: 1; grid-row: 1 / span 2; height: auto; }
-  #hud.panel-open .bottom-right.collapsed { grid-template-columns: 36px; }
-  #hud.panel-open .bottom-right.collapsed .spell-toggle { grid-row: 1; height: 36px; }
-  .touch #hud.panel-open .bottom-right { grid-template-columns: 26px repeat(4, 44px); gap: 5px; }
-  .touch #hud.panel-open .bottom-right.collapsed { grid-template-columns: 44px; }
-  .touch #hud.panel-open .bottom-right.collapsed .spell-toggle { height: 44px; }
-  #hud.panel-open .tower-bar { visibility: hidden; }
+     reach beside the upgrades. */
+  #hud.panel-open .bottom-right { right: calc(var(--gap) + var(--sr) + var(--panel-w) + 6px); grid-template-rows: repeat(2, auto); }
+  /* Still too narrow: the spells sit above the hero panel instead. */
+  #hud.spells-up .bottom-right { right: auto; left: calc(var(--gap) + var(--sl)); bottom: calc(var(--bl-h, 64px) + 6px); }
 
-  .tower-bar { left: calc(var(--bl-x, calc(var(--sl) + var(--gap) + var(--hero-w))) + 6px); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 6px); bottom: calc(var(--gap) + var(--sb) - 8px); transform: none; gap: 5px; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
-  .tower-bar::-webkit-scrollbar { display: none; }
-  .tower-bar > :first-child { margin-left: auto; }
-  .tower-bar > :last-child { margin-right: auto; }
-  .tower-card { flex: none; width: 46px; border-radius: 10px; }
+  .build-picker { gap: 5px; padding: 6px 7px 7px; border-radius: 12px; }
+  .bp-title { font-size: 14.5px; }
+  .bp-text { font-size: 12.5px; }
+  .bp-cards { gap: 5px; }
+  .build-picker .tower-card { width: 48px; border-radius: 10px; }
   .t-cost { font-size: 13px; bottom: 2px; }
 
   /* The tower panel docks along the right edge, beside the spells. It shows what a decision needs (the
@@ -778,7 +770,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .banner h2 { font-size: 40px; }
   .banner p { font-size: 16px; }
   .hint-line { bottom: calc(80px + var(--sb)); font-size: 13.5px; padding: 4px 12px; }
-  .action-bar { left: calc(var(--sl) + var(--gap)); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 8px); bottom: calc(76px + var(--sb)); transform: none; width: fit-content; max-width: none; margin: 0 auto; padding: 5px 5px 5px 12px; }
+  .action-bar { left: calc(var(--sl) + var(--gap)); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + 60px)) + 8px); bottom: calc(70px + var(--sb)); transform: none; width: fit-content; max-width: none; margin: 0 auto; padding: 5px 5px 5px 12px; }
   .act-title { font-size: 14.5px; }
   .act-text { font-size: 13px; }
   .act-ok { height: 40px; min-width: 76px; font-size: 15px; }

@@ -19,7 +19,7 @@ import { applyArtStyle, artStylePending } from './render/style';
 import { Game, TARGET_MODES, type BattleSnapshot, type Tower } from './sim/game';
 import { World, type RoadPath } from './sim/world';
 import { buzz, isTouch } from './ui/touch';
-import { UI, type ActionBar, type AppActions } from './ui/ui';
+import { UI, type ActionBar, type AppActions, type BuildPicker } from './ui/ui';
 
 const FIXED_DT = 1 / 60;
 /** Milliseconds between a battle ending and its results appearing, so the final moment can play out. */
@@ -89,6 +89,10 @@ class App implements AppActions {
    * the player confirms it; a spell target only shows while a finger rests on the map.
    */
   private aim: { x: number; z: number } | null = null;
+  /** The open ground the player tapped or clicked to build on. The tower picker floats beside it. */
+  private site: { x: number; z: number } | null = null;
+  /** Mouse only: the picker card under the pointer, previewed at the build site. */
+  private hoverType: TowerId | null = null;
 
   private pointer = { x: 0, y: 0, inside: false, drag: 0 as 0 | 1 | 2 | 3, sx: 0, sy: 0, moved: false, lx: 0, ly: 0 };
   /** Fingers currently on the map, and the two-finger gesture they make. */
@@ -244,6 +248,7 @@ class App implements AppActions {
       this.view.onIncome = (amount) => this.ui.incomePop(amount);
       this.view.onBoss = () => this.ui.alarm();
       this.view.onBossDown = () => this.slowTime(0.3, 1.2);
+      this.closeSite();
       this.buildType = null;
       this.spell = null;
       this.selected = null;
@@ -319,6 +324,7 @@ class App implements AppActions {
     this.view = null;
     this.game = null;
     this.selected = null;
+    this.closeSite();
     this.buildType = null;
     this.spell = null;
     this.heroMode = false;
@@ -397,12 +403,75 @@ class App implements AppActions {
   pickTower(t: TowerId) {
     if (!this.game || this.paused) return;
     if (!this.game.isTowerUnlocked(t)) return;
+    if (this.site) {
+      this.buildAtSite(t);
+      return;
+    }
     this.spell = null;
     this.selected = null;
     this.heroMode = false;
     this.aim = null;
     this.buildType = this.buildType === t ? null : t;
     audio.play('click');
+  }
+
+  /**
+   * A card in the tower picker. A mouse click builds at once. On touch the first tap previews the
+   * tower and its range at the site, and a second tap on the same card (or on the preview) builds it.
+   */
+  private buildAtSite(t: TowerId) {
+    const g = this.game!;
+    const site = this.site!;
+    if (isTouch() && this.buildType !== t) {
+      this.buildType = t;
+      this.aim = { x: site.x, z: site.z };
+      audio.play('click');
+      buzz(6);
+      return;
+    }
+    const problem = g.canBuild(t, site.x, site.z);
+    if (problem) {
+      audio.play('error');
+      this.flashHint(problem);
+      return;
+    }
+    if (g.build(t, site.x, site.z)) {
+      // Building leaves the new tower unselected; tapping it opens its panel.
+      this.closeSite();
+      this.selected = null;
+      buzz(14);
+    }
+  }
+
+  /** Mouse only: previews the picker card under the pointer at the build site. */
+  hoverTower(t: TowerId | null) {
+    this.hoverType = t;
+  }
+
+  /** Opens the tower picker on open ground, or explains why a tower can't go there. */
+  private openSite(hit: { x: number; z: number }) {
+    const g = this.game!;
+    const x = this.snap(hit.x), z = this.snap(hit.z);
+    const problem = g.placementProblem(x, z);
+    if (problem) {
+      this.flashHint(problem, false);
+      return;
+    }
+    this.site = { x, z };
+    this.buildType = null;
+    this.aim = null;
+    this.selected = null;
+    audio.play('click');
+    buzz(6);
+  }
+
+  /** Closes the tower picker and drops whatever it was previewing. */
+  closeSite() {
+    if (!this.site) return;
+    this.site = null;
+    this.hoverType = null;
+    this.buildType = null;
+    this.aim = null;
   }
 
   pickSpell(id: SpellId) {
@@ -417,6 +486,7 @@ class App implements AppActions {
       this.spell = null;
       return;
     }
+    this.closeSite();
     this.buildType = null;
     this.selected = null;
     this.heroMode = false;
@@ -714,6 +784,17 @@ class App implements AppActions {
       if (hit) this.orderHeroAt(hit);
       return;
     }
+    if (this.site) {
+      // A second tap on the previewed tower builds it. Any other tap closes the picker.
+      if (this.buildType && hit && Math.hypot(hit.x - this.site.x, hit.z - this.site.z) <= CONFIRM_RADIUS) {
+        this.confirmAction();
+        return;
+      }
+      this.closeSite();
+      this.selected = this.towerUnderPointer();
+      if (this.selected) audio.play('click');
+      return;
+    }
     if (this.buildType) {
       if (!hit) return;
       const x = this.snap(hit.x), z = this.snap(hit.z);
@@ -734,9 +815,19 @@ class App implements AppActions {
       } else audio.play('error');
       return;
     }
+    this.selectOrOpenSite(hit);
+  }
+
+  /**
+   * A tap or click with nothing armed: select the tower there, or open the tower picker on open ground.
+   * With a tower panel already open it only closes the panel, so a tap away never builds by surprise.
+   */
+  private selectOrOpenSite(hit: { x: number; z: number } | null) {
+    const had = this.selected;
     this.selected = this.towerUnderPointer();
     if (this.selected) audio.play('click');
     else if (this.pointerOnLantern()) this.ui.toggleLanternHp();
+    else if (!had && hit) this.openSite(hit);
   }
 
   // ---------- Touch action bar ----------
@@ -756,6 +847,7 @@ class App implements AppActions {
     const built = g.build(type, at.x, at.z);
     if (built) {
       // Building leaves the new tower unselected; tapping it opens its panel.
+      this.closeSite();
       this.buildType = null;
       this.aim = null;
       this.selected = null;
@@ -765,6 +857,7 @@ class App implements AppActions {
 
   /** Leaves build, spell or hero mode. */
   cancelAction() {
+    this.closeSite();
     this.buildType = null;
     this.spell = null;
     this.heroMode = false;
@@ -784,6 +877,7 @@ class App implements AppActions {
       this.flashHint(`Your hero returns in ${Math.ceil(g.heroRespawnT)}s`);
       return;
     }
+    this.closeSite();
     this.buildType = null;
     this.spell = null;
     this.aim = null;
@@ -792,11 +886,29 @@ class App implements AppActions {
     audio.play('click');
   }
 
+  /** Where the tower picker sits on screen and what its caption says, or null when it is closed. */
+  private picker(): BuildPicker | null {
+    const g = this.game;
+    const site = this.site;
+    if (!g || !site || this.finished || this.paused) return null;
+    const p = this.project(site.x, g.world.height(site.x, site.z) + 0.3, site.z);
+    const touch = isTouch();
+    const blocked = TOWER_ORDER.filter((id) => g.isTowerUnlocked(id) && g.placementProblem(site.x, site.z, id));
+    const type = this.buildType ?? this.hoverType;
+    if (!type) return { x: p.x, y: p.y, title: 'Build here', text: touch ? 'Tap a tower to see its range' : 'Choose a tower', bad: false, blocked, armed: null };
+    const s = towerStats(type, 0, 0);
+    const problem = g.canBuild(type, site.x, site.z);
+    const text = problem ?? (touch ? `Tap again to build for ${g.costOf(s)} gold` : `Click to build for ${g.costOf(s)} gold`);
+    return { x: p.x, y: p.y, title: s.name, text, bad: !!problem, blocked, armed: this.buildType };
+  }
+
   /** What the touch action bar should say, or null to hide it. */
   private actionBar(): ActionBar | null {
     const g = this.game;
     if (!g || this.finished) return null;
     if (this.heroMode) return { kind: 'hero', title: g.heroDef.name, text: 'Tap the map to send your hero there', confirm: null };
+    // The tower picker carries its own caption.
+    if (this.site) return null;
     if (this.buildType) {
       const s = towerStats(this.buildType, 0, 0);
       const cost = g.costOf(s);
@@ -827,7 +939,8 @@ class App implements AppActions {
     if (e.code === 'Escape' || e.code === 'KeyP') {
       e.preventDefault();
       if (e.repeat) return;
-      if (e.code === 'Escape' && (this.buildType || this.spell)) {
+      if (e.code === 'Escape' && (this.buildType || this.spell || this.site)) {
+        this.closeSite();
         this.buildType = null;
         this.spell = null;
       } else if (e.code === 'Escape' && this.selected && !this.paused) {
@@ -935,6 +1048,13 @@ class App implements AppActions {
     const g = this.game;
     if (!g || this.paused || this.finished) return;
     const hit = this.pick();
+    if (this.site) {
+      // A click away closes the picker, and selects the tower it lands on.
+      this.closeSite();
+      this.selected = this.towerUnderPointer();
+      if (this.selected) audio.play('click');
+      return;
+    }
     if (this.buildType) {
       if (!hit) return;
       const x = this.snap(hit.x), z = this.snap(hit.z);
@@ -958,15 +1078,14 @@ class App implements AppActions {
       else audio.play('error');
       return;
     }
-    this.selected = this.towerUnderPointer();
-    if (this.selected) audio.play('click');
-    else if (this.pointerOnLantern()) this.ui.toggleLanternHp();
+    this.selectOrOpenSite(hit);
   }
 
   private rightClick() {
     const g = this.game;
     if (!g || this.paused || this.finished) return;
-    if (this.buildType || this.spell) {
+    if (this.buildType || this.spell || this.site) {
+      this.closeSite();
       this.buildType = null;
       this.spell = null;
       return;
@@ -1044,6 +1163,28 @@ class App implements AppActions {
     const touch = isTouch();
     const hit = touch ? this.aim : this.pointer.inside ? this.pick() : null;
     if (this.selected && !g.towers.includes(this.selected)) this.selected = null;
+    if (this.site && this.paused) this.closeSite();
+
+    const site = this.site;
+    const siteType = site ? this.buildType ?? this.hoverType : null;
+    if (site && siteType) {
+      // The tower picker previews the chosen (or hovered) tower and its range at the site.
+      v.setBuildOverlay(1);
+      const problem = g.canBuild(siteType, site.x, site.z);
+      v.setGhost(siteType, site.x, site.z, !problem);
+      v.setRangeRing(site.x, site.z, towerStats(siteType, 0, 0).range * (1 + g.rank('towerRange') * 0.03), problem ? 0xff5a4a : 0xffe2a0, 1);
+    }
+    else if (site) {
+      // A small ring marks the spot the picker will build on.
+      v.setBuildOverlay(1);
+      v.setGhost(null, 0, 0, false);
+      v.setRangeRing(site.x, site.z, 1.4, 0xffe2a0, 1);
+    }
+    if (site) {
+      v.setTargetRing(0, 0, 0, 0xffffff, 0);
+      if (this.hintTimer <= 0) this.ui.hint(null);
+      return;
+    }
 
     if (this.buildType) {
       v.setBuildOverlay(1);
@@ -1108,6 +1249,7 @@ class App implements AppActions {
     if (this.finished || g.state === 'playing') return;
     this.finished = true;
     this.save.clearBattle();
+    this.closeSite();
     this.buildType = null;
     this.spell = null;
     this.selected = null;
@@ -1257,7 +1399,7 @@ class App implements AppActions {
       }
       this.updateInteraction();
       this.view.update(this.paused && !this.cine ? 0.0001 : dt * this.dilation, clamp(this.acc / FIXED_DT));
-      this.ui.update(g, { selected: this.selected, speed: SPEEDS[this.speedIdx], buildType: this.buildType, spell: this.spell, heroOrdered: this.heroOrdered, upgraded: this.upgraded, heroMode: this.heroMode, action: this.paused ? null : this.actionBar() });
+      this.ui.update(g, { selected: this.selected, speed: SPEEDS[this.speedIdx], buildType: this.buildType, spell: this.spell, heroOrdered: this.heroOrdered, upgraded: this.upgraded, heroMode: this.heroMode, action: this.paused ? null : this.actionBar(), picker: this.picker() });
       this.ui.updateFloats(dt, this.project);
       const lantern = this.stage!.lanternPos;
       this.ui.updateLanternHp(g, this.project(lantern.x, lantern.y + LANTERN_HP_HEIGHT, lantern.z));
