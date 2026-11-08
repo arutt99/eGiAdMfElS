@@ -6,7 +6,7 @@ import {
   copyValue, sellPrice, marketPrice, trend, shiftOf,
 } from './engine.mjs';
 import { FACTIONS, KINDS } from './data.mjs';
-import { artFor } from './art.mjs';
+import { artFor } from './art.mjs?v=2';
 
 const KEY = 'realmbinder.save.v1';
 const PREFS = 'realmbinder.prefs';
@@ -29,9 +29,9 @@ function load() {
   return null;
 }
 function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage full or blocked */ }
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Your browser could not save progress. Please allow site storage.', true); }
 }
-let prefs = { sound: true };
+let prefs = { sound: true, opener3d: true };
 try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem(PREFS) || '{}') }; } catch (e) { /* defaults */ }
 const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch (e) { /* ignore */ } };
 
@@ -51,10 +51,10 @@ function tone(f, dur = 0.15, { type = 'sine', gain = 0.12, at = 0, slide = 0 } =
   v.gain.setValueAtTime(0.0001, t); v.gain.exponentialRampToValueAtTime(gain, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(v).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
 }
-function noise(dur = 0.3, { from = 3000, to = 600, gain = 0.25 } = {}) {
+function noise(dur = 0.3, { from = 3000, to = 600, gain = 0.25, at = 0, crinkle = false } = {}) {
   const a = audio(); if (!a) return;
-  const t = a.currentTime, len = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const t = a.currentTime + at, len = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) * (crinkle ? .15 + .85 * Math.sin(i / a.sampleRate * 68) ** 6 : 1);
   const src = a.createBufferSource(), f = a.createBiquadFilter(), v = a.createGain();
   src.buffer = buf; f.type = 'bandpass'; f.Q.value = 1.2;
   f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + dur);
@@ -62,14 +62,10 @@ function noise(dur = 0.3, { from = 3000, to = 600, gain = 0.25 } = {}) {
 }
 const sfx = {
   tap: () => tone(520, 0.06, { type: 'triangle', gain: 0.05 }),
-  tear: () => { noise(0.45, { from: 5000, to: 900, gain: 0.35 }); },
-  flip: () => { noise(0.08, { from: 2500, to: 1800, gain: 0.15 }); },
+  tear: () => { noise(.15, { from: 1700, to: 700, gain: .12 }); noise(.75, { from: 6500, to: 2200, gain: .2, at: .1, crinkle: true }); },
+  flip: () => { noise(.12, { from: 1900, to: 700, gain: .10 }); },
   coin: () => { tone(1320, 0.12, { type: 'triangle', gain: 0.08 }); tone(1760, 0.18, { type: 'triangle', gain: 0.07, at: 0.07 }); },
-  reveal(rank) {
-    const chords = [[], [523, 659], [523, 659, 784], [392, 523, 659, 784, 1047], [262, 392, 523, 659, 784, 1047, 1319]];
-    chords[rank].forEach((f, i) => tone(f, 0.9 + rank * 0.2, { type: rank >= 3 ? 'triangle' : 'sine', gain: 0.07, at: i * 0.07 }));
-    if (rank >= 4) tone(80, 1.4, { type: 'sawtooth', gain: 0.05, slide: 0.5 });
-  },
+  card: () => { noise(.10, { from: 1600, to: 600, gain: .055 }); noise(.035, { from: 480, to: 200, gain: .025, at: .06 }); },
 };
 const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* no haptics */ } };
 
@@ -164,8 +160,25 @@ function go(t, { scroll = true } = {}) {
 function render() {
   renderTop();
   const v = $('#view');
-  v.innerHTML = { shop: shopPage, packs: packsPage, binder: binderPage, shelf: shelfPage }[tab]();
+  v.innerHTML = pageHeader() + { shop: shopPage, packs: packsPage, binder: binderPage, shelf: shelfPage }[tab]();
+  makeCardsAccessible(v);
   if (tab === 'binder') bindBinder();
+}
+
+const ARROW = '<svg class="arrow-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19L19 5M5 5h14v14" stroke="currentColor" stroke-width="1.5"/></svg>';
+function pageHeader() {
+  const names = { packs: ['THE COLLECTOR’S TABLE', 'Pull up a chair, collector.', 'The kettle’s on. Your next discovery is waiting.'], shop: ['THE COPPER KETTLE', 'Good company. Great finds.', 'Fresh boosters, rare discoveries, and a fair price for your spares.'], binder: ['YOUR COLLECTION', 'Every card tells a story.', 'Find familiar faces, discover what’s missing, and complete the Sundered Crown.'], shelf: ['THE DISPLAY ROOM', 'A home for your favourite finds.', 'Give your favourite cards a place of honour.'] };
+  const [eyebrow, title, sub] = names[tab];
+  const { have, total } = completion(S);
+  return `<div class="page-heading"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${sub}</p></div><div class="collection-mini"><b>${have}<span> / ${total}</span></b><small>CARDS DISCOVERED</small><div class="mini-track"><i style="width:${have / total * 100}%"></i></div></div></div>`;
+}
+function makeCardsAccessible(root) {
+  root.querySelectorAll('[data-card], [data-glass], .slot').forEach(el => {
+    if (el.closest('.detail-card') || el.parentElement.closest('[data-card], [data-glass], .slot, button')) return;
+    el.setAttribute('role', 'button'); el.tabIndex = 0;
+    const card = CARD_BY_ID[el.dataset.card || el.querySelector('[data-card]')?.dataset.card];
+    el.setAttribute('aria-label', card ? `View ${card.name}` : 'Choose a card for this display slot');
+  });
 }
 
 // ---------- shop ----------
@@ -230,25 +243,33 @@ function shopPage() {
 
 // ---------- packs ----------
 function packsPage() {
-  const log = S.log.slice(0, 8);
-  if (S.packs < 1) {
-    return `<div class="empty panel"><h2>No packs left</h2><p>Marta has fresh boosters at the Copper Kettle.</p><button class="btn big" data-go="shop">Visit the shop</button></div>
-      ${log.length ? `<div class="section"><h2>Recent</h2></div><ul class="log panel">${log.map(l => `<li><span>${esc(l.text)}</span><span>${ago(l.t)}</span></li>`).join('')}</ul>` : ''}`;
-  }
-  return `<div class="packs-hero">
-      <div class="pile">${Array.from({ length: Math.min(S.packs, 3) }, (_, i) => `<div style="position:absolute;inset:0;transform:translate(${i * 7}px,${i * -7}px) rotate(${i * 2}deg);z-index:${-i}">${packHTML('lg')}</div>`).join('')}</div>
-      <div class="count">${S.packs} sealed ${S.packs === 1 ? 'pack' : 'packs'}</div>
-      <div class="row"><button class="btn big" data-act="open">Open a pack</button></div>
+  const log = S.log.slice(0, 5);
+  return `<section class="pack-table">
+    <div class="pack-copy"><div class="edition"><span></span> FIRST EDITION · SET 01</div>
+      <h2>The Sundered<br><em>Crown</em></h2>
+      <p>Six factions. A fractured kingdom. A collection waiting to be discovered.</p>
+      <div class="pack-actions"><button class="btn big" ${S.packs ? 'data-act="open"' : 'data-go="shop"'}>${S.packs ? 'Open a booster' : 'Find your next pack'} ${ARROW}</button><span class="sealed-count">${S.packs} sealed ${S.packs === 1 ? 'pack' : 'packs'} in your collection</span></div>
+      <div class="pack-facts"><div><b>10</b><span>CARDS PER PACK</span></div><div><b>1</b><span>RARE OR BETTER</span></div><div><b>130</b><span>CARDS TO DISCOVER</span></div></div>
     </div>
-    ${log.length ? `<div class="section"><h2>Big pulls</h2></div><ul class="log panel">${log.map(l => `<li><span>${esc(l.text)}</span><span>${ago(l.t)}</span></li>`).join('')}</ul>` : `<p class="muted" style="text-align:center;font-size:.86rem">Each pack holds 6 commons, 3 uncommons and one Rare or better. About one pack in forty has a Mythic.</p>`}`;
+    <div class="pack-display"><div class="orbit-ring"></div><div class="orbit-ring inner"></div><span class="display-star star-a">✧</span><span class="display-star star-b">✦</span>
+      <div class="pile">${[2, 1, 0].map(i => `<div class="pack-layer" style="--angle:${(i - 1) * 10}deg;--offset:${(i - 1) * 48}px;z-index:${3-i}">${packHTML('lg', FEATURES[(i * 4 + 3) % FEATURES.length])}</div>`).join('')}</div>
+      <div class="display-caption"><span>✧</span> THE NEXT GREAT FIND COULD BE YOURS <span>✧</span></div>
+    </div>
+  </section>
+  <div class="table-notes"><div><span class="note-symbol">✦</span><div><b>A rare in every pack</b><p>6 Commons, 3 Uncommons, and a Rare or better. A foil may replace a Common.</p></div></div><div><span class="note-symbol">◇</span><div><b>A chance at something extraordinary</b><p>Rare slot: 85% Rare · 12.5% Legendary · 2.5% Mythic. Foil in 30% of packs.</p></div></div><div><span class="note-symbol">▤</span><div><b>Every discovery, safely kept</b><p>Cards go straight into your binder. Your collection saves on this browser.</p></div></div></div>
+  <div class="section"><h2>${S.copies.length ? 'Recent discoveries' : 'Legends of the realms'}</h2><button class="text-btn" data-go="binder">Explore the binder <span>→</span></button></div>
+  <div class="discovery-grid">${(S.copies.length ? S.copies.slice(-4).reverse().map(cp => ({c:CARD_BY_ID[cp.card], cp})) : ['SC-127','SC-121','SC-130','SC-119'].map(id => ({c:CARD_BY_ID[id]}))).map(({c,cp}) => `<button class="discovery" data-card="${c.id}"><div class="discovery-art">${artFor(c)}</div><div><span class="eyebrow ${rClass(c.rarity)}" style="color:var(--rc)">${rarityName(c.rarity)}</span><h3>${esc(c.name)}</h3><small>${FACTIONS[c.faction].name}${cp ? ' · In your binder' : ' · Waiting to be found'}</small></div><span class="discovery-arrow">${ARROW}</span></button>`).join('')}</div>
+  ${log.length ? `<div class="section"><h2>Memorable pulls</h2><span class="note">The stories of your collection</span></div><ul class="log panel">${log.map(l => `<li><span>${esc(l.text)}</span><span>${ago(l.t)}</span></li>`).join('')}</ul>` : ''}`;
 }
 
 // ---------- binder ----------
-const B = { page: 0, faction: 'all', show: 'all' };
-const PER_PAGE = 9;
+const B = { page: 0, faction: 'all', show: 'all', query: '', rarity: 'all' };
+const PER_PAGE = 12;
 function binderList() {
   const own = owned(S);
   return CARDS.filter(c => (B.faction === 'all' || c.faction === B.faction)
+    && (B.rarity === 'all' || c.rarity === B.rarity)
+    && (!B.query || `${c.name} ${KINDS[c.kind]} ${FACTIONS[c.faction].name}`.toLowerCase().includes(B.query.toLowerCase()))
     && (B.show === 'all' || (B.show === 'missing' ? !own.has(c.id) : own.has(c.id))));
 }
 function binderPage() {
@@ -266,15 +287,16 @@ function binderPage() {
       <div class="bar"><i style="width:${have / total * 100}%"></i></div>
       <div class="nums"><span>${Object.entries(RARITIES).map(([k, r]) => `<span class="${rClass(k)}" style="color:var(--rc)">◆</span> ${CARDS.filter(c => c.rarity === k && own.has(c.id)).length}/${CARDS.filter(c => c.rarity === k).length}`).join('&nbsp;&nbsp;')}</span></div>
     </div>
+    <div class="binder-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="card-search" type="search" placeholder="Search your collection…" aria-label="Search cards" value="${esc(B.query)}"></label><label class="rarity-select">Rarity <select id="rarity-filter"><option value="all">All rarities</option>${Object.entries(RARITIES).map(([k,r]) => `<option value="${k}" ${B.rarity === k ? 'selected' : ''}>${r.name}</option>`).join('')}</select></label></div>
     <div class="filters">${facs.map(([k, n]) => `<button data-fac="${k}" aria-pressed="${B.faction === k}">${n}</button>`).join('')}</div>
     <div class="filters">${[['all', 'Every card'], ['owned', 'Owned'], ['missing', 'Missing']].map(([k, n]) => `<button data-show="${k}" aria-pressed="${B.show === k}">${n}</button>`).join('')}</div>
-    <div class="binder" id="binder"><div class="page flip-in">
+    <div class="binder" id="binder"><div class="page">
       ${slice.map(c => {
         const list2 = own.get(c.id);
         if (!list2) return `<div class="pocket missing ${rClass(c.rarity)}" data-card="${c.id}"><div><i></i>#${String(c.num).padStart(3, '0')}<small>${esc(c.name)}</small></div></div>`;
         const best = showcase(list2, t);
         return `<div class="pocket" data-card="${c.id}">${!viewed.has(c.id) ? '<span class="new-dot" title="New"></span>' : ''}${list2.length > 1 ? `<span class="qty">×${list2.length}</span>` : ''}${cardHTML(c, best)}</div>`;
-      }).join('') || '<p class="muted" style="grid-column:1/-1;text-align:center;padding:30px 0">Nothing here yet.</p>'}
+      }).join('') || '<p class="muted" style="grid-column:1/-1;text-align:center;padding:30px 0">No cards match these filters.</p>'}
     </div></div>
     <div class="pager"><button class="btn ghost" data-page="-1" ${B.page ? '' : 'disabled'} aria-label="Previous page">‹</button><span>Page ${B.page + 1} of ${pages}</span><button class="btn ghost" data-page="1" ${B.page < pages - 1 ? '' : 'disabled'} aria-label="Next page">›</button></div>`;
 }
@@ -284,8 +306,6 @@ function turnPage(d) {
   if (n === B.page) return;
   B.page = n; sfx.flip();
   render();
-  const pg = $('#binder .page');
-  if (pg) pg.style.setProperty('--from', d > 0 ? '40px' : '-40px');
 }
 function bindBinder() {
   const el = $('#binder');
@@ -308,7 +328,7 @@ function shelfPage() {
   const best = S.stats.best && CARD_BY_ID[S.stats.best.card];
   const slot = (uid, i) => {
     const c = uid != null && byUid.get(uid);
-    return c ? `<div class="slot" data-slot="${i}">${cardHTML(CARD_BY_ID[c.card], c)}</div>` : `<div class="slot empty-slot" data-slot="${i}" aria-label="Empty display slot">+</div>`;
+    return c ? `<div class="slot" data-slot="${i}">${cardHTML(CARD_BY_ID[c.card], c)}</div>` : `<button class="slot empty-slot" data-slot="${i}" aria-label="Choose a card for display slot ${i + 1}"><span>＋</span><small>Display a card</small><em>0${i + 1}</em></button>`;
   };
   const rows = [];
   for (let r = 0; r < SHELF_SLOTS / 4; r++) rows.push(`<div class="shelf-row">${S.shelf.slice(r * 4, r * 4 + 4).map((u, i) => slot(u, r * 4 + i)).join('')}</div>`);
@@ -330,15 +350,30 @@ function shelfPage() {
 }
 
 // ---------- sheet ----------
+let sheetReturnFocus;
+function syncModal() {
+  const active = !$('#sheet').hidden || !$('#opener').hidden;
+  document.body.style.overflow = active ? 'hidden' : '';
+  $('#view').inert = active; $('.top').inert = active; $('.tabs').inert = active;
+  $('#opener').inert = !$('#sheet').hidden;
+}
 function openSheet(html, onBind) {
+  if ($('#sheet').hidden) sheetReturnFocus = document.activeElement;
   const sh = $('#sheet');
   const p = $('.sheet-panel', sh);
   p.innerHTML = `<button class="sheet-close" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${html}`;
   sh.hidden = false;
   p.scrollTop = 0;
+  makeCardsAccessible(p);
   onBind && onBind(p);
+  syncModal();
+  $('.sheet-close', p).focus({ preventScroll: true });
 }
-function closeSheet() { $('#sheet').hidden = true; }
+function closeSheet() {
+  $('#sheet').hidden = true; syncModal();
+  const fallback = !$('#opener').hidden ? $('[data-op="close"]', $('#opener')) : $('#view');
+  (sheetReturnFocus?.isConnected ? sheetReturnFocus : fallback)?.focus({ preventScroll: true });
+}
 
 function openDetail(cardId, ctx = {}) {
   const t = now();
@@ -350,9 +385,9 @@ function openDetail(cardId, ctx = {}) {
   const shown = glass ? glass.copy : mine[0] || null;
   const tr = trend(cardId, t);
   openSheet(`<div class="detail ${rClass(c.rarity)}">
-    <div class="detail-card"><div class="tilt" id="tilt">${cardHTML(c, shown)}</div></div>
+    <div class="detail-card"><div class="card-surface" id="card-surface">${cardHTML(c, shown)}</div></div>
     <h2>${esc(c.name)}</h2>
-    <div class="sub"><b>${rarityName(c.rarity)}</b> · ${KINDS[c.kind]} · ${FACTIONS[c.faction].name} · #${c.num}</div>
+    <p class="detail-flavor">“${esc(c.flavor)}”</p><div class="sub"><b>${rarityName(c.rarity)}</b> · ${KINDS[c.kind]} · ${FACTIONS[c.faction].name} · #${c.num}</div>
     <div class="mkt"><span>Market ${g(marketPrice(cardId, t))}</span><span class="${tr >= 0 ? 'up' : 'down'}">${tr >= 0 ? '▲' : '▼'} ${Math.abs(tr * 100).toFixed(1)}% today</span></div>
     ${glass ? `<div class="copies"><div class="copy"><div class="tags">${copyTags(glass.copy).replace(/<span class="tag shelf">.*?<\/span>/, '')}</div><div class="val">${g(glass.price)}</div>
         <div class="acts">${glass.sold ? '<span class="muted">Sold</span>' : `<button class="btn" data-act="single" data-slot="${glass.slot}" ${S.gold < glass.price ? 'disabled' : ''}>Buy for ${g(glass.price)}</button>`}</div></div></div>`
@@ -363,27 +398,25 @@ function openDetail(cardId, ctx = {}) {
           <button class="btn ghost" data-act="sell" data-uid="${cp.uid}">Sell · ${g(sellPrice(cp, t))}</button>
         </div></div>`).join('')}</div>`
       : `<p class="muted" style="text-align:center;margin-top:16px">You haven't found this card yet. Keep opening packs, or watch Marta's glass case.</p>`}
-  </div>`, p => { bindTilt($('#tilt', p)); });
-  if (tab === 'binder') render();
+  </div>`, p => { bindSheen($('#card-surface', p)); });
+  if (tab === 'binder') document.querySelector(`.pocket[data-card="${cardId}"] .new-dot`)?.remove();
 }
 
-function bindTilt(el) {
-  if (!el) return;
+function bindSheen(el) {
+  if (!el || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
   const card = $('.card', el);
-  const move = (x, y) => {
+  el.addEventListener('pointermove', e => {
     const r = el.getBoundingClientRect();
-    const px = (x - r.left) / r.width, py = (y - r.top) / r.height;
-    el.style.transform = `perspective(900px) rotateY(${(px - 0.5) * 18}deg) rotateX(${(0.5 - py) * 18}deg)`;
-    card.style.setProperty('--mx', `${px * 100}%`); card.style.setProperty('--my', `${py * 100}%`);
-  };
-  el.addEventListener('pointermove', e => move(e.clientX, e.clientY));
-  el.addEventListener('pointerleave', () => { el.style.transform = ''; });
+    card.style.setProperty('--mx', `${Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100))}%`);
+    card.style.setProperty('--my', `${Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100))}%`);
+  });
+  el.addEventListener('pointerleave', () => { card.style.removeProperty('--mx'); card.style.removeProperty('--my'); });
 }
 
 function openPicker(slot) {
   const t = now();
   const onShelf = new Set(S.shelf.filter(u => u != null));
-  const list = S.copies.filter(c => !onShelf.has(c.uid)).sort((a, b) => copyValue(b, t) - copyValue(a, t)).slice(0, 30);
+  const list = S.copies.filter(c => !onShelf.has(c.uid)).sort((a, b) => copyValue(b, t) - copyValue(a, t));
   openSheet(`<h2>Choose a card to display</h2><p class="muted" style="font-size:.84rem;margin:6px 0 0">Your most valuable cards first.</p>
     ${list.length ? `<div class="picker">${list.map(c => `<button data-pick="${c.uid}" data-slot="${slot}">${cardHTML(CARD_BY_ID[c.card], c)}<span>${g(copyValue(c, t))}</span></button>`).join('')}</div>` : '<p class="empty">Open some packs first.</p>'}`);
 }
@@ -394,74 +427,157 @@ function confirmSheet(title, body, yes, onYes, danger = false) {
 }
 
 // ---------- pack opening ----------
-const O = { pulled: [], i: 0, state: 'idle', busy: false };
+const O = { pulled: [], i: 0, state: 'idle', busy: false, timers: new Set(), scene: null, epoch: 0 };
+function cancelOpeningTimers() { for (const id of O.timers) clearTimeout(id); O.timers.clear(); O.busy = false; }
+function openingAfter(fn, delay) {
+  const id = setTimeout(() => { O.timers.delete(id); fn(); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : delay);
+  O.timers.add(id);
+}
+function disposeOpeningScene() {
+  O.epoch++;
+  O.scene?.dispose(); O.scene = null;
+  $('#opener').classList.remove('has-3d');
+  $('#opener').dataset.renderer = 'simple';
+  $('#opener-scene')?.remove();
+}
+function setOpeningUI(html) {
+  let ui = $('.opening-ui', $('#opener'));
+  if (!ui) { ui = document.createElement('div'); ui.className = 'opening-ui'; $('#opener').appendChild(ui); }
+  ui.innerHTML = html;
+  O.scene?.resize();
+}
+async function prepareOpeningScene() {
+  if (!prefs.opener3d || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const epoch = O.epoch, op = $('#opener');
+  const host = document.createElement('div'); host.id = 'opener-scene'; op.prepend(host);
+  O.busy = true;
+  const button = $('[data-op="advance"]', op); button.disabled = true; button.textContent = 'Preparing your pack…';
+  const fallback = () => {
+    if (epoch !== O.epoch) return;
+    disposeOpeningScene();
+    cancelOpeningTimers();
+    if (O.state === 'opening' || O.state === 'reveal') showSummary();
+    else if (O.state === 'sealed') {
+      const advance = $('[data-op="advance"]', op); advance.disabled = false; advance.textContent = 'Break the seal';
+      $('.hint', op).textContent = '10 cards. One new chapter.';
+    }
+  };
+  try {
+    const { createOpener3D } = await import('./opener-3d.mjs?v=2');
+    if (epoch !== O.epoch) return;
+    const scene = await createOpener3D(host, { feature: O.feature, getStage: () => $('#stage'), onTear: tearPack, onFallback: fallback });
+    if (epoch !== O.epoch || O.state !== 'sealed') { scene?.dispose(); return; }
+    if (scene) {
+      O.scene = scene; op.classList.add('has-3d'); op.dataset.renderer = 'three';
+      $('.hint', op).textContent = 'Pull across the top seam, or break the seal below.';
+      scene.resize();
+    } else { host.remove(); op.dataset.renderer = 'simple'; $('.opener-mode', op).hidden = true; }
+  } catch { host.remove(); op.dataset.renderer = 'simple'; $('.opener-mode', op).hidden = true; }
+  if (epoch === O.epoch && O.state === 'sealed') {
+    O.busy = false; button.disabled = false; button.textContent = 'Break the seal';
+  }
+}
 function startOpening() {
   if (S.packs < 1) { toast('No packs to open', true); return; }
   closeSheet();
+  cancelOpeningTimers();
+  disposeOpeningScene();
   const op = $('#opener');
-  O.state = 'sealed'; O.busy = false; O.feature = FEATURES[Math.floor(Math.random() * FEATURES.length)];
+  op.innerHTML = ''; op.dataset.renderer = 'simple'; op.dataset.phase = 'sealed';
+  O.state = 'sealed'; O.busy = false; O.turned = false; op.dataset.turned = 'false'; O.feature = FEATURES[Math.floor(Math.random() * FEATURES.length)];
   op.hidden = false;
-  document.body.style.overflow = 'hidden';
-  op.innerHTML = `<div class="counter">${S.packs} ${S.packs === 1 ? 'pack' : 'packs'}</div>
+  syncModal();
+  setOpeningUI(`<div class="counter">${S.packs} ${S.packs === 1 ? 'pack' : 'packs'}</div>
     <button class="btn ghost skip" data-op="close">Close</button>
+    <button class="opener-mode" data-op="mode" ${matchMedia('(prefers-reduced-motion: reduce)').matches ? 'hidden' : ''}>${prefs.opener3d ? 'Simple view' : '3D view'}</button>
     <div class="stage" id="stage">${packHTML('lg', O.feature)}</div>
-    <div class="hint">Tap the pack to tear it open</div>`;
+    <button class="btn big opener-advance" data-op="advance">Break the seal</button><div class="hint">10 cards. One new chapter.</div>`);
+  $('[data-op="advance"]', op).focus();
+  prepareOpeningScene();
 }
-function tearPack() {
-  if (O.busy) return;
+async function tearPack() {
+  if (O.busy || O.state !== 'sealed') return;
   const res = openPack(S, now());
   if (!res.ok) { toast(res.error, true); return; }
   persist(); renderTop();
-  O.pulled = res.pulled; O.i = 0; O.busy = true;
+  O.pulled = res.pulled; O.i = 0; O.busy = true; O.state = 'opening';
+  $('#opener').dataset.phase = 'opening';
+  $('.opener-advance').disabled = true;
+  if ($('.opener-mode')) $('.opener-mode').disabled = true;
   sfx.tear(); buzz(20);
-  $('#stage .pack').classList.add('torn');
+  $('#stage .pack')?.classList.add('torn');
   $('.hint', $('#opener')).textContent = '';
-  setTimeout(() => { O.busy = false; O.state = 'reveal'; dealCard(); }, 750);
+  if (O.scene) {
+    const epoch = O.epoch;
+    const complete = await O.scene.tear();
+    if (!complete || epoch !== O.epoch || O.state !== 'opening') return;
+    O.state = 'reveal'; dealCard();
+  } else openingAfter(() => { O.busy = false; O.state = 'reveal'; dealCard(); }, 750);
 }
-function dealCard() {
+async function dealCard() {
+  $('#opener').dataset.phase = 'reveal';
   const op = $('#opener');
   const copy = O.pulled[O.i];
   const card = CARD_BY_ID[copy.card];
-  const rank = RARITIES[card.rarity].rank;
   const left = O.pulled.length - O.i - 1;
-  O.flipped = false;
-  op.innerHTML = `<div class="counter">${O.i + 1} / ${O.pulled.length}</div>
-    <button class="btn ghost skip" data-op="skip">Skip</button>
+  setOpeningUI(`<div class="counter">${O.i + 1} / ${O.pulled.length}</div>
+    <button class="btn ghost skip" data-op="skip">Reveal all</button>
     <div class="stage ${rClass(card.rarity)}" id="stage">
+      <div class="simple-deck ${O.turned ? 'turned' : ''}" id="simple-deck">
       ${left > 1 ? `<div class="under under2">${BACK}</div>` : ''}${left > 0 ? `<div class="under">${BACK}</div>` : ''}
-      <div class="flip enter ${rank >= 2 || copy.foil ? 'tell' : ''}" id="flip"><div class="backface">${BACK}</div><div class="face">${cardHTML(card, copy)}</div></div>
+      <div class="flip enter ${O.turned ? 'up' : ''}" id="flip"><div class="backface">${BACK}</div><div class="face">${cardHTML(card, copy)}</div></div></div>
     </div>
-    <div class="reveal-label ${rClass(card.rarity)}" id="label"><div class="hint">${rank >= 3 ? 'Something is glowing…' : rank >= 2 || copy.foil ? 'Ooh, a shimmer…' : 'Tap to flip'}</div></div>`;
-}
-function flipCard() {
-  const copy = O.pulled[O.i];
-  const card = CARD_BY_ID[copy.card];
-  const rank = RARITIES[card.rarity].rank;
-  const f = $('#flip');
-  f.classList.remove('enter', 'tell');
-  f.classList.add('up');
-  O.flipped = true;
-  sfx.flip();
-  if (rank >= 1 || copy.foil) setTimeout(() => sfx.reveal(Math.max(rank, copy.foil ? 2 : 0)), 250);
-  if (rank >= 2 || copy.foil) {
-    const b = document.createElement('div'); b.className = 'burst'; $('#stage').appendChild(b);
-    buzz(rank >= 3 ? [30, 40, 60] : 15);
+    <div class="reveal-label ${rClass(card.rarity)}" id="label"><div class="hint">Turn the deck over to begin.</div></div><button class="btn big opener-advance" data-op="advance">${O.turned ? (left ? 'Next card →' : 'See your pulls') : 'Flip the deck'}</button>`);
+  if (O.turned) $('#label').innerHTML = pullLabel(copy);
+  $('[data-op="advance"]', op).focus();
+  if (O.scene) {
+    O.busy = true;
+    const epoch = O.epoch, button = $('[data-op="advance"]', op); button.disabled = true;
+    let complete;
+    try { complete = await O.scene.deal(card, copy, left, O.turned, O.pulled[O.i + 1] ? { card: CARD_BY_ID[O.pulled[O.i + 1].card], copy: O.pulled[O.i + 1] } : null); } catch { if (epoch === O.epoch) showSummary(); return; }
+    if (!complete || epoch !== O.epoch || O.state !== 'reveal') return;
+    O.busy = false; button.disabled = false;
   }
-  const variant = copy.gilded ? ' · Gilded' : copy.foil ? ' · Foil' : '';
-  $('#label').innerHTML = `<div class="rn">${rarityName(card.rarity)}${variant}</div><div class="nm">${esc(card.name)}${copy.isNew ? '<span class="nw">NEW</span>' : ''}</div>`;
-  bindTilt($('.face', f));
 }
-function nextCard() {
+function pullLabel(copy) {
+  const card = CARD_BY_ID[copy.card];
+  const variant = copy.gilded ? ' · Gilded' : copy.foil ? ' · Foil' : '';
+  return `<div class="rn">${rarityName(card.rarity)}${variant}</div><div class="nm">${esc(card.name)}${copy.isNew ? '<span class="nw">NEW</span>' : ''}</div>`;
+}
+async function flipDeck() {
+  if (O.state !== 'reveal' || O.busy || O.turned) return;
+  O.busy = true; O.turned = true;
+  $('#opener').dataset.turned = 'true';
+  const button = $('.opener-advance'); button.disabled = true;
+  $('#flip').classList.remove('enter'); $('#flip').classList.add('up');
+  $('#simple-deck').classList.add('turned');
+  sfx.card();
+  $('#label').innerHTML = pullLabel(O.pulled[O.i]);
+  button.textContent = O.i === O.pulled.length - 1 ? 'See your pulls' : 'Next card →';
+  if (O.scene) {
+    const epoch = O.epoch;
+    const complete = await O.scene.flip();
+    if (!complete || epoch !== O.epoch || O.state !== 'reveal') return;
+    O.busy = false; button.disabled = false;
+  } else openingAfter(() => { O.busy = false; button.disabled = false; }, 600);
+}
+async function nextCard() {
+  if (O.busy || O.state !== 'reveal' || !O.turned) return;
+  if (O.i === O.pulled.length - 1) { showSummary(); return; }
+  sfx.card();
   const f = $('#flip');
   f.classList.add('leave');
   O.busy = true;
-  setTimeout(() => {
-    O.busy = false;
-    O.i++;
-    if (O.i >= O.pulled.length) showSummary(); else dealCard();
-  }, 280);
+  const advance = () => { O.busy = false; O.i++; if (O.i >= O.pulled.length) showSummary(); else dealCard(); };
+  if (O.scene) {
+    const epoch = O.epoch; $('.opener-advance').disabled = true;
+    const complete = await O.scene.next();
+    if (complete && epoch === O.epoch && O.state === 'reveal') advance();
+  } else openingAfter(advance, 280);
 }
 function showSummary() {
+  cancelOpeningTimers();
+  disposeOpeningScene();
   O.state = 'summary';
   const t = now();
   const total = O.pulled.reduce((a, c) => a + copyValue(c, t), 0);
@@ -469,16 +585,22 @@ function showSummary() {
   $('#opener').innerHTML = `<div class="summary">
     <h2>Your pulls</h2>
     <div class="tot">Worth about ${g(total)} on the market${fresh ? ` · <b style="color:var(--ink)">${fresh} new</b> for your binder` : ''}</div>
-    <div class="grid">${O.pulled.map((c, i) => `<div class="cell" style="animation-delay:${i * 45}ms" data-card="${c.card}">${c.isNew ? '<span class="nw">NEW</span>' : ''}${cardHTML(CARD_BY_ID[c.card], c)}<div class="v">${g(copyValue(c, t))}</div></div>`).join('')}</div>
+    <div class="grid">${O.pulled.map(c => `<div class="cell" data-card="${c.card}">${c.isNew ? '<span class="nw">NEW</span>' : ''}${cardHTML(CARD_BY_ID[c.card], c)}<div class="v">${g(copyValue(c, t))}</div></div>`).join('')}</div>
     <div class="row">${S.packs ? `<button class="btn big" data-op="again">Open another (${S.packs})</button>` : `<button class="btn big" data-op="shop">Buy more packs</button>`}<button class="btn ghost big" data-op="close">Done</button></div>
   </div>`;
+  makeCardsAccessible($('#opener'));
+  $('[data-op="close"]', $('#opener')).focus();
 }
 function closeOpener() {
+  cancelOpeningTimers();
+  disposeOpeningScene();
+  closeSheet();
   $('#opener').hidden = true;
   $('#opener').innerHTML = '';
-  document.body.style.overflow = '';
+  syncModal();
   O.state = 'idle';
   render();
+  ($('[data-act="open"]') || $('[data-go="shop"]') || $('#view')).focus({ preventScroll: true });
 }
 
 // ---------- actions ----------
@@ -551,14 +673,16 @@ document.addEventListener('click', e => {
   audio();
   const t = e.target;
   // Opener
-  if (!$('#opener').hidden && $('#opener').contains(t)) {
+  if ($('#sheet').hidden && !$('#opener').hidden && $('#opener').contains(t)) {
     const op = t.closest('[data-op]');
     if (op) {
       const k = op.dataset.op;
-      if (k === 'close') closeOpener();
+      if (k === 'mode' && O.state === 'sealed') { prefs.opener3d = !prefs.opener3d; savePrefs(); startOpening(); }
+      else if (k === 'close') closeOpener();
       else if (k === 'skip') showSummary();
       else if (k === 'again') startOpening();
       else if (k === 'shop') { closeOpener(); go('shop'); }
+      else if (k === 'advance' && !O.busy) { if (O.state === 'sealed') tearPack(); else if (O.state === 'reveal') { if (!O.turned) flipDeck(); else nextCard(); } }
       return;
     }
     if (O.state === 'summary') {
@@ -566,9 +690,9 @@ document.addEventListener('click', e => {
       if (cell) openDetail(cell.dataset.card);
       return;
     }
-    if (O.busy) return;
+    if (O.busy || O.scene?.consumeGesture()) return;
     if (O.state === 'sealed' && t.closest('#stage')) tearPack();
-    else if (O.state === 'reveal') { if (!O.flipped) flipCard(); else nextCard(); }
+    else if (O.state === 'reveal' && t.closest('#stage')) { if (!O.turned) flipDeck(); else nextCard(); }
     return;
   }
   if (t.closest('[data-close]')) { closeSheet(); return; }
@@ -597,21 +721,38 @@ document.addEventListener('click', e => {
   const cardEl = t.closest('[data-card]');
   if (cardEl && $('#view').contains(cardEl)) { openDetail(cardEl.dataset.card); return; }
 });
+document.addEventListener('input', e => {
+  if (e.target.id !== 'card-search') return;
+  B.query = e.target.value; B.page = 0;
+  const pos = e.target.selectionStart;
+  render(); const input = $('#card-search'); input.focus();
+  try { input.setSelectionRange(pos, pos); } catch { /* search input selection differs by browser */ }
+});
+document.addEventListener('change', e => { if (e.target.id === 'rarity-filter') { B.rarity = e.target.value; B.page = 0; render(); $('#rarity-filter').focus(); } });
 $('#allowance').addEventListener('click', () => {
   const r = claimAllowance(S, now());
   if (r.ok) { sfx.coin(); toast(`Collected ${r.amount} gold from your stipend.`); persist(); render(); }
 });
 $('#sound').addEventListener('click', () => { prefs.sound = !prefs.sound; savePrefs(); renderTop(); if (prefs.sound) sfx.tap(); });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if (!$('#sheet').hidden) closeSheet(); else if (!$('#opener').hidden && O.state !== 'reveal') closeOpener(); }
+  const modal = !$('#sheet').hidden ? $('.sheet-panel') : !$('#opener').hidden ? $('#opener') : null;
+  if (modal && e.key === 'Tab') {
+    const els = [...modal.querySelectorAll('button:not([disabled]), input, select, [tabindex="0"]')].filter(el => el.getClientRects().length);
+    const first = els[0], last = els.at(-1);
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"]:not(button)')) { e.preventDefault(); e.target.click(); return; }
+  if (e.target.matches('input, select, textarea')) return;
+  if (e.key === 'Escape') { if (!$('#sheet').hidden) closeSheet(); else if (!$('#opener').hidden) closeOpener(); }
   if (tab === 'binder' && $('#sheet').hidden && $('#opener').hidden) {
     if (e.key === 'ArrowRight') turnPage(1);
     if (e.key === 'ArrowLeft') turnPage(-1);
   }
-  if (!$('#opener').hidden && (e.key === ' ' || e.key === 'Enter') && O.state !== 'summary') {
+  if ($('#sheet').hidden && !$('#opener').hidden && !e.target.closest('button') && (e.key === ' ' || e.key === 'Enter') && ['sealed', 'reveal'].includes(O.state)) {
     e.preventDefault();
-    if (O.busy) return;
-    if (O.state === 'sealed') tearPack(); else if (!O.flipped) flipCard(); else nextCard();
+    if (O.busy || O.scene?.consumeGesture()) return;
+    if (O.state === 'sealed') tearPack(); else if (!O.turned) flipDeck(); else nextCard();
   }
 });
 window.addEventListener('hashchange', () => go(location.hash.slice(1)));

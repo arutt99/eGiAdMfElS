@@ -183,7 +183,7 @@ export function cardArt(card) {
 
   out.push(particles(rng, kind === 'spell' ? 'stars' : fac.particles, P, rank));
   out.push(`<rect width="${W}" height="${H}" fill="url(#${P('vig')})"/>`);
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>${defs.join('')}</defs>${out.join('')}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs>${defs.join('')}</defs>${out.join('')}</svg>`;
 }
 
 function rays(rng, color, rank, cx, cy) {
@@ -793,8 +793,12 @@ function spell(style, rng, P, rank) {
 
 const cache = new Map();
 const illustratedCards = new Set(CARDS.map(card => card.id));
-export function artFor(card) {
-  if (illustratedCards.has(card.id)) return `<img src="./assets/card-art/${card.id}.webp" alt="" loading="lazy">`;
-  if (!cache.has(card.id)) cache.set(card.id, cardArt(card));
+// Shared by DOM cards and the Three.js printing plates so the artwork stays identical.
+export function artSource(card) {
+  if (illustratedCards.has(card.id)) return new URL(`./assets/card-art/${card.id}.webp`, import.meta.url).href;
+  if (!cache.has(card.id)) cache.set(card.id, `data:image/svg+xml,${encodeURIComponent(cardArt(card))}`);
   return cache.get(card.id);
+}
+export function artFor(card) {
+  return `<img src="${artSource(card)}" width="200" height="150" alt="" loading="lazy" draggable="false">`;
 }

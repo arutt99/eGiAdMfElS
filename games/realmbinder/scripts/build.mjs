@@ -1,0 +1,11 @@
+import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+const root = fileURLToPath(new URL('../', import.meta.url));
+await build({entryPoints:[`${root}src/opener-3d.mjs`],outfile:`${root}opener-3d.mjs`,bundle:true,format:'esm',target:'es2022',minify:true,legalComments:'eof'});
+const require = createRequire(import.meta.url);
+await mkdir(`${root}licenses`, { recursive: true });
+await copyFile(resolve(dirname(require.resolve('three')), '../LICENSE'), `${root}licenses/three.txt`);
+console.log('Built self-contained Three.js pack opener (no CDN required).');

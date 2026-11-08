@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#15100b">
+  <meta name="theme-color" content="#241c16">
   <meta name="description" content="Realmbinder: open booster packs, fill your binder and chase the Sundered Crown in a digital fantasy card collection.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,14 +11,14 @@
   <title>Realmbinder</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <header class="top">
     <a class="back" href="../../" aria-label="All games"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
-    <div class="brand">
-      <span class="brand-name">Realmbinder</span>
-      <span class="brand-set">Set 1 · The Sundered Crown</span>
+    <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 80 80" fill="none"><path d="M14 27l13 10 13-20 13 20 13-10-7 32H21zM22 51h36M29 65h22" stroke="currentColor" stroke-width="2"/><path d="M40 5v5M7 17l5 4M73 17l-5 4" stroke="currentColor"/></svg></div><div class="brand">
+      <span class="brand-name">REALMBINDER</span>
+      <span class="brand-set">THE SUNDERED CROWN</span>
     </div>
     <button id="allowance" class="chip allowance" hidden></button>
     <div class="chip gold" id="gold" aria-label="Gold"><i class="coin" aria-hidden="true"></i><b>0</b></div>
@@ -34,10 +34,10 @@
     <button data-tab="shelf"><svg viewBox="0 0 24 24"><path d="M3 9h18M3 19h18M5 9V4h4v5M10 9V5h4v4M15 19v-6h4v6M5 19v-5h4v5"/></svg><span>Shelf</span></button>
   </nav>
 
-  <section id="opener" class="opener" hidden aria-live="polite"></section>
-  <div id="sheet" class="sheet" hidden><div class="sheet-backdrop" data-close></div><div class="sheet-panel" role="dialog" aria-modal="true"></div></div>
+  <section id="opener" class="opener" hidden role="dialog" aria-modal="true" aria-label="Open a booster pack"></section>
+  <div id="sheet" class="sheet" hidden><div class="sheet-backdrop" data-close></div><div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Card collection details" tabindex="-1"></div></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <noscript><p class="noscript">Realmbinder needs JavaScript. Enable it and reload.</p></noscript>
-  <script type="module" src="app.mjs"></script>
+  <script type="module" src="app.mjs?v=4"></script>
 </body>
 </html>
