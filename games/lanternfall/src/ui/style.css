@@ -503,6 +503,12 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 #tooltip .stat { font-size: 14px; }
 #tooltip .warn { color: var(--gold-hi); margin-top: 5px; font-weight: 700; }
 #tooltip .dim { margin-top: 4px; }
+/* A card opened by a long press stays until its × or the next touch elsewhere. */
+#tooltip.pinned { pointer-events: auto; max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; padding-right: 40px; }
+.tip-close { position: absolute; top: 0; right: 0; width: 44px; height: 44px; display: grid; place-items: center; color: var(--cream-dim); }
+.tip-close svg { width: 18px; height: 18px; }
+/* The tower panel's details button only matters where the details fold away (short screens). */
+.details-btn { display: none; }
 
 #floats { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .float { position: absolute; left: 0; top: 0; font: 900 18px var(--display); will-change: transform; text-shadow: 0 1px 0 #000, 0 2px 5px rgba(0, 0, 0, 0.75); white-space: nowrap; pointer-events: none; }
@@ -681,6 +687,10 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .abilities { gap: 4px; margin-top: 2px; }
   .skill.small { width: 30px; height: 30px; padding: 4px; border-radius: 8px; }
   .small .cd { font-size: 12px; }
+  /* Fingers need about 44px: hero powers and spells grow to that on touch. */
+  .touch .skill.small { width: 44px; height: 44px; padding: 6px; border-radius: 10px; }
+  .touch .small .cd { font-size: 15px; }
+  .touch .abilities { gap: 5px; margin-top: 3px; }
 
   .bottom-right { right: calc(var(--gap) + var(--sr)); bottom: calc(var(--gap) + var(--sb)); display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; max-width: none; padding: 5px; }
   .bottom-right .skill { width: 36px; height: 36px; padding: 5px; border-radius: 9px; }
@@ -690,6 +700,24 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .bottom-right.collapsed { grid-template-columns: 36px; }
   .bottom-right.collapsed .skill { display: none; }
   .bottom-right.collapsed .spell-toggle { height: 36px; }
+  .touch .bottom-right { grid-template-columns: repeat(2, 44px); gap: 6px; }
+  .touch .bottom-right .skill { width: 44px; height: 44px; padding: 6px; border-radius: 10px; }
+  .touch .bottom-right .cd { font-size: 15px; }
+  .touch .spell-toggle { height: 30px; }
+  .touch .bottom-right.collapsed { grid-template-columns: 44px; }
+  .touch .bottom-right.collapsed .spell-toggle { height: 44px; }
+  /* With a tower selected the spells step left of its panel as a two-row strip, so emergency spells stay in
+     reach beside the upgrades. The tower cards make way until the panel closes. */
+  #hud.panel-open .bottom-right { right: calc(var(--gap) + var(--sr) + var(--panel-w) + 6px); grid-template-columns: 24px repeat(4, 36px); padding: 5px; }
+  /* Too narrow for the strip beside the hero (small phones): it sits above the hero panel instead. */
+  #hud.panel-open.spells-up .bottom-right { right: auto; left: calc(var(--gap) + var(--sl)); bottom: calc(var(--bl-h, 80px) + 6px); }
+  #hud.panel-open .spell-toggle { grid-column: 1; grid-row: 1 / span 2; height: auto; }
+  #hud.panel-open .bottom-right.collapsed { grid-template-columns: 36px; }
+  #hud.panel-open .bottom-right.collapsed .spell-toggle { grid-row: 1; height: 36px; }
+  .touch #hud.panel-open .bottom-right { grid-template-columns: 26px repeat(4, 44px); gap: 5px; }
+  .touch #hud.panel-open .bottom-right.collapsed { grid-template-columns: 44px; }
+  .touch #hud.panel-open .bottom-right.collapsed .spell-toggle { height: 44px; }
+  #hud.panel-open .tower-bar { visibility: hidden; }
 
   .tower-bar { left: calc(var(--bl-x, calc(var(--sl) + var(--gap) + var(--hero-w))) + 6px); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 6px); bottom: calc(var(--gap) + var(--sb) - 8px); transform: none; gap: 5px; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
   .tower-bar::-webkit-scrollbar { display: none; }
@@ -698,19 +726,46 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .tower-card { flex: none; width: 46px; border-radius: 10px; }
   .t-cost { font-size: 13px; bottom: 2px; }
 
-  /* The tower panel slides in along the right edge, over the spells. */
-  .tower-panel { top: calc(54px + var(--st)); right: calc(var(--gap) + var(--sr)); bottom: auto; width: 296px; max-height: calc(100% - 62px - var(--st) - var(--sb)); padding: 10px 12px; gap: 6px; z-index: 2; }
-  .tower-panel header img { width: 46px; height: 46px; }
-  .tower-panel h3 { font-size: 18px; margin-bottom: 3px; }
-  .p-desc { font-size: 13.5px; }
-  .stat { font-size: 13.5px; line-height: 1.28; }
-  .up-card { padding: 6px; }
-  .up-card img { width: 40px; height: 40px; }
-  .up-title { font-size: 14.5px; }
-  .up-price { font-size: 14px; }
-  .up-desc { font-size: 12.5px; }
-  .stats.compact .stat { font-size: 12.5px; }
-  .sell-btn { padding: 8px; font-size: 14px; }
+  /* The tower panel docks along the right edge, beside the spells. It shows what a decision needs (the
+     upgrades with their price and stat changes, targeting, sell, close) without scrolling. Descriptions and
+     the current stats fold behind the details button. */
+  :root { --panel-w: 262px; }
+  .tower-panel { top: calc(54px + var(--st)); right: calc(var(--gap) + var(--sr)); bottom: auto; width: var(--panel-w); max-height: calc(100% - 62px - var(--st) - var(--sb)); padding: 6px 9px 7px; gap: 5px; z-index: 2; }
+  .tower-panel header { position: relative; gap: 7px; padding-right: 76px; min-height: 40px; }
+  .tower-panel header img { width: 38px; height: 38px; }
+  .tower-panel h3 { font-size: 16.5px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tower-panel .pips { display: none; }
+  .tower-panel .tags { margin-top: 1px; }
+  .tower-panel .tag { font-size: 11.5px; padding: 0 6px; }
+  .tower-panel .close, .details-btn { position: absolute; top: -4px; width: 40px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 10px; }
+  .tower-panel .close { right: -6px; font-size: 27px; }
+  .details-btn { right: 34px; color: var(--cream-dim); }
+  .details-btn svg { width: 21px; height: 21px; }
+  .details-btn[aria-pressed='true'] { color: var(--gold-hi); }
+  .tower-panel.has-ups:not(.details) :is(.p-desc, header + .p-desc + .stats, .kills, .up-desc, .up-list > .eyebrow) { display: none; }
+  .tower-panel:not(.details) .p-desc { display: none; }
+  .p-desc { font-size: 13px; line-height: 1.22; }
+  .stat { font-size: 13px; line-height: 1.26; }
+  .kills { font-size: 12.5px; }
+  .targeting { gap: 6px; font-size: 13px; }
+  .seg button { padding: 5px 1px; font-size: 12px; }
+  .touch .seg button { padding: 7px 1px; }
+  .up-list { gap: 5px; margin-top: 0; }
+  .up-list > .eyebrow { font-size: 11px; }
+  .up-card { gap: 5px; padding: 4px 7px 4px 4px; min-height: 44px; }
+  .up-card img { width: 32px; height: 32px; }
+  .up-title { font-size: 14.5px; align-items: baseline; }
+  .up-price { font-size: 14.5px; }
+  .up-desc { font-size: 12px; margin: 1px 0 2px; }
+  .stats.compact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 10px; }
+  .stats.compact .stat { gap: 4px; font-size: 12px; line-height: 1.22; white-space: nowrap; }
+  .stats.compact .stat.wide { grid-column: 1 / -1; }
+  .stats.compact .stat span { overflow: hidden; text-overflow: ellipsis; }
+  .stats.compact .stat span[data-short] { font-size: 0; }
+  .stats.compact .stat span[data-short]::after { content: attr(data-short); font-size: 12px; }
+  .sell-btn { padding: 0 8px; min-height: 36px; font-size: 13.5px; }
+  .touch .sell-btn { min-height: 40px; }
+  .maxed { padding: 3px; }
 
   .foe-alerts { top: calc(56px + var(--st)); left: calc(var(--gap) + var(--sl)); width: 260px; gap: 5px; }
   #hud:has(#h-coach:not(.hidden)) .foe-alerts { top: calc(106px + var(--st)); }
@@ -730,6 +785,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .act-x { width: 40px; height: 40px; }
   .touch #hud.acting .hint-line { bottom: calc(132px + var(--sb)); }
   #tooltip { width: 250px; padding: 8px 10px; }
+  #tooltip.pinned { width: 280px; padding-right: 40px; }
   #tooltip h4 { font-size: 16px; }
   #tooltip p, #tooltip .stat { font-size: 13px; }
 
@@ -846,4 +902,14 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .nav-btn { font-size: 16.5px; padding: 3px 14px 3px 0; }
   .nav-btn.primary { font-size: 19.5px; }
   .cine-card h2 { font-size: 40px; }
+  /* The shortest phones: the damage-type tags join the details, so the choices still fit unscrolled. */
+  .tower-panel:not(.details) header .tags { display: none; }
+  .tower-panel { gap: 4px; padding-top: 5px; padding-bottom: 6px; }
+  .tower-panel header { min-height: 30px; }
+  .tower-panel header img { width: 28px; height: 28px; }
+  .tower-panel .close, .details-btn { top: -7px; }
+  .up-list { gap: 4px; }
+  .up-card { padding-top: 3px; padding-bottom: 3px; }
+  .touch .seg button { padding: 6px 1px; }
+  .touch .sell-btn { min-height: 36px; }
 }

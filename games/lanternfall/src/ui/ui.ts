@@ -40,6 +40,8 @@ export interface AppActions {
   confirmAction(): void;
   cancelAction(): void;
   toggleHeroMode(): void;
+  /** Brings the camera back to the view of the whole map a battle starts with. */
+  fitBattlefield(): void;
 }
 
 /** The bar shown above the tower cards on touch screens while building, casting or sending the hero. */
@@ -71,12 +73,27 @@ const ICONS = {
   spellbook: '<svg viewBox="0 0 24 24"><path d="M5 4.500A2.500 2.500 0 0 1 7.500 2H19v16H7.500A2.500 2.500 0 0 0 5 20.500z"/><path d="M5 20.500A2.500 2.500 0 0 0 7.500 23H19v-3" fill="none" stroke="currentColor" stroke-width="1.600"/><path d="M12 6l1.200 2.800L16 10l-2.800 1.200L12 14l-1.200-2.800L8 10l2.800-1.200z" fill="#2a1d36"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.600" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5.5A1.500 1.500 0 0 1 5.500 4H9M15 4h3.500A1.500 1.500 0 0 1 20 5.500V9M20 15v3.500a1.500 1.500 0 0 1-1.500 1.500H15M9 20H5.500A1.500 1.500 0 0 1 4 18.500V15"/><circle cx="12" cy="12" r="2.200" fill="currentColor" stroke="none"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.600" r="1.300" fill="currentColor" stroke="none"/></svg>',
   gear: '<svg viewBox="0 0 24 24"><path d="M19.400 13a7.500 7.500 0 0 0 0-2l2-1.600-2-3.400-2.400 1a7.500 7.500 0 0 0-1.700-1L15 3.500h-4l-.4 2.500a7.500 7.500 0 0 0-1.700 1l-2.400-1-2 3.400 2 1.600a7.500 7.500 0 0 0 0 2l-2 1.600 2 3.400 2.400-1a7.500 7.500 0 0 0 1.700 1l.4 2.500h4l.4-2.500a7.500 7.500 0 0 0 1.700-1l2.400 1 2-3.400zM13 15.200a3.200 3.200 0 1 1 0-6.400 3.200 3.200 0 0 1 0 6.400z" transform="translate(-1 0)"/></svg>',
 };
 
+/** Short names for stats, used where an upgrade card has room for only a word. */
+const SHORT_STAT: Record<string, string> = {
+  'Attacks per second': 'Speed', 'Damage to all in reach': 'Damage', 'Enemies blocked each': 'Blocks', 'Return after': 'Respawn',
+  'Damage boost': 'Boost', 'Aura radius': 'Radius', 'Range boost': 'Reach', 'Gold per wave': 'Gold', 'Burn per second': 'Burn',
+  'Blast radius': 'Blast', 'Extra damage taken': 'Weaken', 'Arrows per volley': 'Arrows', 'Chain targets': 'Chains',
+  'Freeze chance': 'Freeze', 'Critical chance': 'Crit', 'Armor pierce': 'Pierce', 'Fire pool burn': 'Pool', 'Armor shred': 'Shred',
+};
+
 function statRows(s: TowerStats, prev?: TowerStats): string {
-  const row = (label: string, v: string, was?: string) =>
-    `<div class="stat"><span>${label}</span><b>${was && was !== v ? `<i>${was}</i> ` : ''}${v}</b></div>`;
+  const row = (label: string, v: string, was?: string) => {
+    const shown = was && was !== v ? was : '';
+    // Short screens pack two stats to a line with short labels; long values keep a line of their own.
+    const wide = v.length + shown.length > 10 ? ' wide' : '';
+    const short = SHORT_STAT[label];
+    return `<div class="stat${wide}"><span${short ? ` data-short="${short}"` : ''}>${label}</span><b>${shown ? `<i>${shown}</i> ` : ''}${v}</b></div>`;
+  };
   const rows: string[] = [];
   if (s.garrison) {
     const g = s.garrison, was = prev?.garrison;
@@ -248,6 +265,10 @@ export class UI {
   private tutorialStep = -1;
   private inGame = false;
   private barObserver: ResizeObserver | null = null;
+  /** The tower panel's full descriptions and current stats are shown (short screens fold them away). */
+  private panelDetails = false;
+  /** The long-press card stays open after the finger lifts, until it is closed or something else is touched. */
+  private tipPinned = false;
 
   constructor(public save: Save, public app: AppActions) {
     this.root = $('#ui');
@@ -299,6 +320,8 @@ export class UI {
         const rel = e.relatedTarget as HTMLElement | null;
         if (!rel || rel.closest('button') !== t.closest('button')) audio.play('hover');
       }
+      // A card opened by a long press stays put until it is closed.
+      if (this.tipPinned) return;
       const tipHost = t.closest('[data-tip]') as HTMLElement | null;
       if (tipHost) this.showTip(tipHost);
       else this.hideTip();
@@ -312,8 +335,9 @@ export class UI {
   }
 
   /**
-   * On touch, resting a finger on anything with details (a tower card, spell, enemy, tech) shows its
-   * tooltip until the finger lifts. The tap that would follow is swallowed, so looking never buys or builds.
+   * On touch, resting a finger on anything with details (a tower card, spell, enemy, tech) opens its card.
+   * The card stays open after the finger lifts so it can be read, and closes with its × or the next touch
+   * anywhere else. The tap that would follow the press is swallowed, so looking never buys or builds.
    */
   private bindLongPress() {
     let timer = 0;
@@ -329,18 +353,19 @@ export class UI {
       swallowClick = false;
       if (e.pointerType === 'mouse') return;
       cancel();
-      const target = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]');
-      if (!target) {
-        this.hideTip();
-        return;
-      }
+      const el = e.target as HTMLElement;
+      // Touching the open card scrolls or closes it, and leaves it open otherwise.
+      if (this.tipPinned && this.tooltip.contains(el)) return;
+      this.hideTip();
+      const target = el.closest<HTMLElement>('[data-tip]');
+      if (!target) return;
       host = target;
       sx = e.clientX;
       sy = e.clientY;
       timer = window.setTimeout(() => {
         timer = 0;
         if (!host?.isConnected) return;
-        this.showTip(host);
+        this.showTip(host, true);
         swallowClick = true;
         buzz(10);
       }, LONG_PRESS_MS);
@@ -351,7 +376,6 @@ export class UI {
     const lift = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return;
       cancel();
-      if (swallowClick) this.hideTip();
     };
     document.addEventListener('pointerup', lift, { capture: true });
     document.addEventListener('pointercancel', lift, { capture: true });
@@ -360,6 +384,13 @@ export class UI {
       swallowClick = false;
       e.preventDefault();
       e.stopPropagation();
+    }, { capture: true });
+    this.tooltip.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.tip-close')) this.hideTip();
+    });
+    // A pinned card would point at the wrong place once what it describes scrolls away.
+    document.addEventListener('scroll', (e) => {
+      if (this.tipPinned && !this.tooltip.contains(e.target as Node)) this.hideTip();
     }, { capture: true });
     // A long press would otherwise open the browser's own menu.
     document.addEventListener('contextmenu', (e) => {
@@ -379,7 +410,7 @@ export class UI {
     setTimeout(() => l.remove(), 900);
   }
 
-  private showTip(host: HTMLElement) {
+  private showTip(host: HTMLElement, pinned = false) {
     const kind = host.dataset.tip!;
     let html = '';
     if (kind === 'tower') {
@@ -408,8 +439,12 @@ export class UI {
     } else if (kind === 'text') {
       html = `<p>${host.dataset.text}</p>`;
     }
+    if (pinned) html = `<button class="tip-close" aria-label="Close">${ICONS.close}</button>${html}`;
+    this.tipPinned = pinned;
     this.tooltip.innerHTML = html;
+    this.tooltip.classList.toggle('pinned', pinned);
     this.tooltip.classList.remove('hidden');
+    this.tooltip.scrollTop = 0;
     const r = host.getBoundingClientRect();
     const tr = this.tooltip.getBoundingClientRect();
     let x = r.left + r.width / 2 - tr.width / 2;
@@ -420,6 +455,7 @@ export class UI {
   }
 
   private hideTip() {
+    this.tipPinned = false;
     this.tooltip.classList.add('hidden');
   }
 
@@ -930,6 +966,7 @@ export class UI {
     this.menu.classList.add('hidden');
     this.cache.clear();
     this.lastTowerPanelKey = '';
+    this.hud.classList.remove('panel-open');
     this.lastPreviewKey = '';
     this.lastActionKey = '';
     this.cards.clear();
@@ -955,6 +992,7 @@ export class UI {
         <div class="coach hidden" id="h-coach"></div>
       </div>
       <div class="top-right">
+        <button class="icon-btn" id="h-fit" aria-label="Fit battlefield" data-tip="text" data-text="${touch ? 'Fit battlefield: show the whole map again' : 'Fit battlefield (Home)'}">${ICONS.fit}</button>
         <button class="icon-btn speed" id="h-speed" aria-label="Game speed" data-tip="text" data-text="${touch ? 'Game speed' : 'Game speed (F)'}"><span id="h-speed-text">1×</span></button>
         <button class="icon-btn" id="h-pause" aria-label="Pause" data-tip="text" data-text="${touch ? 'Pause' : 'Pause (P)'}">${ICONS.pause}</button>
       </div>
@@ -1019,6 +1057,7 @@ export class UI {
     }
     $('#h-call').onclick = () => this.app.callWave();
     $('#h-speed').onclick = () => this.app.cycleSpeed();
+    $('#h-fit').onclick = () => this.app.fitBattlefield();
     $('#h-pause').onclick = () => this.app.togglePause();
     // A mouse right-clicks to move the hero, so its portrait centers the camera. Touch uses the portrait to send them.
     $('#h-hero').onclick = () => (isTouch() ? this.app.toggleHeroMode() : this.app.centerHero());
@@ -1069,6 +1108,7 @@ export class UI {
     delete bar.dataset.fit;
     bar.classList.remove('tight');
     this.hud.style.removeProperty('--tb-lift');
+    this.hud.classList.remove('spells-up');
     if (this.hud.classList.contains('hidden')) return;
     const hud = this.hud.getBoundingClientRect();
     const l = left.getBoundingClientRect();
@@ -1083,6 +1123,11 @@ export class UI {
       set('--br-x', hud.right - r.left);
       set('--tl-x', tl.right - hud.left);
       set('--tr-x', hud.right - tr.left);
+      // With a tower panel open the spells sit beside it, unless that would put them over the hero panel.
+      if (this.hud.classList.contains('panel-open') && r.left < l.right + TOWER_BAR_GAP) {
+        set('--bl-h', hud.bottom - l.top);
+        this.hud.classList.add('spells-up');
+      }
       return;
     }
     const b = bar.getBoundingClientRect();
@@ -1360,6 +1405,8 @@ export class UI {
       if (this.lastTowerPanelKey) {
         panel.classList.add('hidden');
         this.lastTowerPanelKey = '';
+        this.hud.classList.remove('panel-open');
+        this.layoutTowerBar();
       }
       return;
     }
@@ -1389,6 +1436,7 @@ export class UI {
             <div class="tags">${tags(s)}</div>
           </div>
           <button class="close" data-close aria-label="Close">×</button>
+          <button class="details-btn" data-details aria-label="${this.panelDetails ? 'Hide details' : 'Show details'}" aria-pressed="${this.panelDetails}">${ICONS.info}</button>
         </header>
         <p class="p-desc">${s.desc}</p>
         <div class="stats">${statRows(s)}</div>
@@ -1397,11 +1445,24 @@ export class UI {
         ${upgrades ? `<div class="up-list">${t.level === 1 ? '<p class="eyebrow">Choose a specialization</p>' : ''}${upgrades}</div>` : '<p class="maxed">Fully upgraded</p>'}
         <button class="sell-btn" data-sell>Sell for <b>${game.sellValue(t)}</b> gold <kbd>Del</kbd></button>
       `;
+      panel.classList.toggle('has-ups', !!upgrades);
+      panel.classList.toggle('details', this.panelDetails);
       panel.classList.remove('hidden');
+      if (!this.hud.classList.contains('panel-open')) {
+        // On short screens the spells step aside for the panel instead of hiding under it.
+        this.hud.classList.add('panel-open');
+        this.layoutTowerBar();
+      }
       panel.onclick = (e) => {
         const el = e.target as HTMLElement;
         const up = el.closest<HTMLElement>('[data-up]');
-        if (up) this.app.upgrade(+up.dataset.up!);
+        const details = el.closest<HTMLElement>('[data-details]');
+        if (details) {
+          this.panelDetails = panel.classList.toggle('details');
+          details.setAttribute('aria-pressed', String(this.panelDetails));
+          details.setAttribute('aria-label', this.panelDetails ? 'Hide details' : 'Show details');
+          if (!this.panelDetails) panel.scrollTop = 0;
+        } else if (up) this.app.upgrade(+up.dataset.up!);
         else if (el.closest('[data-sell]')) this.app.sell();
         else if (el.closest('[data-close]')) this.app.deselect();
         else {
