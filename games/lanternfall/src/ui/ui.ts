@@ -74,6 +74,8 @@ export interface ActionBar {
 
 /** How long a finger rests on something before its details appear. */
 const LONG_PRESS_MS = 420;
+/** How long the tower panel's buttons ignore clicks after an upgrade reshapes it. Covers a double-click. */
+const PANEL_SETTLE_MS = 450;
 /** The latest Endless wave the demo lets a battle start at. */
 const MAX_START_WAVE = 200;
 
@@ -273,6 +275,8 @@ export class UI {
   private cineDone: (() => void) | null = null;
   private floatNext = 0;
   private lastTowerPanelKey = '';
+  /** When the open tower panel was last rebuilt for the same tower, i.e. after an upgrade. */
+  private panelRebuiltAt = -Infinity;
   private lastPreviewKey = '';
   private game: Game | null = null;
   private tooltip!: HTMLElement;
@@ -1529,6 +1533,11 @@ export class UI {
     }
     const key = `${t.id}-${t.level}-${t.branch}-${t.mode}`;
     if (key !== this.lastTowerPanelKey) {
+      // An upgrade reshapes the panel, so the Sell button or another card can slide under the cursor.
+      // Note the time, so the second click of a quick double-click doesn't land on it.
+      // Event timestamps share performance.now()'s clock.
+      if (this.lastTowerPanelKey.startsWith(`${t.id}-`)) this.panelRebuiltAt = performance.now();
+      const builtLevel = t.level;
       this.lastTowerPanelKey = key;
       const s = t.stats;
       const branchOptions = t.level === 1 ? [0, 1] : t.level === 0 || t.level === 2 ? [t.branch] : [];
@@ -1579,9 +1588,17 @@ export class UI {
           details.setAttribute('aria-pressed', String(this.panelDetails));
           details.setAttribute('aria-label', this.panelDetails ? 'Hide details' : 'Show details');
           if (!this.panelDetails) panel.scrollTop = 0;
-        } else if (up) this.app.upgrade(+up.dataset.up!);
-        else if (el.closest('[data-sell]')) this.app.sell();
-        else if (el.closest('[data-close]')) this.app.deselect();
+          return;
+        }
+        // Buttons that may have just moved under the cursor wait out a double-click before they act.
+        // Timed from when the click happened, not when it is handled, so a slow frame can't let one through.
+        // A panel not yet redrawn after an upgrade is stale too: its cards still offer the old level.
+        const settling = e.timeStamp - this.panelRebuiltAt < PANEL_SETTLE_MS || t.level !== builtLevel;
+        if (up) {
+          if (!settling) this.app.upgrade(+up.dataset.up!);
+        } else if (el.closest('[data-sell]')) {
+          if (!settling) this.app.sell();
+        } else if (el.closest('[data-close]')) this.app.deselect();
         else {
           const m = el.closest<HTMLElement>('[data-mode]');
           if (m) this.app.setTargetMode(m.dataset.mode as TargetMode);
