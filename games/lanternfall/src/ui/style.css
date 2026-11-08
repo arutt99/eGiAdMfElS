@@ -397,7 +397,35 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .skill.locked { filter: grayscale(1) brightness(0.45); cursor: not-allowed; }
 .cd { position: absolute; inset: 0; display: grid; place-items: center; font: 900 18px var(--display); color: #fff; text-shadow: 0 1px 4px #000; pointer-events: none; background: conic-gradient(rgba(10, 4, 18, 0.74) var(--cd, 0deg), transparent 0); }
 .small .cd { font-size: 14px; }
-.bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: calc(100% - 360px); }
+/* Spells fold into one button. Opened, they fan out around a clock face (UI.placeSpellDial sets the positions). */
+.spell-dial { position: absolute; inset: 0; pointer-events: none; }
+.spell-toggle { position: absolute; right: 14px; bottom: 14px; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 16px; color: var(--gold-hi); border-color: var(--line-2); transition: background 0.15s, color 0.15s, transform 0.13s; }
+.spell-toggle > svg { width: 30px; height: 30px; fill: currentColor; }
+.spell-toggle:hover { background: var(--ink-3); }
+.spell-dial.open .spell-toggle { color: var(--cream); background: var(--ink-3); }
+.sd-armed { position: absolute; inset: 9px; display: none; }
+.sd-armed svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1.5px 1px rgba(10, 4, 18, 0.55)); }
+.spell-toggle.armed { border-color: var(--gold-hi); background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--sc, #3c2b4a) 32%, transparent), transparent 72%), var(--panel); box-shadow: 0 0 0 2px var(--gold-hi), 0 0 18px rgba(255, 200, 90, 0.6); }
+.spell-toggle.armed .sd-armed { display: block; }
+.spell-toggle.armed > svg { display: none; }
+.sd-ready { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--ember); color: #fff; font: 800 12px/20px var(--body); text-align: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.sd-ready:empty { display: none; }
+.sd-ring { --s: 58px; position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; visibility: hidden; transition: visibility 0s 0.26s; }
+.spell-dial.open .sd-ring { visibility: visible; transition: none; }
+.sd-face { position: absolute; left: calc(var(--face, 200px) / -2); top: calc(var(--face, 200px) / -2); width: var(--face, 200px); height: var(--face, 200px); border-radius: 50%; background: radial-gradient(circle, rgba(46, 31, 58, 0.72), rgba(27, 18, 36, 0.93) 72%); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: auto; opacity: 0; transform: scale(0.35); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.16s; }
+/* The clock face: twelve hour marks inside the rim. */
+.sd-face::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: repeating-conic-gradient(from -1.5deg, rgba(255, 226, 160, 0.35) 0 3deg, transparent 3deg 30deg); -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); mask: radial-gradient(closest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); }
+.spell-dial.open .sd-face { opacity: 1; transform: none; }
+.sd-hub { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--cream-dim); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line-2); transform: scale(0); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.sd-hub svg { width: 18px; height: 18px; }
+.spell-dial.open .sd-hub { transform: none; }
+.sd-ring .skill { position: absolute; left: calc(var(--s) / -2); top: calc(var(--s) / -2); width: var(--s); height: var(--s); opacity: 0; transform: scale(0.2); transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(var(--i, 0) * 16ms), opacity 0.16s calc(var(--i, 0) * 16ms), border-color 0.13s; }
+.spell-dial.open .sd-ring .skill { opacity: 1; transform: translate(var(--x), var(--y)); }
+@media (hover: hover) {
+  .spell-dial.open .sd-ring .skill:hover:not(.locked) { transform: translate(var(--x), var(--y)) scale(1.08); }
+}
+.touch .spell-dial.open .sd-ring .skill:active:not(.locked) { transform: translate(var(--x), var(--y)) scale(0.93); }
+.touch .spell-toggle:active { transform: scale(0.93); }
 
 /* The tower picker floats beside the spot the player tapped, with a small arrow pointing at it. UI.updatePicker places it. */
 .build-picker { position: absolute; left: 0; top: 0; z-index: 3; display: flex; flex-direction: column; gap: 7px; padding: 8px 10px 10px; max-width: calc(100% - 16px); border-color: var(--line-2); animation: pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -582,7 +610,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .top-center { top: calc(14px + var(--st)); }
 .top-right { top: calc(14px + var(--st)); right: calc(14px + var(--sr)); }
 .bottom-left { left: calc(14px + var(--sl)); bottom: calc(14px + var(--sb)); }
-.bottom-right { right: calc(14px + var(--sr)); bottom: calc(14px + var(--sb)); }
+.spell-toggle { right: calc(14px + var(--sr)); bottom: calc(14px + var(--sb)); }
 .tower-panel { right: calc(14px + var(--sr)); }
 .foe-alerts { left: calc(14px + var(--sl)); }
 .back { left: calc(26px + var(--sl)); }
@@ -697,19 +725,17 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .touch .small .cd { font-size: 15px; }
   .touch .abilities { gap: 5px; }
 
-  .bottom-right { right: calc(var(--gap) + var(--sr)); bottom: calc(var(--gap) + var(--sb)); display: grid; grid-auto-flow: column; grid-template-rows: auto; gap: 5px; max-width: none; padding: 5px; border-radius: 12px; }
-  .bottom-right .skill { width: 36px; height: 36px; padding: 5px; border-radius: 9px; }
-  .bottom-right .cd { font-size: 13px; }
-  .touch .bottom-right { gap: 6px; }
-  .touch .bottom-right .skill { width: 44px; height: 44px; padding: 6px; border-radius: 10px; }
-  .touch .bottom-right .cd { font-size: 15px; }
-  /* Too little room for one row beside the hero (small phones): the spells fold into two. */
-  #hud.spells-fold .bottom-right { grid-template-rows: repeat(2, auto); }
-  /* With a tower selected the spells step left of its panel as a two-row strip, so emergency spells stay in
-     reach beside the upgrades. */
-  #hud.panel-open .bottom-right { right: calc(var(--gap) + var(--sr) + var(--panel-w) + 6px); grid-template-rows: repeat(2, auto); }
-  /* Still too narrow: the spells sit above the hero panel instead. */
-  #hud.spells-up .bottom-right { right: auto; left: calc(var(--gap) + var(--sl)); bottom: calc(var(--bl-h, 64px) + 6px); }
+  /* The spell button matches the hero panel's height. */
+  .spell-toggle { right: calc(var(--gap) + var(--sr)); bottom: calc(var(--gap) + var(--sb)); width: 54px; height: 54px; border-radius: 12px; }
+  .spell-toggle > svg { width: 26px; height: 26px; }
+  .sd-armed { inset: 8px; }
+  .sd-ring { --s: 40px; }
+  .touch .sd-ring { --s: 44px; }
+  .sd-ring .cd { font-size: 14px; }
+  /* With a tower selected the spell button steps left of its panel, so spells stay in reach beside the upgrades. */
+  #hud.panel-open .spell-toggle { right: calc(var(--gap) + var(--sr) + var(--panel-w) + 6px); }
+  /* Too narrow for that (small phones): it sits above the hero panel instead. */
+  #hud.spells-up .spell-toggle { right: auto; left: calc(var(--gap) + var(--sl)); bottom: calc(var(--bl-h, 64px) + 6px); }
 
   .build-picker { gap: 5px; padding: 6px 7px 7px; border-radius: 12px; }
   .bp-title { font-size: 14.5px; }

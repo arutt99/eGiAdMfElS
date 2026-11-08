@@ -30,6 +30,8 @@ export interface AppActions {
   /** Mouse only: the tower picker card under the pointer, or null when it leaves. */
   hoverTower(t: TowerId | null): void;
   pickSpell(s: SpellId): void;
+  /** Closes the tower picker, if it's open. */
+  closeSite(): void;
   callWave(): void;
   cycleSpeed(): void;
   togglePause(): void;
@@ -90,6 +92,7 @@ const ICONS = {
   pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5.5A1.500 1.500 0 0 1 5.500 4H9M15 4h3.500A1.500 1.500 0 0 1 20 5.500V9M20 15v3.500a1.500 1.500 0 0 1-1.500 1.500H15M9 20H5.500A1.500 1.500 0 0 1 4 18.500V15"/><circle cx="12" cy="12" r="2.200" fill="currentColor" stroke="none"/></svg>',
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.600" r="1.300" fill="currentColor" stroke="none"/></svg>',
+  spellbook: '<svg viewBox="0 0 24 24"><path d="M5 4.500A2.500 2.500 0 0 1 7.500 2H19v16H7.500A2.500 2.500 0 0 0 5 20.500z"/><path d="M5 20.500A2.500 2.500 0 0 0 7.500 23H19v-3" fill="none" stroke="currentColor" stroke-width="1.600"/><path d="M12 6l1.200 2.800L16 10l-2.800 1.200L12 14l-1.200-2.800L8 10l2.800-1.200z" fill="#2a1d36"/></svg>',
   gear: '<svg viewBox="0 0 24 24"><path d="M19.400 13a7.500 7.500 0 0 0 0-2l2-1.600-2-3.400-2.400 1a7.500 7.500 0 0 0-1.700-1L15 3.500h-4l-.4 2.500a7.500 7.500 0 0 0-1.700 1l-2.400-1-2 3.400 2 1.600a7.500 7.500 0 0 0 0 2l-2 1.600 2 3.400 2.400-1a7.500 7.500 0 0 0 1.700 1l.4 2.500h4l.4-2.500a7.500 7.500 0 0 0 1.700-1l2.400 1 2-3.400zM13 15.200a3.200 3.200 0 1 1 0-6.400 3.200 3.200 0 0 1 0 6.400z" transform="translate(-1 0)"/></svg>',
 };
 
@@ -223,7 +226,7 @@ const CREDITS_SECONDS = 26;
 /** Matches the compact layout at the end of style.css. */
 const COMPACT_LAYOUT = '(max-height: 540px)';
 /** Space kept between the tower bar and the panels beside it, and from the screen's edges. */
-/** The least room kept between the hero panel and the spells. */
+/** The least room kept between the hero panel and the spell button. */
 const HUD_GAP = 8;
 /**
  * Scrolls a horizontal rail so the card is fully in view, or centered. It moves only the rail itself:
@@ -364,6 +367,9 @@ export class UI {
       host = null;
     };
     document.addEventListener('pointerdown', (e) => {
+      // A touch or click anywhere outside the open spell dial (or the card it opened) folds it away.
+      const t = e.target as HTMLElement;
+      if (this.spellDialOpen && !t.closest('#h-spells') && !this.tooltip.contains(t)) this.setSpellDial(false);
       swallowClick = false;
       if (e.pointerType === 'mouse') return;
       cancel();
@@ -1029,7 +1035,13 @@ export class UI {
         <div class="bp-cards" id="h-towers"></div>
       </div>
       <div class="lantern-hp" id="h-lantern-hp" role="img" aria-label="Lantern health"><b></b><div class="lantern-hp-bar"><i></i></div></div>
-      <div class="bottom-right panel slim" id="h-spells"></div>
+      <div class="spell-dial" id="h-spells">
+        <button class="spell-toggle panel" id="h-spell-toggle" aria-label="Spells" aria-expanded="false" aria-controls="h-spell-ring">${ICONS.spellbook}<span class="sd-armed"></span><b class="sd-ready" aria-hidden="true"></b></button>
+        <div class="sd-ring" id="h-spell-ring" role="group" aria-label="Spells">
+          <div class="sd-face"></div>
+          <button class="sd-hub" aria-label="Close spells">${ICONS.close}</button>
+        </div>
+      </div>
       <div class="action-bar hidden" id="h-action" role="status">
         <div class="act-body"><b class="act-title"></b><span class="act-text"></span></div>
         <button class="act-ok" data-act="ok"></button>
@@ -1058,6 +1070,7 @@ export class UI {
       this.cards.set(id, b);
     }
     const spells = $('#h-spells');
+    const ring = $('#h-spell-ring');
     for (const id of SPELL_ORDER) {
       const def = SPELLS[id];
       const unlocked = game.isSpellUnlocked(id);
@@ -1069,10 +1082,17 @@ export class UI {
       b.setAttribute('aria-label', def.name);
       b.style.setProperty('--sc', hex(def.color));
       b.innerHTML = `${POWER_ICONS[id]}<kbd>${def.hotkey}</kbd><span class="cd"></span>`;
-      b.onclick = () => unlocked && this.app.pickSpell(id);
-      spells.appendChild(b);
+      b.onclick = () => {
+        if (!unlocked) return;
+        this.setSpellDial(false);
+        this.app.pickSpell(id);
+      };
+      ring.appendChild(b);
       this.spellBtns.set(id, b);
     }
+    this.spellDialOpen = false;
+    $('#h-spell-toggle').onclick = () => this.setSpellDial(!this.spellDialOpen);
+    $('.sd-hub').onclick = () => this.setSpellDial(false);
     $('.bp-x').onclick = () => this.app.cancelAction();
     $('#h-call').onclick = () => this.app.callWave();
     $('#h-speed').onclick = () => this.app.cycleSpeed();
@@ -1109,16 +1129,17 @@ export class UI {
   }
 
   /**
-   * Short screens only: fits the wave box between the top corners, and keeps the spells clear of the hero
-   * panel. The spells sit in one row, fold into two when that row would reach the hero, and step above the
-   * hero panel when a tower panel leaves too little room beside it.
+   * Short screens only: fits the wave box between the top corners, and keeps the spell button clear of the
+   * hero panel when a tower panel pushes it left.
    */
   layoutHud() {
     const left = this.hud.querySelector<HTMLElement>('.bottom-left');
-    const right = this.hud.querySelector<HTMLElement>('#h-spells');
+    const right = this.hud.querySelector<HTMLElement>('#h-spell-toggle');
     if (!left || !right) return;
-    this.hud.classList.remove('spells-up', 'spells-fold');
-    if (this.hud.classList.contains('hidden') || !matchMedia(COMPACT_LAYOUT).matches) return;
+    this.hud.classList.remove('spells-up');
+    if (this.hud.classList.contains('hidden')) return;
+    if (this.spellDialOpen) this.placeSpellDial();
+    if (!matchMedia(COMPACT_LAYOUT).matches) return;
     const hud = this.hud.getBoundingClientRect();
     const tl = this.hud.querySelector<HTMLElement>('.top-left')!.getBoundingClientRect();
     const tr = this.hud.querySelector<HTMLElement>('.top-right')!.getBoundingClientRect();
@@ -1126,17 +1147,58 @@ export class UI {
     set('--tl-x', tl.right - hud.left);
     set('--tr-x', hud.right - tr.left);
     const l = left.getBoundingClientRect();
-    let r = right.getBoundingClientRect();
     set('--bl-h', hud.bottom - l.top);
-    if (this.hud.classList.contains('panel-open')) {
-      // With a tower panel open the spells sit beside it, unless that would put them over the hero panel.
-      if (r.left < l.right + HUD_GAP) this.hud.classList.add('spells-up');
-    } else if (r.left < l.right + HUD_GAP) {
-      this.hud.classList.add('spells-fold');
-      r = right.getBoundingClientRect();
-      if (r.left < l.right + HUD_GAP) this.hud.classList.add('spells-up');
-    }
+    // With a tower panel open the spell button sits beside it, unless that would put it over the hero panel.
+    if (this.hud.classList.contains('panel-open') && right.getBoundingClientRect().left < l.right + HUD_GAP) this.hud.classList.add('spells-up');
     set('--br-x', hud.right - right.getBoundingClientRect().left);
+    if (this.spellDialOpen) this.placeSpellDial();
+  }
+
+  spellDialOpen = false;
+  /** Opens or closes the spell dial: the spells laid out around a clock face, starting at twelve o'clock. */
+  setSpellDial(open: boolean) {
+    const dial = this.hud.querySelector<HTMLElement>('#h-spells');
+    if (!dial || open === this.spellDialOpen) return;
+    this.spellDialOpen = open;
+    if (open) this.app.closeSite();
+    dial.classList.toggle('open', open);
+    const toggle = $('#h-spell-toggle');
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close spells' : 'Spells');
+    if (open) this.placeSpellDial();
+    if (!open) this.hideTip();
+  }
+
+  /**
+   * Sizes the clock face so the spells don't touch, and centers it as near the spell button as the screen
+   * allows: in a corner the whole face slides inward so no spell is cut off.
+   */
+  private placeSpellDial() {
+    const ring = this.hud.querySelector<HTMLElement>('#h-spell-ring');
+    const toggle = this.hud.querySelector<HTMLElement>('#h-spell-toggle');
+    if (!ring || !toggle) return;
+    const btns = [...ring.querySelectorAll<HTMLElement>('.skill')];
+    const size = btns[0]?.offsetWidth || 44;
+    const n = Math.max(btns.length, 1);
+    const spacing = size + (matchMedia(COMPACT_LAYOUT).matches ? 8 : 12);
+    // The ring is just big enough for the spells to sit side by side around it, and never smaller than the hub.
+    const r = Math.max(size * 1.15, (n * spacing) / (2 * Math.PI));
+    const half = r + size / 2 + 10;
+    const hud = this.hud.getBoundingClientRect();
+    const t = toggle.getBoundingClientRect();
+    const top = this.hud.querySelector<HTMLElement>('.top-right')!.getBoundingClientRect().bottom - hud.top + 6;
+    const edge = 6;
+    const cx = Math.max(half + edge, Math.min(hud.width - half - edge, t.left + t.width / 2 - hud.left));
+    const cy = Math.max(top + half, Math.min(hud.height - half - edge, t.top + t.height / 2 - hud.top));
+    ring.style.left = `${Math.round(cx)}px`;
+    ring.style.top = `${Math.round(cy)}px`;
+    ring.style.setProperty('--face', `${Math.round(half * 2)}px`);
+    btns.forEach((b, i) => {
+      const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+      b.style.setProperty('--x', `${Math.round(Math.cos(a) * r)}px`);
+      b.style.setProperty('--y', `${Math.round(Math.sin(a) * r)}px`);
+      b.style.setProperty('--i', `${i}`);
+    });
   }
 
   hideHud() {
@@ -1238,7 +1300,7 @@ export class UI {
       ['<b>Build another, then start the fight.</b> Try the Arcane Spire, then tap <b>Start wave 1</b> at the top.', () => game.wave >= 1],
       ["<b>Send your hero.</b> Tap your hero's portrait, then tap the road. Your hero stops enemies and fights them, and also strengthens nearby towers.", () => heroOrdered],
       ['<b>Upgrade.</b> Tap any tower to open its panel. After level 2, each tower can specialize in one of two forms.', () => upgraded],
-      ['<b>Use your spells.</b> Tap Starfall, then tap a crowded stretch of road. Touch and hold anything to see what it does.', () => game.spellCd.starfall > 5],
+      ['<b>Use your spells.</b> Tap the spellbook in the corner, choose Starfall, then tap a crowded stretch of road. Touch and hold anything to see what it does.', () => game.spellCd.starfall > 5],
     ];
     const mouseSteps: [string, () => boolean][] = [
       ["<b>Build a tower.</b> Click open ground beside the road, then choose the Archer's Roost.", () => game.towers.length >= 1],
@@ -1332,6 +1394,18 @@ export class UI {
       setCd(btn, left > 0 ? left / game.spellCooldown(id) : 0, left > 0 ? `${Math.ceil(left)}` : '');
       btn.classList.toggle('active', ctx.spell === id);
     }
+    // The folded button shows how many spells are ready, and the spell waiting for a target.
+    const toggle = $('#h-spell-toggle');
+    let ready = 0;
+    for (const [id, btn] of this.spellBtns) if (!btn.classList.contains('locked') && game.spellCd[id] <= 0) ready++;
+    c.set($('.sd-ready', toggle), ready ? `${ready}` : '');
+    const armed = ctx.spell ?? '';
+    if (toggle.dataset.armed !== armed) {
+      toggle.dataset.armed = armed;
+      $('.sd-armed', toggle).innerHTML = ctx.spell ? POWER_ICONS[ctx.spell] : '';
+      toggle.classList.toggle('armed', !!ctx.spell);
+      if (ctx.spell) toggle.style.setProperty('--sc', hex(SPELLS[ctx.spell].color));
+    }
     const hero = game.hero;
     this.abilityBtns.forEach((btn, i) => {
       if (!btn) return;
@@ -1389,7 +1463,7 @@ export class UI {
     const edge = 8;
     const top = this.hud.querySelector<HTMLElement>('.top-center')!.getBoundingClientRect().bottom - hud.top + edge;
     const x = p.x - hud.left, y = p.y - hud.top;
-    const bottom = Math.min(...['.bottom-left', '#h-spells'].map((sel) => this.hud.querySelector<HTMLElement>(sel)!.getBoundingClientRect().top - hud.top)) - edge;
+    const bottom = Math.min(...['.bottom-left', '#h-spell-toggle'].map((sel) => this.hud.querySelector<HTMLElement>(sel)!.getBoundingClientRect().top - hud.top)) - edge;
     // The top-left panel sits just inside the notch, so its top edge is the highest the picker may go.
     const screenTop = this.hud.querySelector<HTMLElement>('.top-left')!.getBoundingClientRect().top - hud.top;
     // It never covers the site. In order: above the site under the top bar, below it above the bottom panels,

@@ -72,7 +72,7 @@ async function blockedControls(page, scope = '#hud') {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForTimeout(400);
       const overlaps = await page.evaluate(() => {
-        const sel = { gold: '.top-left', wave: '.wave-box', speed: '.top-right', hero: '.bottom-left', spells: '#h-spells' };
+        const sel = { gold: '.top-left', wave: '.wave-box', speed: '.top-right', hero: '.bottom-left', spells: '#h-spell-toggle' };
         const rects = Object.entries(sel).map(([k, s]) => [k, document.querySelector(s).getBoundingClientRect()]);
         const out = [];
         for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
@@ -88,9 +88,18 @@ async function blockedControls(page, scope = '#hud') {
 
     // 2b. Phones: hero powers and spells are finger-sized, and a selected tower's panel shows its choices,
     // prices, close button and the spells together without scrolling or covering anything.
+    await page.tap('#h-spell-toggle');
+    await page.waitForTimeout(400);
+    // The open spell dial fits on screen, and nothing covers its spells.
+    const dialFits = await page.evaluate(() => [...document.querySelectorAll('#h-spell-ring .skill, .sd-face')]
+      .every((el) => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }));
+    assert.ok(dialFits, 'the open spell dial should fit on screen');
+    assert.deepEqual(await blockedControls(page, '#h-spell-ring'), [], 'spell dial');
     const small = await page.evaluate(() => [...document.querySelectorAll('#hud .skill')]
       .map((b) => b.getBoundingClientRect()).filter((r) => r.width && (r.width < 44 || r.height < 44)).length);
     assert.equal(small, 0, 'hero powers and spells should be at least 44px on touch');
+    await page.tap('.sd-hub');
+    await page.waitForTimeout(400);
     await page.evaluate(() => {
       const a = window.__lanternfall, g = a.game, w = g.world;
       for (let x = 10 - w.halfW; x <= w.halfW; x++) for (let z = 5 - w.halfH; z <= w.halfH; z++) {
@@ -104,7 +113,7 @@ async function blockedControls(page, scope = '#hud') {
         const p = document.querySelector('#h-panel');
         const rect = (s) => document.querySelector(s).getBoundingClientRect();
         const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
-        const panel = rect('#h-panel'), spells = rect('#h-spells'), hero = rect('.bottom-left');
+        const panel = rect('#h-panel'), spells = rect('#h-spell-toggle'), hero = rect('.bottom-left');
         return {
           scrolls: p.scrollHeight > p.clientHeight + 1,
           ups: p.querySelectorAll('[data-up]').length,
@@ -131,13 +140,17 @@ async function blockedControls(page, scope = '#hud') {
       el.dispatchEvent(new PointerEvent('pointerup', o));
       el.click();
     }, [sel, ms]);
-    await press('#h-spells .skill', 600);
+    await page.tap('#h-spell-toggle');
+    await page.waitForTimeout(400);
+    await press('#h-spell-ring .skill', 600);
     await page.waitForTimeout(200);
     assert.ok(await page.isVisible('#tooltip.pinned'), 'the spell card should stay open after the finger lifts');
     assert.equal(await page.evaluate(() => window.__lanternfall.spell), null, 'looking at a spell should not pick it');
     await press('#h-gold', 40);
     assert.ok(!(await page.isVisible('#tooltip')), 'touching elsewhere should close the card');
-    await press('#h-spells .skill', 600);
+    await press('#h-spell-toggle', 40);
+    await page.waitForTimeout(400);
+    await press('#h-spell-ring .skill', 600);
     await page.click('#tooltip .tip-close');
     assert.ok(!(await page.isVisible('#tooltip')), 'the card\'s close button should close it');
     console.log('ok - long-press cards stay open until dismissed');

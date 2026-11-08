@@ -458,6 +458,7 @@ class App implements AppActions {
       return;
     }
     this.site = { x, z };
+    this.ui.setSpellDial(false);
     this.buildType = null;
     this.aim = null;
     this.selected = null;
@@ -477,6 +478,7 @@ class App implements AppActions {
   pickSpell(id: SpellId) {
     const g = this.game;
     if (!g || this.paused || !g.isSpellUnlocked(id)) return;
+    this.ui.setSpellDial(false);
     if (g.spellCd[id] > 0) {
       audio.play('error');
       return;
@@ -520,6 +522,7 @@ class App implements AppActions {
     if (!this.game || this.finished) return;
     this.paused = !this.paused;
     if (this.paused) {
+      this.ui.setSpellDial(false);
       const menu = () => {
         this.ui.showPause(
           () => this.ui.showSettings(menu),
@@ -939,7 +942,9 @@ class App implements AppActions {
     if (e.code === 'Escape' || e.code === 'KeyP') {
       e.preventDefault();
       if (e.repeat) return;
-      if (e.code === 'Escape' && (this.buildType || this.spell || this.site)) {
+      if (e.code === 'Escape' && this.ui.spellDialOpen) {
+        this.ui.setSpellDial(false);
+      } else if (e.code === 'Escape' && (this.buildType || this.spell || this.site)) {
         this.closeSite();
         this.buildType = null;
         this.spell = null;
