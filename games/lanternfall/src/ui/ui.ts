@@ -504,6 +504,8 @@ export class UI {
       for (const s of SPELL_ORDER) if (SPELLS[s].unlockAfter === m.index + 1) unlocked.push(SPELLS[s].name);
       return unlocked.length && !this.endless && this.save.cleared <= m.index ? `<p class="unlock-note">Clearing this map unlocks <b>${unlocked.join(' and ')}</b>.</p>` : '';
     })();
+    // Re-rendering replaces the map rail, so keep where the player had scrolled it.
+    const railScroll = $<HTMLElement>('.map-rail', this.menu)?.scrollLeft;
     this.menu.innerHTML = `
       <div class="select-screen">
         <button class="back" data-a="back">Back</button>
@@ -546,6 +548,9 @@ export class UI {
         </div>
         <span class="sr">${hex(biome.fog)}</span>
       </div>`;
+    const rail = $<HTMLElement>('.map-rail', this.menu);
+    if (railScroll !== undefined) rail.scrollLeft = railScroll;
+    else $<HTMLElement>('.map-card.on', rail)?.scrollIntoView({ block: 'nearest', inline: 'center' });
     this.menu.onclick = (e) => {
       const t = e.target as HTMLElement;
       const a = t.closest<HTMLElement>('[data-a]')?.dataset.a;
