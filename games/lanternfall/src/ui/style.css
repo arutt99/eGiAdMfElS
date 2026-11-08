@@ -373,19 +373,22 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .icon-btn svg { width: 21px; height: 21px; fill: var(--cream); }
 .icon-btn.speed { font: 900 17px var(--display); color: var(--gold-hi); }
 
-.bottom-left { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 11px; align-items: center; }
-.hero-portrait { position: relative; width: 72px; height: 72px; flex: none; border-radius: 12px; background: radial-gradient(circle at 50% 35%, #6a3a2a, #2a1720); border: 1px solid var(--line-2); overflow: hidden; }
+.bottom-left { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 10px; align-items: center; }
+/* Health and experience sit in a strip right above the portrait, as wide as it. */
+.hero-col { display: flex; flex-direction: column; gap: 4px; width: 54px; flex: none; }
+.hero-bars { display: flex; flex-direction: column; gap: 2px; }
+.hero-portrait { position: relative; width: 54px; height: 54px; flex: none; border-radius: 12px; background: radial-gradient(circle at 50% 35%, #6a3a2a, #2a1720); border: 1px solid var(--line-2); overflow: hidden; }
 .hero-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top; transform: scale(1.3) translateY(10%); }
-.lvl { position: absolute; left: 3px; bottom: 3px; min-width: 22px; padding: 1px 4px; font: 900 15px var(--display); border-radius: 6px; background: var(--ember-deep); color: #fff; text-align: center; }
+.lvl { position: absolute; left: 3px; bottom: 3px; min-width: 20px; padding: 0 4px; font: 900 13.5px var(--display); border-radius: 6px; background: var(--ember-deep); color: #fff; text-align: center; }
 .respawn { position: absolute; inset: 0; display: grid; place-items: center; font: 900 30px var(--display); background: rgba(10, 4, 18, 0.75); }
-.hero-side { display: flex; flex-direction: column; gap: 3px; }
+.hero-side { display: flex; flex-direction: column; gap: 4px; }
 .hero-name { font: 600 15px var(--display); }
-.mini-bar { width: 118px; height: 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.mini-bar { width: 100%; height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .mini-bar.xp { height: 4px; }
 .mini-bar i { display: block; height: 100%; }
 .hp i { background: linear-gradient(90deg, #5ec84a, #9fe86a); }
 .xp i { background: var(--sky); }
-.abilities { display: flex; gap: 6px; margin-top: 4px; }
+.abilities { display: flex; gap: 6px; }
 
 .skill { position: relative; width: 58px; height: 58px; padding: 8px; flex: none; border-radius: 12px; background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--sc, #3c2b4a) 30%, transparent), transparent 72%), linear-gradient(#45324f, #2f2139); border: 1.5px solid var(--line-2); transition: transform 0.13s, border-color 0.13s; overflow: hidden; }
 .skill.small { width: 42px; height: 42px; padding: 6px; }
@@ -410,21 +413,23 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .spell-toggle.armed > svg { display: none; }
 .sd-ready { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--ember); color: #fff; font: 800 12px/20px var(--body); text-align: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 .sd-ready:empty { display: none; }
-.sd-ring { --s: 58px; position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; visibility: hidden; transition: visibility 0s 0.26s; }
+/* Opening eases out with a small stagger round the clock; closing is quicker, all at once, and the ring
+   only hides once every piece has finished, so nothing is cut off mid-move. */
+.sd-ring { --s: 58px; --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --ease-in: cubic-bezier(0.4, 0, 0.7, 0.2); position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; visibility: hidden; transition: visibility 0s 0.2s; }
 .spell-dial.open .sd-ring { visibility: visible; transition: none; }
-.sd-face { position: absolute; left: calc(var(--face, 200px) / -2); top: calc(var(--face, 200px) / -2); width: var(--face, 200px); height: var(--face, 200px); border-radius: 50%; background: radial-gradient(circle, rgba(46, 31, 58, 0.72), rgba(27, 18, 36, 0.93) 72%); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(6px); pointer-events: auto; opacity: 0; transform: scale(0.35); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.16s; }
+.sd-face { position: absolute; left: calc(var(--face, 200px) / -2); top: calc(var(--face, 200px) / -2); width: var(--face, 200px); height: var(--face, 200px); border-radius: 50%; background: radial-gradient(circle, rgba(46, 31, 58, 0.86), rgba(27, 18, 36, 0.96) 72%); border: 1px solid var(--line-2); box-shadow: var(--shadow); pointer-events: auto; opacity: 0; transform: scale(0.6); will-change: transform, opacity; transition: transform 0.18s var(--ease-in), opacity 0.18s var(--ease-in); }
 /* The clock face: twelve hour marks inside the rim. */
 .sd-face::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: repeating-conic-gradient(from -1.5deg, rgba(255, 226, 160, 0.35) 0 3deg, transparent 3deg 30deg); -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); mask: radial-gradient(closest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); }
-.spell-dial.open .sd-face { opacity: 1; transform: none; }
-.sd-hub { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--cream-dim); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line-2); transform: scale(0); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.spell-dial.open .sd-face { opacity: 1; transform: scale(1); transition: transform 0.3s var(--ease-out), opacity 0.2s var(--ease-out); }
+.sd-hub { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--cream-dim); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line-2); opacity: 0; transform: scale(0.4); transition: transform 0.16s var(--ease-in), opacity 0.16s var(--ease-in); }
 .sd-hub svg { width: 18px; height: 18px; }
-.spell-dial.open .sd-hub { transform: none; }
-.sd-ring .skill { position: absolute; left: calc(var(--s) / -2); top: calc(var(--s) / -2); width: var(--s); height: var(--s); opacity: 0; transform: scale(0.2); transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.25) calc(var(--i, 0) * 16ms), opacity 0.16s calc(var(--i, 0) * 16ms), border-color 0.13s; }
-.spell-dial.open .sd-ring .skill { opacity: 1; transform: translate(var(--x), var(--y)); }
+.spell-dial.open .sd-hub { opacity: 1; transform: scale(1); transition: transform 0.3s var(--ease-out) 0.04s, opacity 0.2s var(--ease-out) 0.04s; }
+.sd-ring .skill { position: absolute; left: calc(var(--s) / -2); top: calc(var(--s) / -2); width: var(--s); height: var(--s); opacity: 0; transform: translate(0, 0) scale(0.4); will-change: transform, opacity; transition: transform 0.16s var(--ease-in), opacity 0.14s var(--ease-in), border-color 0.13s; }
+.spell-dial.open .sd-ring .skill { opacity: 1; transform: translate(var(--x), var(--y)) scale(1); transition: transform 0.34s var(--ease-out) calc(var(--i, 0) * 12ms), opacity 0.2s var(--ease-out) calc(var(--i, 0) * 12ms), border-color 0.13s; }
 @media (hover: hover) {
-  .spell-dial.open .sd-ring .skill:hover:not(.locked) { transform: translate(var(--x), var(--y)) scale(1.08); }
+  .spell-dial.open .sd-ring .skill:hover:not(.locked) { transform: translate(var(--x), var(--y)) scale(1.08); transition: transform 0.13s var(--ease-out), opacity 0.2s, border-color 0.13s; }
 }
-.touch .spell-dial.open .sd-ring .skill:active:not(.locked) { transform: translate(var(--x), var(--y)) scale(0.93); }
+.touch .spell-dial.open .sd-ring .skill:active:not(.locked) { transform: translate(var(--x), var(--y)) scale(0.93); transition: transform 0.1s var(--ease-out), opacity 0.2s, border-color 0.13s; }
 .touch .spell-toggle:active { transform: scale(0.93); }
 
 /* The tower picker floats beside the spot the player tapped, with a small arrow pointing at it. UI.updatePicker places it. */
@@ -586,7 +591,6 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 }
 
 @media (max-width: 1180px) {
-  .mini-bar { width: 90px; }
   .wave-box { min-width: 0; }
   .up-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
   .settings-grid { grid-template-columns: 1fr; }
@@ -706,18 +710,17 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 
   /* HUD, bottom row: the hero on the left and the spells on the right, both one row as tall as a tower card.
      The middle stays clear for the map; towers are chosen from the picker that opens where you tap. */
-  .bottom-left { left: calc(var(--gap) + var(--sl)); bottom: calc(var(--gap) + var(--sb)); gap: 6px; padding: 5px 6px 5px 5px; border-radius: 12px; }
-  .hero-portrait { width: 44px; height: 44px; border-radius: 9px; }
+  .bottom-left.panel { left: calc(var(--gap) + var(--sl)); bottom: calc(var(--gap) + var(--sb)); gap: 6px; padding: 5px 6px 5px 5px; border-radius: 12px; }
+  .hero-col { width: 38px; gap: 3px; }
+  .hero-bars { gap: 2px; }
+  .hero-portrait { width: 38px; height: 38px; border-radius: 9px; }
   .lvl { left: 2px; bottom: 2px; font-size: 11px; min-width: 15px; padding: 0 3px; border-radius: 5px; }
   .respawn { font-size: 19px; }
   .hero-name { display: none; }
-  /* Health and experience stack beside the portrait, with the hero powers to their right. */
-  .hero-side { display: grid; grid-template-columns: auto auto; grid-template-rows: 1fr 1fr; column-gap: 6px; row-gap: 3px; align-items: center; }
-  .hero-side .mini-bar.hp { grid-area: 1 / 1; align-self: end; }
-  .hero-side .mini-bar.xp { grid-area: 2 / 1; align-self: start; }
-  .mini-bar { width: 56px; height: 5px; }
+  /* The hero powers sit right of the portrait; health and experience are already above it. */
+  .mini-bar { height: 4px; }
   .mini-bar.xp { height: 3px; }
-  .abilities { grid-column: 2; grid-row: 1 / span 2; gap: 4px; margin-top: 0; }
+  .abilities { gap: 4px; }
   .skill.small { width: 36px; height: 36px; padding: 5px; border-radius: 9px; }
   .small .cd { font-size: 13px; }
   /* Fingers need about 44px: hero powers and spells grow to that on touch. */

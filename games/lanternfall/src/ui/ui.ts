@@ -1017,13 +1017,17 @@ export class UI {
         <button class="icon-btn" id="h-pause" aria-label="Pause" data-tip="text" data-text="${touch ? 'Pause' : 'Pause (P)'}">${ICONS.pause}</button>
       </div>
       <div class="bottom-left panel slim">
-        <button class="hero-portrait" id="h-hero" data-tip="text" aria-label="${touch ? `Send ${game.heroDef.name}` : game.heroDef.name}" data-text="${game.heroDef.name}. ${heroAuraText(game.heroDef)} ${touch ? 'Tap here, then tap the map to send your hero there.' : 'Right-click the map to move. Press H to center the camera.'}">
-          <img src="${heroPortrait(game.heroDef.id)}" alt=""><span class="lvl" id="h-hero-level"></span><span class="respawn hidden" id="h-hero-respawn"></span>
-        </button>
+        <div class="hero-col">
+          <div class="hero-bars">
+            <div class="mini-bar hp"><i id="h-hero-hp"></i></div>
+            <div class="mini-bar xp"><i id="h-hero-xp"></i></div>
+        </div>
+          <button class="hero-portrait" id="h-hero" data-tip="text" aria-label="${touch ? `Send ${game.heroDef.name}` : game.heroDef.name}" data-text="${game.heroDef.name}. ${heroAuraText(game.heroDef)} ${touch ? 'Tap here, then tap the map to send your hero there.' : 'Right-click the map to move. Press H to center the camera.'}">
+            <img src="${heroPortrait(game.heroDef.id)}" alt=""><span class="lvl" id="h-hero-level"></span><span class="respawn hidden" id="h-hero-respawn"></span>
+          </button>
+        </div>
         <div class="hero-side">
           <div class="hero-name">${game.heroDef.name}</div>
-          <div class="mini-bar hp"><i id="h-hero-hp"></i></div>
-          <div class="mini-bar xp"><i id="h-hero-xp"></i></div>
           <div class="abilities">
             ${game.heroDef.abilities.map((a, i) => (game.isAbilityUnlocked(i) ? `<button class="skill small" style="--sc:${hex(game.heroDef.accent)}" id="h-ability-${i}" data-tip="ability" data-id="${i}" aria-label="${a.name}">${abilityIcon(a.id)}<kbd>${a.hotkey}</kbd><span class="cd"></span></button>` : '')).join('')}
           </div>
