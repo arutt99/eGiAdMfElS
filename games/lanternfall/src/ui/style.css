@@ -120,6 +120,12 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .play-btn.small { width: auto; padding: 10px 28px; font-size: 18px; }
 /* pointer-events: the UI layer turns them off, and iOS will not scroll an element that has none. */
 .map-rail { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+/* Too narrow for every chapter (a small window or an upright tablet): the rail scrolls instead of running off the screen. */
+@media (max-width: 760px) and (min-height: 541px) {
+  .map-rail { max-width: calc(100% - 28px); padding-top: 9px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .map-rail::-webkit-scrollbar { display: none; }
+  .map-rail > * { flex: none; }
+}
 .map-card { position: relative; width: clamp(112px, 12.5vw, 178px); height: 92px; padding: 10px 12px; border-radius: 13px; overflow: hidden; text-align: left; border: 1.5px solid rgba(255, 255, 255, 0.18); background: linear-gradient(170deg, var(--a), var(--b) 55%, var(--c) 58%); box-shadow: var(--shadow); transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.18s; }
 .map-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(20, 10, 28, 0.78), rgba(20, 10, 28, 0.1) 70%); }
 .map-card > * { position: relative; z-index: 1; }
@@ -394,6 +400,15 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .bottom-right { position: absolute; right: 14px; bottom: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 256px; }
 
 .tower-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
+/* Set by UI.layoutTowerBar when the centered bar would run under the hero or spell panel. */
+.tower-bar[data-fit='shift'] { left: var(--tb-x); transform: none; }
+.tower-bar.tight { gap: 4px; }
+.tower-bar[data-fit='raise'] { bottom: var(--tb-bottom) !important; }
+.tower-bar[data-fit='scroll'] { left: var(--tb-x); right: var(--tb-r); transform: none; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
+.tower-bar[data-fit='scroll']::-webkit-scrollbar { display: none; }
+.tower-bar[data-fit='scroll'] > * { flex: none; }
+.tower-bar[data-fit='scroll'] > :first-child { margin-left: auto; }
+.tower-bar[data-fit='scroll'] > :last-child { margin-right: auto; }
 .tower-card { position: relative; width: clamp(56px, 5.5vw, 88px); aspect-ratio: 1 / 1.15; border-radius: 13px; background: linear-gradient(180deg, rgba(60, 43, 74, 0.94), rgba(27, 18, 36, 0.96)); border: 1.5px solid var(--line-2); box-shadow: var(--shadow); transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.15s, filter 0.15s; overflow: hidden; }
 .tower-card img { position: absolute; left: 0; right: 0; top: 2%; width: 100%; height: 76%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55)); }
 .tower-card kbd { position: absolute; top: 5px; left: 5px; z-index: 2; }
@@ -405,7 +420,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .tower-card.locked { cursor: not-allowed; }
 .tower-card.locked img { filter: brightness(0) opacity(0.5); }
 
-.tower-panel { position: absolute; top: 72px; right: 14px; bottom: 96px; width: 322px; padding: 14px 15px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both; scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; max-height: calc(100vh - 170px); height: fit-content; }
+.tower-panel { position: absolute; top: 72px; right: 14px; bottom: calc(96px + var(--tb-lift, 0px)); width: 322px; padding: 14px 15px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1) both; scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; max-height: calc(100vh - 170px); height: fit-content; }
 .tower-panel header { display: flex; gap: 10px; align-items: center; }
 .tower-panel header img { width: 66px; height: 66px; object-fit: contain; flex: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5)); }
 .tower-panel header > div { flex: 1; }
@@ -478,7 +493,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 @keyframes foeOut { to { opacity: 0; transform: translateX(-16px); } }
 @keyframes foePing { to { box-shadow: 0 0 0 9px rgba(255, 106, 90, 0); } }
 
-.hint-line { position: absolute; left: 50%; bottom: 124px; transform: translateX(-50%); padding: 5px 13px; border-radius: 99px; background: rgba(27, 18, 36, 0.86); font-weight: 700; font-size: 15px; }
+.hint-line { position: absolute; left: 50%; bottom: calc(124px + var(--tb-lift, 0px)); transform: translateX(-50%); padding: 5px 13px; border-radius: 99px; background: rgba(27, 18, 36, 0.86); font-weight: 700; font-size: 15px; }
 .hint-line.bad { color: #ffb3a8; }
 
 #tooltip { position: fixed; top: 0; left: 0; width: 268px; padding: 10px 12px; border-radius: 11px; background: rgba(20, 12, 28, 0.97); border: 1px solid var(--line-2); box-shadow: var(--shadow); z-index: 30; pointer-events: none; }
@@ -507,6 +522,9 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .fatal { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; background: var(--ink); z-index: 100; }
 .fatal h1 { font: 900 38px var(--display); color: var(--gold-hi); }
 .fatal p { max-width: 560px; line-height: 1.4; }
+#gfx-lost { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; background: radial-gradient(circle at 50% 42%, #3a2240, #150d1d 72%); color: var(--cream); z-index: 900; }
+#gfx-lost h1 { font: 900 34px/1.1 var(--display); color: var(--gold-hi); }
+#gfx-lost p { max-width: 520px; line-height: 1.4; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .top-center .coach { animation-name: fade; }
@@ -540,7 +558,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .map-info h2 { font-size: 34px; }
   .story { margin: 8px 0; font-size: 15px; }
   .map-card { height: 76px; }
-  .tower-panel { bottom: 90px; top: 64px; max-height: calc(100vh - 152px); }
+  .tower-panel { bottom: calc(90px + var(--tb-lift, 0px)); top: 64px; max-height: calc(100vh - 152px); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01s !important; transition-duration: 0.01s !important; }
@@ -574,7 +592,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 @keyframes heroCall { 50% { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 6px rgba(255, 200, 90, 0.25); } }
 
 /* The bar that explains what a tap will do, with build and cancel buttons. Touch only. */
-.action-bar { position: absolute; left: 50%; bottom: calc(126px + var(--sb)); transform: translateX(-50%); display: none; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100% - 28px)); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.action-bar { position: absolute; left: 50%; bottom: calc(126px + var(--sb) + var(--tb-lift, 0px)); transform: translateX(-50%); display: none; align-items: center; gap: 8px; width: max-content; max-width: min(560px, calc(100% - 28px)); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .touch .action-bar { display: flex; }
 .touch .action-bar.hidden { display: none !important; }
 .act-body { display: flex; flex-direction: column; min-width: 0; }
@@ -586,7 +604,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
 .act-ok:disabled { opacity: 0.4; filter: saturate(0.3); }
 .act-x { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line-2); }
 .act-x svg { width: 20px; height: 20px; }
-.touch #hud.acting .hint-line { bottom: calc(186px + var(--sb)); }
+.touch #hud.acting .hint-line { bottom: calc(186px + var(--sb) + var(--tb-lift, 0px)); }
 
 /* Touch has no keyboard, hover or right-click, so drop their hints and give fingers room. */
 .touch kbd { display: none !important; }
@@ -621,7 +639,8 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .res b { font-size: 19px; }
   .res .ic { font-size: 18px; }
   .life-bar { display: none; }
-  .top-center { top: calc(6px + var(--st)); left: calc(var(--sl) + 178px); right: calc(var(--sr) + 100px); transform: none; gap: 5px; }
+  /* The --*-x edges are measured by UI.layoutTowerBar; the fallbacks fit a fresh battle. */
+  .top-center { top: calc(6px + var(--st)); left: calc(var(--tl-x, calc(var(--sl) + 170px)) + 8px); right: calc(var(--tr-x, calc(var(--sr) + 92px)) + 8px); transform: none; gap: 5px; }
   /* Wave box: a fold button, the wave details, and the call button. Folded, it is one short line. */
   .wave-box { grid-template-columns: auto minmax(0, auto) auto; max-width: 100%; padding: 3px 5px 3px 3px; column-gap: 7px; row-gap: 0; border-radius: 12px; }
   .wave-toggle { display: grid; place-items: center; grid-row: 1 / span 2; align-self: stretch; width: 26px; border-radius: 8px; color: var(--cream-dim); background: rgba(255, 255, 255, 0.05); }
@@ -672,7 +691,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .bottom-right.collapsed .skill { display: none; }
   .bottom-right.collapsed .spell-toggle { height: 36px; }
 
-  .tower-bar { left: calc(var(--sl) + var(--gap) + var(--hero-w) + 6px); right: calc(var(--sr) + var(--gap) + var(--spells-w) + 6px); bottom: calc(var(--gap) + var(--sb) - 8px); transform: none; gap: 5px; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
+  .tower-bar { left: calc(var(--bl-x, calc(var(--sl) + var(--gap) + var(--hero-w))) + 6px); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 6px); bottom: calc(var(--gap) + var(--sb) - 8px); transform: none; gap: 5px; padding: 9px 2px 8px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; pointer-events: auto; }
   .tower-bar::-webkit-scrollbar { display: none; }
   .tower-bar > :first-child { margin-left: auto; }
   .tower-bar > :last-child { margin-right: auto; }
@@ -704,7 +723,7 @@ kbd { font: 700 11px/1 var(--body); padding: 3px 5px; border-radius: 5px; backgr
   .banner h2 { font-size: 40px; }
   .banner p { font-size: 16px; }
   .hint-line { bottom: calc(80px + var(--sb)); font-size: 13.5px; padding: 4px 12px; }
-  .action-bar { left: calc(var(--sl) + var(--gap)); right: calc(var(--sr) + var(--gap) + var(--spells-w) + 8px); bottom: calc(76px + var(--sb)); transform: none; width: fit-content; max-width: none; margin: 0 auto; padding: 5px 5px 5px 12px; }
+  .action-bar { left: calc(var(--sl) + var(--gap)); right: calc(var(--br-x, calc(var(--sr) + var(--gap) + var(--spells-w))) + 8px); bottom: calc(76px + var(--sb)); transform: none; width: fit-content; max-width: none; margin: 0 auto; padding: 5px 5px 5px 12px; }
   .act-title { font-size: 14.5px; }
   .act-text { font-size: 13px; }
   .act-ok { height: 40px; min-width: 76px; font-size: 15px; }

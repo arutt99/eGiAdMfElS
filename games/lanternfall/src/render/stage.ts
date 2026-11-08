@@ -299,15 +299,23 @@ export class Stage {
 
   /** Must be called with the renderer once before first use. */
   bakeEnvironment(renderer: THREE.WebGLRenderer) {
-    if (!this.envScene) return;
+    if (!this.envScene || this.envRT) return;
     const gen = new THREE.PMREMGenerator(renderer);
     const rt = gen.fromScene(this.envScene, 0.04);
     this.scene.environment = rt.texture;
     this.scene.environmentIntensity = this.envI;
     gen.dispose();
     this.track(rt);
-    this.envScene = null;
+    this.envRT = rt;
   }
+
+  /** Bakes the sky lighting again after the graphics context was lost, which erased it. */
+  rebakeEnvironment(renderer: THREE.WebGLRenderer) {
+    this.envRT?.dispose();
+    this.envRT = null;
+    this.bakeEnvironment(renderer);
+  }
+  private envRT: THREE.WebGLRenderTarget | null = null;
 
   private buildField() {
     const w = this.world;
